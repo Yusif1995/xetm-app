@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if the request is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the user is accessing their own document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if the requesting user has the "admin" role
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Rules for users collection
+    match /users/{userId} {
+      // Authenticated users can view other members' progress
+      allow read: if isAuthenticated();
+      
+      // Users can write/update their own documents, admins can write all
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Rules for settings/config
+    match /settings/config {
+      // Readable by anyone to show the Daily Ayah/Hadith on the login page
+      allow read: if true;
+      
+      // Only admins can update the Daily settings
+      allow write: if isAdmin();
+    }
+  }
+}
