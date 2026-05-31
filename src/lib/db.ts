@@ -121,6 +121,24 @@ export async function toggleCompletedPage(
   }
 }
 
+// Toggle multiple pages completion at once
+export async function toggleCompletedPages(
+  uid: string, 
+  pageNumbers: number[], 
+  isCompleted: boolean
+): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  if (isCompleted) {
+    await updateDoc(docRef, {
+      completedPages: arrayUnion(...pageNumbers)
+    });
+  } else {
+    await updateDoc(docRef, {
+      completedPages: arrayRemove(...pageNumbers)
+    });
+  }
+}
+
 // Get all users ordered by createdAt
 export async function getAllUsers(): Promise<UserDoc[]> {
   try {

@@ -39,11 +39,26 @@ export default function DashboardPage() {
   // Ensure we only count completed pages that are actually assigned
   const activeCompleted = completedPagesState.filter(p => assignedPages.includes(p));
 
-  const handleStatusChange = (pageNumber: number, isCompleted: boolean) => {
+  // Group pages into chunks of 5
+  const sortedPages = [...assignedPages].sort((a, b) => a - b);
+  const pageChunks: number[][] = [];
+  for (let i = 0; i < sortedPages.length; i += 5) {
+    pageChunks.push(sortedPages.slice(i, i + 5));
+  }
+
+  const handleStatusChange = (pageNumbers: number[], isCompleted: boolean) => {
     if (isCompleted) {
-      setCompletedPagesState(prev => [...prev, pageNumber]);
+      setCompletedPagesState(prev => {
+        const next = [...prev];
+        pageNumbers.forEach(p => {
+          if (!next.includes(p)) {
+            next.push(p);
+          }
+        });
+        return next;
+      });
     } else {
-      setCompletedPagesState(prev => prev.filter(p => p !== pageNumber));
+      setCompletedPagesState(prev => prev.filter(p => !pageNumbers.includes(p)));
     }
     // Also trigger user doc refresh in auth context in background
     refreshUser();
@@ -185,17 +200,15 @@ export default function DashboardPage() {
                 </span>
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {assignedPages
-                  .sort((a, b) => a - b)
-                  .map((page) => (
-                    <PageCard
-                      key={page}
-                      userId={user.uid}
-                      pageNumber={page}
-                      initialCompleted={completedPagesState.includes(page)}
-                      onStatusChange={handleStatusChange}
-                    />
-                  ))}
+                {pageChunks.map((chunk) => (
+                  <PageCard
+                    key={chunk.join(",")}
+                    userId={user.uid}
+                    pageNumbers={chunk}
+                    initialCompleted={chunk.every((page) => completedPagesState.includes(page))}
+                    onStatusChange={handleStatusChange}
+                  />
+                ))}
               </div>
             </div>
           </div>
