@@ -1,14 +1,18 @@
 "use client";
 
 import { UserDoc } from "../lib/db";
+import { useAuth } from "../lib/auth";
 
 interface UserRowProps {
   user: UserDoc;
   isAdminView?: boolean;
   onAssignPagesClick?: (user: UserDoc) => void;
+  onRoleToggle?: (user: UserDoc) => void;
 }
 
-export default function UserRow({ user, isAdminView, onAssignPagesClick }: UserRowProps) {
+export default function UserRow({ user, isAdminView, onAssignPagesClick, onRoleToggle }: UserRowProps) {
+  const { user: currentUser } = useAuth();
+  const isSelf = currentUser?.uid === user.uid;
   const totalAssigned = user.assignedPages?.length || 0;
   const totalCompleted = user.completedPages?.filter(p => user.assignedPages.includes(p)).length || 0;
   const percentage = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 0;
@@ -107,12 +111,27 @@ export default function UserRow({ user, isAdminView, onAssignPagesClick }: UserR
       </td>
       {isAdminView && onAssignPagesClick && (
         <td className="px-4 py-3 md:px-6 md:py-4 text-right">
-          <button
-            onClick={() => onAssignPagesClick(user)}
-            className="px-2.5 py-1.5 bg-[#c9a84c]/10 hover:bg-[#c9a84c] text-[#c9a84c] hover:text-[#1a1a2e] border border-[#c9a84c]/30 hover:border-[#c9a84c] rounded-md text-xs font-semibold transition-all duration-300 transform active:scale-95 whitespace-nowrap"
-          >
-            Səhifə Təyin Et
-          </button>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => onRoleToggle && onRoleToggle(user)}
+              disabled={isSelf}
+              title={isSelf ? "Öz rolunuzu dəyişə bilməzsiniz" : "Rolunu dəyiş"}
+              className={`px-2.5 py-1.5 border rounded-md text-xs font-semibold transition-all duration-300 transform active:scale-95 whitespace-nowrap ${
+                user.role === "admin"
+                  ? "bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border-red-500/30 hover:border-red-500"
+                  : "bg-[#1a5c38]/15 hover:bg-[#1a5c38] text-[#c9a84c] hover:text-[#fdf6e3] border-[#1a5c38]/30 hover:border-[#1a5c38]"
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              {user.role === "admin" ? "Admin" : "İştirakçı"}
+            </button>
+
+            <button
+              onClick={() => onAssignPagesClick(user)}
+              className="px-2.5 py-1.5 bg-[#c9a84c]/10 hover:bg-[#c9a84c] text-[#c9a84c] hover:text-[#1a1a2e] border border-[#c9a84c]/30 hover:border-[#c9a84c] rounded-md text-xs font-semibold transition-all duration-300 transform active:scale-95 whitespace-nowrap"
+            >
+              Səhifə Təyin Et
+            </button>
+          </div>
         </td>
       )}
     </tr>

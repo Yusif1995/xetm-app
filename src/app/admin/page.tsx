@@ -8,7 +8,7 @@ import {
   setGlobalSettings, 
   setAssignmentForUser,
   distributeJuzToUsers,
-  calculateStatsForUsers,
+  updateUserRole,
   type UserDoc, 
   type AppSettings 
 } from "@/lib/db";
@@ -92,7 +92,16 @@ export default function AdminPage() {
   });
   const totalUniqueCompleted = completedPagesSet.size;
 
-  const stats = calculateStatsForUsers(users);
+  const handleRoleToggle = async (user: UserDoc) => {
+    try {
+      const newRole = user.role === "admin" ? "user" : "admin";
+      await updateUserRole(user.uid, newRole);
+      await loadData();
+    } catch (err) {
+      console.error("Error toggling role:", err);
+      alert("Rol dəyişdirilərkən xəta baş verdi.");
+    }
+  };
 
   // Filter users by name or email
   const filteredUsers = users.filter(
@@ -279,22 +288,20 @@ export default function AdminPage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Son 1 Həftə</span>
-            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.weeklyCount} səh.</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 bg-[#1a5c38]/10 border border-[#c9a84c]/20 rounded-xl text-center shadow-md">
+            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Tamamlanan Ümumi Xətm</span>
+            <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{settings.completedKhatms || 0}</div>
           </div>
           <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Bu Ay</span>
-            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.thisMonthCount} səh.</div>
+            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Cari Xətmin Səhifələri</span>
+            <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{totalUniqueCompleted} / 604</div>
           </div>
           <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Keçən Ay</span>
-            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.lastMonthCount} səh.</div>
-          </div>
-          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Son 1 İl</span>
-            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.yearlyCount} səh.</div>
+            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Cari Xətm Faiz</span>
+            <div className="text-3xl font-extrabold text-[#c9a84c] mt-1 font-mono">
+              {Math.round((totalUniqueCompleted / 604) * 100)}%
+            </div>
           </div>
         </div>
 
@@ -518,6 +525,7 @@ export default function AdminPage() {
                       user={u} 
                       isAdminView={true} 
                       onAssignPagesClick={handleSelectUser} 
+                      onRoleToggle={handleRoleToggle}
                     />
                   ))}
                 </tbody>

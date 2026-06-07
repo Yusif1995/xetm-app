@@ -1,16 +1,31 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { calculateStatsForUsers } from "@/lib/db";
-import ProgressBar from "@/components/ProgressBar";
+import { getGlobalSettings, type AppSettings } from "@/lib/db";
 import PageCard from "@/components/PageCard";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+  prompt(): Promise<void>;
+}
 
 export default function DashboardPage() {
   const { user, loading, logout, refreshUser } = useAuth();
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [showDua, setShowDua] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
+
+  // PWA states
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
   // Sync state with user doc when it loads
   useEffect(() => {
@@ -18,6 +33,56 @@ export default function DashboardPage() {
       setCompletedPagesState(user.completedPages || []);
     }
   }, [user]);
+
+  // Load settings and PWA logic
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const appSettings = await getGlobalSettings();
+        setSettings(appSettings);
+      } catch (err) {
+        console.error("Error loading settings:", err);
+      }
+    }
+    loadSettings();
+
+    // Check if running in standalone display mode
+    const isStandaloneMode = 
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (('standalone' in window.navigator) && (window.navigator as Navigator & { standalone?: boolean }).standalone === true);
+    setIsStandalone(isStandaloneMode);
+
+    // Detect iOS
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(isIOSDevice);
+
+    // Listen for install prompt on Android/Chrome
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (isIOS) {
+      setShowIOSInstructions(true);
+    } else if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      alert("Bu brauzer avtomatik quraşdırmağı dəstəkləmir. Brauzerinizin menyusundan 'Ana ekrana əlavə et' seçə bilərsiniz.");
+    }
+  };
 
   if (loading) {
     return (
@@ -47,12 +112,6 @@ export default function DashboardPage() {
   for (let i = 0; i < sortedPages.length; i += 5) {
     pageChunks.push(sortedPages.slice(i, i + 5));
   }
-
-  const reactiveUser = {
-    ...user,
-    completedPages: completedPagesState
-  };
-  const personalStats = calculateStatsForUsers([reactiveUser]);
 
   const formatDateDisplay = (dateStr?: string) => {
     if (!dateStr) return "";
@@ -147,6 +206,27 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-8">
+        {/* PWA Install Banner */}
+        {!isStandalone && (
+          <div className="mb-6 p-4 bg-[#1a5c38]/20 border border-[#c9a84c]/30 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl md:text-3xl">📱</span>
+              <div>
+                <h4 className="text-sm md:text-base font-bold text-[#c9a84c] font-amiri">Tətbiqi Ana Ekrana Əlavə Edin</h4>
+                <p className="text-[11px] md:text-xs text-[#fdf6e3]/75">
+                  Uygulama kimi sürətli daxil olmaq və daha rahat istifadə etmək üçün ana ekrana əlavə edin.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleInstallClick}
+              className="px-4 py-2 bg-[#c9a84c] hover:bg-[#b0913e] text-[#1a1a2e] font-bold text-xs rounded-lg transition-all shadow-md flex items-center gap-1.5 whitespace-nowrap self-start md:self-auto"
+            >
+              📥 Ana Ekrana Əlavə Et
+            </button>
+          </div>
+        )}
+
         {/* Welcome Card banner */}
         <div className="mb-8 p-6 bg-[#1a5c38]/10 rounded-2xl border border-[#c9a84c]/20 relative overflow-hidden">
           <div className="absolute right-0 bottom-0 translate-y-4 translate-x-4 opacity-5 pointer-events-none text-9xl">
@@ -176,26 +256,6 @@ export default function DashboardPage() {
               >
                 Ümumi gedişata baxın
               </Link>
-              
-              {user.role !== "admin" && (
-                <button
-                  onClick={async () => {
-                    try {
-                      const { doc, updateDoc } = await import("firebase/firestore");
-                      const { db } = await import("@/lib/firebase");
-                      await updateDoc(doc(db, "users", user.uid), { role: "admin" });
-                      await refreshUser();
-                    } catch (e) {
-                      console.error("Role update failed:", e);
-                      const msg = e instanceof Error ? e.message : String(e);
-                      alert("Admin rolunu aktiv edərkən xəta baş verdi: " + msg);
-                    }
-                  }}
-                  className="px-4 py-2 bg-[#c9a84c] hover:bg-[#b0913e] text-[#1a1a2e] font-semibold rounded-lg transition-all text-sm shadow"
-                >
-                  Özünü Admin Et (İnzibatçı)
-                </button>
-              )}
             </div>
           </div>
         ) : (
@@ -253,25 +313,19 @@ export default function DashboardPage() {
               <h3 className="text-xs font-bold text-[#c9a84c] mb-4 uppercase tracking-wider">
                 Şəxsi Oxuma Gedişatınız
               </h3>
-              <ProgressBar completed={activeCompleted.length} total={assignedPages.length} label="Tamamlanan Səhifələrim" />
-
               {/* Personal Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[#c9a84c]/10">
-                <div className="p-3 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-                  <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider">Mən (Son 7 gün)</span>
-                  <div className="text-base md:text-lg font-extrabold text-[#fdf6e3] mt-0.5 font-mono">{personalStats.weeklyCount} səh.</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-[#c9a84c]/10">
+                <div className="p-4 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+                  <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Mənim Tamamlanan Səhifələrim</span>
+                  <div className="text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">
+                    {activeCompleted.length} / {assignedPages.length}
+                  </div>
                 </div>
-                <div className="p-3 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-                  <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider">Mən (Bu ay)</span>
-                  <div className="text-base md:text-lg font-extrabold text-[#fdf6e3] mt-0.5 font-mono">{personalStats.thisMonthCount} səh.</div>
-                </div>
-                <div className="p-3 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-                  <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider">Mən (Keçən ay)</span>
-                  <div className="text-base md:text-lg font-extrabold text-[#fdf6e3] mt-0.5 font-mono">{personalStats.lastMonthCount} səh.</div>
-                </div>
-                <div className="p-3 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-                  <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider">Mən (Son 1 il)</span>
-                  <div className="text-base md:text-lg font-extrabold text-[#fdf6e3] mt-0.5 font-mono">{personalStats.yearlyCount} səh.</div>
+                <div className="p-4 bg-[#1a5c38]/10 border border-[#c9a84c]/20 rounded-xl text-center shadow-md">
+                  <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup Üzrə Tamamlanan Xətmlər</span>
+                  <div className="text-2xl font-extrabold text-[#c9a84c] mt-1 font-mono">
+                    {settings.completedKhatms || 0} xətm
+                  </div>
                 </div>
               </div>
             </div>
@@ -299,6 +353,35 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* iOS Instructions Modal */}
+      {showIOSInstructions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1a1a2e]/85 backdrop-blur-sm p-4">
+          <div className="bg-[#1a1a2e] border border-[#c9a84c]/30 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center">
+            <h3 className="text-base md:text-lg font-bold text-[#c9a84c] font-amiri">iPhone / iPad üçün Quraşdırma</h3>
+            <div className="space-y-3 text-xs text-[#fdf6e3]/85 text-left bg-[#1a1a2e]/60 p-4 rounded-xl border border-[#c9a84c]/10">
+              <p className="flex items-start gap-2">
+                <span className="bg-[#c9a84c]/20 text-[#c9a84c] w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">1</span>
+                <span>Safari brauzerinin altındakı **Paylaş (Share)** 📤 düyməsinə klikləyin.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="bg-[#c9a84c]/20 text-[#c9a84c] w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">2</span>
+                <span>Açılan menyudan aşağı enərək **Ana Ekrana Əlavə Et (Add to Home Screen)** ➕ seçin.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="bg-[#c9a84c]/20 text-[#c9a84c] w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">3</span>
+                <span>Sağ üst küncdəki **Əlavə et (Add)** düyməsinə klikləyin.</span>
+              </p>
+            </div>
+            <button
+              onClick={() => setShowIOSInstructions(false)}
+              className="w-full px-4 py-2 bg-[#1a5c38] hover:bg-[#1a5c38]/80 text-[#fdf6e3] border border-[#c9a84c]/30 font-semibold rounded-lg text-xs transition-all"
+            >
+              Anladım
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

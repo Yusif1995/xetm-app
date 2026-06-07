@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAllUsers, calculateStatsForUsers, type UserDoc } from "@/lib/db";
+import { getAllUsers, getGlobalSettings, type UserDoc, type AppSettings } from "@/lib/db";
 import { useAuth } from "@/lib/auth";
 import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
@@ -10,6 +10,7 @@ import Link from "next/link";
 export default function ProgressPage() {
   const { user: currentUser, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
+  const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,8 +18,10 @@ export default function ProgressPage() {
       try {
         const allUsers = await getAllUsers();
         setUsers(allUsers);
+        const appSettings = await getGlobalSettings();
+        setSettings(appSettings);
       } catch (err) {
-        console.error("Error loading users for progress:", err);
+        console.error("Error loading progress data:", err);
       } finally {
         setLoading(false);
       }
@@ -40,8 +43,6 @@ export default function ProgressPage() {
   });
   
   const totalUniqueCompleted = completedPagesSet.size;
-
-  const stats = calculateStatsForUsers(users);
 
   if (loading) {
     return (
@@ -117,22 +118,20 @@ export default function ProgressPage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-md">
-            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup (Son 7 gün)</span>
-            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.weeklyCount} səh.</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 bg-[#1a5c38]/10 border border-[#c9a84c]/20 rounded-xl text-center shadow-md">
+            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Tamamlanan Ümumi Xətm</span>
+            <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{settings.completedKhatms || 0}</div>
           </div>
-          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-md">
-            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup (Bu Ay)</span>
-            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.thisMonthCount} səh.</div>
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Cari Xətmin Səhifələri</span>
+            <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{totalUniqueCompleted} / 604</div>
           </div>
-          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-md">
-            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup (Keçən Ay)</span>
-            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.lastMonthCount} səh.</div>
-          </div>
-          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-md">
-            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup (Son 1 İl)</span>
-            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.yearlyCount} səh.</div>
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Cari Xətm Faiz</span>
+            <div className="text-3xl font-extrabold text-[#c9a84c] mt-1 font-mono">
+              {Math.round((totalUniqueCompleted / 604) * 100)}%
+            </div>
           </div>
         </div>
 

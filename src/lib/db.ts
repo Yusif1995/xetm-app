@@ -34,6 +34,8 @@ export interface AppSettings {
   currentAyah?: string;
   currentHadith?: string;
   lastDistributedJuz?: number;
+  completedKhatms?: number;
+  isCurrentKhatmCompleted?: boolean;
 }
 
 // Fetch a single user by UID
@@ -128,6 +130,7 @@ export async function toggleCompletedPage(
       [`completedAt.${pageNumber}`]: deleteField()
     });
   }
+  await checkAndUpdateKhatmCompletion();
 }
 
 // Toggle multiple pages completion at once
@@ -154,6 +157,55 @@ export async function toggleCompletedPages(
   }
 
   await updateDoc(docRef, updates);
+  await checkAndUpdateKhatmCompletion();
+}
+
+// Update a user's role in Firestore
+export async function updateUserRole(
+  uid: string,
+  role: "admin" | "user"
+): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await updateDoc(docRef, { role });
+}
+
+// Check if the current Khatm (all 604 pages) is completed and update global settings
+export async function checkAndUpdateKhatmCompletion(): Promise<void> {
+  try {
+    const users = await getAllUsers();
+    
+    // Calculate unique completed pages
+    const completedPagesSet = new Set<number>();
+    users.forEach((u) => {
+      const assigned = u.assignedPages || [];
+      const completed = u.completedPages || [];
+      completed.forEach((page) => {
+        if (page >= 1 && page <= 604 && assigned.includes(page)) {
+          completedPagesSet.add(page);
+        }
+      });
+    });
+
+    const totalUniqueCompleted = completedPagesSet.size;
+    const settings = await getGlobalSettings();
+    const isCompleted = totalUniqueCompleted === 604;
+
+    const docRef = doc(db, "settings", "config");
+
+    if (isCompleted && !settings.isCurrentKhatmCompleted) {
+      const currentCount = settings.completedKhatms || 0;
+      await updateDoc(docRef, {
+        completedKhatms: currentCount + 1,
+        isCurrentKhatmCompleted: true
+      });
+    } else if (!isCompleted && settings.isCurrentKhatmCompleted) {
+      await updateDoc(docRef, {
+        isCurrentKhatmCompleted: false
+      });
+    }
+  } catch (err) {
+    console.error("Error in checkAndUpdateKhatmCompletion:", err);
+  }
 }
 
 // Set assignment for a user manually
@@ -227,7 +279,8 @@ export async function distributeJuzToUsers(
 
   const settingsRef = doc(db, "settings", "config");
   batch.set(settingsRef, {
-    lastDistributedJuz: lastJuz
+    lastDistributedJuz: lastJuz,
+    isCurrentKhatmCompleted: false
   }, { merge: true });
 
   await batch.commit();
