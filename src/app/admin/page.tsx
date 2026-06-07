@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { 
   getAllUsers, 
-  assignPagesToUser, 
   getGlobalSettings, 
   setGlobalSettings, 
+  setAssignmentForUser,
+  distributeJuzToUsers,
+  calculateStatsForUsers,
   type UserDoc, 
   type AppSettings 
 } from "@/lib/db";
@@ -23,9 +25,19 @@ export default function AdminPage() {
   // Selection and form state for assigning pages
   const [selectedUser, setSelectedUser] = useState<UserDoc | null>(null);
   const [pagesInput, setPagesInput] = useState("");
+  const [startDateInput, setStartDateInput] = useState("");
+  const [endDateInput, setEndDateInput] = useState("");
   const [assignError, setAssignError] = useState<string | null>(null);
   const [assignSuccess, setAssignSuccess] = useState(false);
   const [assignLoading, setAssignLoading] = useState(false);
+
+  // Auto distribution modal state
+  const [showAutoModal, setShowAutoModal] = useState(false);
+  const [autoStartDate, setAutoStartDate] = useState("");
+  const [autoEndDate, setAutoEndDate] = useState("");
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoSuccess, setAutoSuccess] = useState(false);
+  const [autoError, setAutoError] = useState<string | null>(null);
 
   // Settings state
   const [settings, setSettings] = useState<AppSettings>({ currentAyah: "", currentHadith: "" });
@@ -80,6 +92,8 @@ export default function AdminPage() {
   });
   const totalUniqueCompleted = completedPagesSet.size;
 
+  const stats = calculateStatsForUsers(users);
+
   // Filter users by name or email
   const filteredUsers = users.filter(
     (u) =>
@@ -121,6 +135,8 @@ export default function AdminPage() {
     setSelectedUser(user);
     setAssignSuccess(false);
     setAssignError(null);
+    setStartDateInput(user.assignmentStartDate || "");
+    setEndDateInput(user.assignmentEndDate || "");
     
     // Convert current assigned pages to range string for easier editing
     if (user.assignedPages && user.assignedPages.length > 0) {
@@ -156,16 +172,18 @@ export default function AdminPage() {
     try {
       const newPages = parsePagesString(pagesInput);
       
-      // Calculate additions and removals for arrayUnion / arrayRemove compliance
-      const currentPages = selectedUser.assignedPages || [];
-      const pagesToAdd = newPages.filter((p) => !currentPages.includes(p));
-      const pagesToRemove = currentPages.filter((p) => !newPages.includes(p));
-
-      await assignPagesToUser(selectedUser.uid, pagesToAdd, pagesToRemove);
+      await setAssignmentForUser(
+        selectedUser.uid, 
+        newPages, 
+        startDateInput, 
+        endDateInput
+      );
       
       setAssignSuccess(true);
       setSelectedUser(null);
       setPagesInput("");
+      setStartDateInput("");
+      setEndDateInput("");
       
       // Reload users to update metrics in the table
       await loadData();
@@ -174,6 +192,29 @@ export default function AdminPage() {
       setAssignError("Səhifələr təyin edilərkən xəta baş verdi.");
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  const handleAutoDistribute = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAutoLoading(true);
+    setAutoError(null);
+    setAutoSuccess(false);
+
+    try {
+      await distributeJuzToUsers(autoStartDate, autoEndDate);
+      setAutoSuccess(true);
+      setShowAutoModal(false);
+      setAutoStartDate("");
+      setAutoEndDate("");
+      
+      // Reload users to update metrics in the table
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      setAutoError("Avtomatik paylanma zamanı xəta baş verdi.");
+    } finally {
+      setAutoLoading(false);
     }
   };
 
@@ -237,17 +278,54 @@ export default function AdminPage() {
           <ProgressBar completed={totalUniqueCompleted} total={604} label="Tamamlanan Səhifələr (Bütün iştirakçılar)" />
         </div>
 
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Son 1 Həftə</span>
+            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.weeklyCount} səh.</div>
+          </div>
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Bu Ay</span>
+            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.thisMonthCount} səh.</div>
+          </div>
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Keçən Ay</span>
+            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.lastMonthCount} səh.</div>
+          </div>
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Son 1 İl</span>
+            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.yearlyCount} səh.</div>
+          </div>
+        </div>
+
         {/* Mid grid: User pages assignment & Login settings */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* User page assignment card */}
           <div className="lg:col-span-2 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-2xl p-6 flex flex-col justify-between">
             <div>
-              <h3 className="text-lg font-bold text-[#c9a84c] mb-2 font-amiri">
-                Səhifə Təyin Etmə Paneli
-              </h3>
-              <p className="text-xs text-[#fdf6e3]/60 mb-6">
-                İstifadəçiyə səhifə təyin etmək üçün aşağıdakı cədvəldən onun qarşısındakı &quot;Səhifə Təyin Et&quot; düyməsinə klikləyin.
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h3 className="text-lg font-bold text-[#c9a84c] font-amiri">
+                    Səhifə Təyin Etmə Paneli
+                  </h3>
+                  <p className="text-xs text-[#fdf6e3]/60 font-sans">
+                    İstifadəçiyə səhifə təyin etmək üçün aşağıdakı cədvəldən &quot;Səhifə Təyin Et&quot; düyməsinə klikləyin.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAutoModal(true)}
+                  className="px-4 py-2 bg-[#1a5c38] hover:bg-[#1a5c38]/80 text-[#fdf6e3] border border-[#c9a84c]/30 font-semibold rounded-lg text-xs transition-all whitespace-nowrap self-start sm:self-auto shadow-md"
+                >
+                  Cüzləri Avtomatik Payla
+                </button>
+              </div>
+
+              {autoSuccess && (
+                <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-xs rounded">
+                  Cüzlər iştirakçılara uğurla və təsadüfi ardıcıllıqla paylanıldı!
+                </div>
+              )}
 
               {selectedUser ? (
                 <form onSubmit={handleAssignSubmit} className="space-y-4">
@@ -272,6 +350,33 @@ export default function AdminPage() {
                     <span className="text-[10px] text-[#fdf6e3]/40 mt-1 block">
                       Range-ləri tire (-) ilə ayırın, tək səhifələri isə vergüllə daxil edin (1-604 arası).
                     </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                        Başlama Tarixi
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={startDateInput}
+                        onChange={(e) => setStartDateInput(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                        Bitmə Tarixi
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={endDateInput}
+                        onChange={(e) => setEndDateInput(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono"
+                      />
+                    </div>
                   </div>
 
                   {assignError && (
@@ -422,6 +527,76 @@ export default function AdminPage() {
         </div>
 
       </main>
+
+      {/* Auto Distribution Modal */}
+      {showAutoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1a1a2e]/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1a1a2e] border border-[#c9a84c]/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-[#c9a84c] font-amiri flex items-center gap-2">
+              <span>🕋</span>
+              <span>Cüzləri Avtomatik Payla</span>
+            </h3>
+            <p className="text-xs text-[#fdf6e3]/70 leading-relaxed">
+              Bu əməliyyat bütün aktiv iştirakçılara növbəti xətm üzrə təsadüfi cüzləri (20-şər səhifə, 30-cu cüz üçün 24 səhifə) paylayacaq və oxunma tarixçələrini sıfırlayacaq.
+            </p>
+            
+            <form onSubmit={handleAutoDistribute} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                    Başlama Tarixi
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={autoStartDate}
+                    onChange={(e) => setAutoStartDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                    Bitmə Tarixi
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={autoEndDate}
+                    onChange={(e) => setAutoEndDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono"
+                  />
+                </div>
+              </div>
+
+              {autoError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded">
+                  {autoError}
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAutoModal(false);
+                    setAutoError(null);
+                  }}
+                  className="px-4 py-2 bg-gray-500/10 hover:bg-gray-500/20 text-[#fdf6e3]/85 text-xs font-semibold rounded-lg transition-all"
+                >
+                  Ləğv Et
+                </button>
+                <button
+                  type="submit"
+                  disabled={autoLoading}
+                  className="px-4 py-2 bg-[#c9a84c] hover:bg-[#b0913e] disabled:opacity-50 text-[#1a1a2e] text-xs font-semibold rounded-lg transition-all shadow-md"
+                >
+                  {autoLoading ? "Paylanılır..." : "Paylanmanı Başlat"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

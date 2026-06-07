@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
+import { calculateStatsForUsers } from "@/lib/db";
 import ProgressBar from "@/components/ProgressBar";
 import PageCard from "@/components/PageCard";
 import Link from "next/link";
@@ -9,6 +10,7 @@ import { useEffect, useState } from "react";
 export default function DashboardPage() {
   const { user, loading, logout, refreshUser } = useAuth();
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
+  const [showDua, setShowDua] = useState(false);
 
   // Sync state with user doc when it loads
   useEffect(() => {
@@ -45,6 +47,21 @@ export default function DashboardPage() {
   for (let i = 0; i < sortedPages.length; i += 5) {
     pageChunks.push(sortedPages.slice(i, i + 5));
   }
+
+  const reactiveUser = {
+    ...user,
+    completedPages: completedPagesState
+  };
+  const personalStats = calculateStatsForUsers([reactiveUser]);
+
+  const formatDateDisplay = (dateStr?: string) => {
+    if (!dateStr) return "";
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+    return dateStr;
+  };
 
   const handleStatusChange = (pageNumbers: number[], isCompleted: boolean) => {
     if (isCompleted) {
@@ -183,12 +200,80 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-8">
+            {/* Date Range Banner */}
+            {user.assignmentStartDate && user.assignmentEndDate && (
+              <div className="p-4 bg-[#c9a84c]/5 border border-[#c9a84c]/20 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm animate-fadeIn">
+                <div>
+                  <span className="text-xs font-bold text-[#c9a84c] uppercase tracking-wider block">Oxuma Müddətiniz</span>
+                  <span className="text-[10px] text-[#fdf6e3]/50">Bu tarixlər ərzində sizə təyin olunmuş cüzü oxuyub bitirməlisiniz.</span>
+                </div>
+                <span className="text-xs md:text-sm font-extrabold text-[#fdf6e3] font-mono bg-[#1a1a2e] px-3 py-1.5 rounded-lg border border-[#c9a84c]/10 self-start sm:self-auto">
+                  📅 {formatDateDisplay(user.assignmentStartDate)} — {formatDateDisplay(user.assignmentEndDate)}
+                </span>
+              </div>
+            )}
+
+            {/* Juz 30 & Khatm Dua Banner */}
+            {user.assignedJuz === 30 && (
+              <div className="p-5 bg-[#1a5c38]/10 border border-[#c9a84c]/30 rounded-xl space-y-4 animate-fadeIn">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">📖</span>
+                  <div>
+                    <h4 className="text-sm md:text-base font-bold text-[#c9a84c] font-amiri">30-cu Cüz və Xətm Duası</h4>
+                    <p className="text-[11px] text-[#fdf6e3]/75">
+                      Sizə Quranın sonuncu (30-cu) cüzü təyin edilmişdir. Zəhmət olmasa 24 səhifəni bitirdikdən sonra **Xətm Duasını** oxuyun.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="border border-[#c9a84c]/20 rounded-lg overflow-hidden bg-[#1a1a2e]/60">
+                  <button
+                    onClick={() => setShowDua(!showDua)}
+                    className="w-full px-4 py-2.5 flex justify-between items-center text-xs font-bold text-[#c9a84c] hover:bg-[#c9a84c]/5 transition-all"
+                  >
+                    <span>{showDua ? "Xətm Duasını Gizlə" : "Xətm Duasını Oxu"}</span>
+                    <span>{showDua ? "▲" : "▼"}</span>
+                  </button>
+                  {showDua && (
+                    <div className="p-4 space-y-3 border-t border-[#c9a84c]/20 text-center font-amiri text-[#fdf6e3]">
+                      <div className="text-xl md:text-2xl leading-loose text-[#c9a84c] py-2" dir="rtl">
+                        صَدَقَ اللهُ الْعَلِيُّ الْعَظِيمُ، وَبَلَّغَ رَسُولُهُ النَّبِيُّ الْكَرِيمُ، وَنَحْنُ عَلَى ذَلِكَ مِنَ الشَّاهِدِينَ وَالشَّاكِرِينَ. اَللَّهُمَّ انْفَعْنَا وَارْفَعْنَا بِالْقُرْآنِ الْعَظِيمِ، وَبَارِكْ لَنَا بِالآيَاتِ وَالذِّكْرِ الْحَكِيمِ. اَللَّهُمَّ اجْعَلْهُ لَنَا إِمَاماً وَنُوراً وَهُدًى وَرَحْمَةً. اَللَّهُمَّ ذَكِّرْنَا مِنْهُ مَا نَسِينَا، وَعَلِّمْنَا مِنْهُ مَا جَهِلْنَا، وَارْزُقْنَا تِلاَوَتَهُ آنَاءَ اللَّيْلِ وَأَطْرَافَ النَّهَارِ، وَاجْعَلْهُ لَنَا حُجَّةً يَا رَبَّ الْعَالَمِينَ.
+                      </div>
+                      <div className="text-[11px] md:text-xs font-sans italic text-[#fdf6e3]/70 border-t border-[#c9a84c]/10 pt-3 leading-relaxed">
+                        &quot;Uca və Əzəmətli Allah doğru söylədi! Onun şərəfli Peyğəmbər elçisi bunu təbliğ etdi. Biz də buna şahidlik edənlərdən və şükr edənlərdənik. Allahım! Qurani-Kərim ilə bizə fayda ver, bizi ucalt, ayələr və hikmətli zikr ilə bizə bərəkət bəxş et. Allahım! Quranı bizim üçün rəhbər, nur, doğru yol göstərən və rəhmət et. Allahım! Ondan unutduqlarımızı yadımıza sal, bilmədiklərimizi öyrət, gecənin bəzi saatlarında və günün hər iki tərəfində onu oxumağı bizə nəsib et. Ey aləmlərin Rəbbi, onu bizim xeyrimizə dəlil et!&quot;
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Progress metrics */}
             <div className="bg-[#1a1a2e]/40 border border-[#c9a84c]/10 rounded-2xl p-6">
               <h3 className="text-xs font-bold text-[#c9a84c] mb-4 uppercase tracking-wider">
                 Şəxsi Oxuma Gedişatınız
               </h3>
               <ProgressBar completed={activeCompleted.length} total={assignedPages.length} label="Tamamlanan Səhifələrim" />
+
+              {/* Personal Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[#c9a84c]/10">
+                <div className="p-3 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+                  <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider">Mən (Son 7 gün)</span>
+                  <div className="text-base md:text-lg font-extrabold text-[#fdf6e3] mt-0.5 font-mono">{personalStats.weeklyCount} səh.</div>
+                </div>
+                <div className="p-3 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+                  <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider">Mən (Bu ay)</span>
+                  <div className="text-base md:text-lg font-extrabold text-[#fdf6e3] mt-0.5 font-mono">{personalStats.thisMonthCount} səh.</div>
+                </div>
+                <div className="p-3 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+                  <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider">Mən (Keçən ay)</span>
+                  <div className="text-base md:text-lg font-extrabold text-[#fdf6e3] mt-0.5 font-mono">{personalStats.lastMonthCount} səh.</div>
+                </div>
+                <div className="p-3 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
+                  <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider">Mən (Son 1 il)</span>
+                  <div className="text-base md:text-lg font-extrabold text-[#fdf6e3] mt-0.5 font-mono">{personalStats.yearlyCount} səh.</div>
+                </div>
+              </div>
             </div>
 
             {/* Grid of assigned pages */}

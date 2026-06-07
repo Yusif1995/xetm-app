@@ -10,7 +10,8 @@ import {
   getDocs, 
   query, 
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  deleteField
 } from "firebase/firestore";
 
 export interface UserDoc {
@@ -21,6 +22,10 @@ export interface UserDoc {
   role: "admin" | "user";
   assignedPages: number[];   // pages 1-604
   completedPages: number[];  // subset of assignedPages
+  completedAt?: Record<string, string>; // pageNumber -> ISO timestamp string
+  assignmentStartDate?: string; // YYYY-MM-DD
+  assignmentEndDate?: string;   // YYYY-MM-DD
+  assignedJuz?: number;         // 1-30
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createdAt: any;
 }
@@ -28,6 +33,7 @@ export interface UserDoc {
 export interface AppSettings {
   currentAyah?: string;
   currentHadith?: string;
+  lastDistributedJuz?: number;
 }
 
 // Fetch a single user by UID
@@ -110,13 +116,16 @@ export async function toggleCompletedPage(
   isCompleted: boolean
 ): Promise<void> {
   const docRef = doc(db, "users", uid);
+  const timestamp = new Date().toISOString();
   if (isCompleted) {
     await updateDoc(docRef, {
-      completedPages: arrayUnion(pageNumber)
+      completedPages: arrayUnion(pageNumber),
+      [`completedAt.${pageNumber}`]: timestamp
     });
   } else {
     await updateDoc(docRef, {
-      completedPages: arrayRemove(pageNumber)
+      completedPages: arrayRemove(pageNumber),
+      [`completedAt.${pageNumber}`]: deleteField()
     });
   }
 }
@@ -128,15 +137,158 @@ export async function toggleCompletedPages(
   isCompleted: boolean
 ): Promise<void> {
   const docRef = doc(db, "users", uid);
+  const timestamp = new Date().toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: Record<string, any> = {};
+
   if (isCompleted) {
-    await updateDoc(docRef, {
-      completedPages: arrayUnion(...pageNumbers)
+    updates.completedPages = arrayUnion(...pageNumbers);
+    pageNumbers.forEach((p) => {
+      updates[`completedAt.${p}`] = timestamp;
     });
   } else {
-    await updateDoc(docRef, {
-      completedPages: arrayRemove(...pageNumbers)
+    updates.completedPages = arrayRemove(...pageNumbers);
+    pageNumbers.forEach((p) => {
+      updates[`completedAt.${p}`] = deleteField();
     });
   }
+
+  await updateDoc(docRef, updates);
+}
+
+// Set assignment for a user manually
+export async function setAssignmentForUser(
+  uid: string,
+  pages: number[],
+  startDate: string,
+  endDate: string,
+  juzNumber?: number
+): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await updateDoc(docRef, {
+    assignedPages: pages,
+    completedPages: [],
+    completedAt: {},
+    assignmentStartDate: startDate,
+    assignmentEndDate: endDate,
+    assignedJuz: juzNumber || null
+  });
+}
+
+// Automatically distribute Quran Juz to active users randomly shuffled
+export async function distributeJuzToUsers(
+  startDate: string,
+  endDate: string
+): Promise<void> {
+  const users = await getAllUsers();
+  const activeUsers = [...users].sort((a, b) => a.name.localeCompare(b.name));
+  
+  // Fisher-Yates Shuffle user order
+  for (let i = activeUsers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [activeUsers[i], activeUsers[j]] = [activeUsers[j], activeUsers[i]];
+  }
+
+  if (activeUsers.length === 0) return;
+
+  const settings = await getGlobalSettings();
+  let lastJuz = settings.lastDistributedJuz || 0;
+
+  const { writeBatch } = await import("firebase/firestore");
+  const batch = writeBatch(db);
+
+  for (const user of activeUsers) {
+    const nextJuz = (lastJuz % 30) + 1;
+    
+    // Page ranges for Juz
+    const startPage = (nextJuz - 1) * 20 + 1;
+    let endPage = nextJuz * 20;
+    if (nextJuz === 30) {
+      endPage = 604;
+    }
+
+    const pages = [];
+    for (let p = startPage; p <= endPage; p++) {
+      pages.push(p);
+    }
+
+    const userRef = doc(db, "users", user.uid);
+    batch.update(userRef, {
+      assignedPages: pages,
+      completedPages: [],
+      completedAt: {},
+      assignmentStartDate: startDate,
+      assignmentEndDate: endDate,
+      assignedJuz: nextJuz
+    });
+
+    lastJuz = nextJuz;
+  }
+
+  const settingsRef = doc(db, "settings", "config");
+  batch.set(settingsRef, {
+    lastDistributedJuz: lastJuz
+  }, { merge: true });
+
+  await batch.commit();
+}
+
+export interface CompletionStat {
+  weeklyCount: number;
+  thisMonthCount: number;
+  lastMonthCount: number;
+  yearlyCount: number;
+}
+
+// Helper function to calculate statistics for an array of users
+export function calculateStatsForUsers(users: UserDoc[]): CompletionStat {
+  const now = new Date();
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+  let weeklyCount = 0;
+  let thisMonthCount = 0;
+  let lastMonthCount = 0;
+  let yearlyCount = 0;
+
+  users.forEach((u) => {
+    const completed = u.completedPages || [];
+    completed.forEach((page) => {
+      let pageDate: Date | null = null;
+      if (u.completedAt && u.completedAt[page]) {
+        pageDate = new Date(u.completedAt[page]);
+      } else if (u.createdAt) {
+        if (typeof u.createdAt.toDate === "function") {
+          pageDate = u.createdAt.toDate();
+        } else {
+          pageDate = new Date(u.createdAt);
+        }
+      }
+
+      if (pageDate) {
+        const time = pageDate.getTime();
+        
+        if (time >= oneWeekAgo.getTime()) {
+          weeklyCount++;
+        }
+        if (time >= thisMonthStart.getTime()) {
+          thisMonthCount++;
+        }
+        if (time >= lastMonthStart.getTime() && time <= lastMonthEnd.getTime()) {
+          lastMonthCount++;
+        }
+        if (time >= oneYearAgo.getTime()) {
+          yearlyCount++;
+        }
+      }
+    });
+  });
+
+  return { weeklyCount, thisMonthCount, lastMonthCount, yearlyCount };
 }
 
 // Get all users ordered by createdAt

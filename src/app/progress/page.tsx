@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAllUsers, type UserDoc } from "@/lib/db";
+import { getAllUsers, calculateStatsForUsers, type UserDoc } from "@/lib/db";
 import { useAuth } from "@/lib/auth";
 import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
@@ -40,6 +40,8 @@ export default function ProgressPage() {
   });
   
   const totalUniqueCompleted = completedPagesSet.size;
+
+  const stats = calculateStatsForUsers(users);
 
   if (loading) {
     return (
@@ -112,6 +114,26 @@ export default function ProgressPage() {
             total={604} 
             label="Qrup Xətm Tamamlanması" 
           />
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-md">
+            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup (Son 7 gün)</span>
+            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.weeklyCount} səh.</div>
+          </div>
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-md">
+            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup (Bu Ay)</span>
+            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.thisMonthCount} səh.</div>
+          </div>
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-md">
+            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup (Keçən Ay)</span>
+            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.lastMonthCount} səh.</div>
+          </div>
+          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-md">
+            <span className="text-[10px] md:text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup (Son 1 İl)</span>
+            <div className="text-xl md:text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{stats.yearlyCount} səh.</div>
+          </div>
         </div>
 
         {/* Participants Table */}

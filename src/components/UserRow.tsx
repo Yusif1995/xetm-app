@@ -51,6 +51,15 @@ export default function UserRow({ user, isAdminView, onAssignPagesClick }: UserR
     return ranges.join(", ");
   };
 
+  const formatDateDisplay = (dateStr?: string) => {
+    if (!dateStr) return "";
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+    return dateStr;
+  };
+
   return (
     <tr className="border-b border-[#c9a84c]/10 bg-[#1a1a2e]/25 hover:bg-[#1a5c38]/5 transition-colors">
       <td className="px-4 py-3 md:px-6 md:py-4">
@@ -76,9 +85,14 @@ export default function UserRow({ user, isAdminView, onAssignPagesClick }: UserR
         </div>
       </td>
       <td className="px-4 py-3 md:px-6 md:py-4 text-[11px] md:text-sm text-[#fdf6e3]/80 font-mono">
-        <div className="max-w-[120px] md:max-w-[200px] truncate" title={formatPages(user.assignedPages)}>
+        <div className="max-w-[120px] md:max-w-[200px] truncate font-bold text-[#fdf6e3]" title={formatPages(user.assignedPages)}>
           {formatPages(user.assignedPages)}
         </div>
+        {user.assignmentStartDate && user.assignmentEndDate && (
+          <div className="text-[10px] text-[#c9a84c] mt-0.5 font-sans">
+            📅 {formatDateDisplay(user.assignmentStartDate)} — {formatDateDisplay(user.assignmentEndDate)}
+          </div>
+        )}
       </td>
       <td className="px-4 py-3 md:px-6 md:py-4 text-xs md:text-sm text-[#fdf6e3]/80 font-mono">
         {totalCompleted} / {totalAssigned}
