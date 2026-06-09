@@ -36,6 +36,13 @@ export interface AppSettings {
   lastDistributedJuz?: number;
   completedKhatms?: number;
   isCurrentKhatmCompleted?: boolean;
+  currentDailyItem?: {
+    text: string;
+    translation: string;
+    source: string;
+    type: "ayah" | "hadith";
+  };
+  lastDailyUpdate?: string;
 }
 
 // Fetch a single user by UID

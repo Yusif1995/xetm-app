@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getGlobalSettings } from "../lib/db";
 
 interface Item {
   text: string;
@@ -55,35 +54,14 @@ export default function AyahDisplay() {
   useEffect(() => {
     async function loadFeatured() {
       try {
-        const settings = await getGlobalSettings();
-        if (settings.currentAyah || settings.currentHadith) {
-          // If Firestore settings are set, we choose between the configured ayah or hadith randomly
-          const options: Item[] = [];
-          if (settings.currentAyah) {
-            options.push({
-              text: settings.currentAyah,
-              translation: "Günün Ayəsi",
-              source: "Quran-ı Kərim",
-              type: "ayah"
-            });
-          }
-          if (settings.currentHadith) {
-            options.push({
-              text: settings.currentHadith,
-              translation: "Günün Hədisi",
-              source: "Mənbə qeyd olunmayıb",
-              type: "hadith"
-            });
-          }
-          
-          if (options.length > 0) {
-            const selected = options[Math.floor(Math.random() * options.length)];
-            setItem(selected);
-            return;
-          }
+        const res = await fetch("/api/daily");
+        if (res.ok) {
+          const dailyItem = await res.json();
+          setItem(dailyItem);
+          return;
         }
       } catch (err) {
-        console.error("Failed to load global config from Firestore, falling back to local list:", err);
+        console.error("Failed to load daily item from API, falling back to local list:", err);
       }
 
       // Fallback or default random selection
