@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { searchQuran } from "@/lib/rag";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,7 +21,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Map message history to Gemini API format
-    // Gemini roles must be 'user' or 'model' (Next.js chat components often use 'user' or 'assistant')
     const contents = messages.map((msg: { role: string; content: string }) => {
       const role = msg.role === "assistant" ? "model" : "user";
       return {
@@ -28,6 +28,16 @@ export async function POST(req: NextRequest) {
         parts: [{ text: msg.content }],
       };
     });
+
+    // Run local RAG search based on the last user message
+    const lastUserMessage = messages[messages.length - 1]?.content || "";
+    const retrievedVerses = searchQuran(lastUserMessage);
+
+    let ragContext = "";
+    if (retrievedVerses.length > 0) {
+      ragContext = "\n\nİstifadəçinin son sualı ilə əlaqəli rəsmi verilənlər bazasından tapılmış Quran ayələri (Cavabında bu tərcümələrə üstünlük ver və mütləq istifadə et):\n" +
+        retrievedVerses.map(v => `[${v.chapterName} surəsi, ${v.verse}-ci ayə]: "${v.text}"`).join("\n");
+    }
 
     const systemInstruction = 
       "Sən Quran Xətm tətbiqinin Süni İntellekt Köməkçisisən (İslam AI Assistant). " +
@@ -37,7 +47,8 @@ export async function POST(req: NextRequest) {
       "2. Quran ayələrini təqdim edərkən imkan daxilində ərəbcə orijinal mətnini (hərəkəli şəkildə) yaz, ardınca Azərbaycan dilindəki mənasını/tərcüməsini qeyd et və mütləq Surə və ayə nömrəsini göstər (məsələn, Əl-Bəqərə surəsi, 153-cü ayə).\n" +
       "3. Hədis təqdim edərkən onun ravisini və hansı mötəbər hədis mənbəyindən (Səhih əl-Buxari, Müslim, Tirmizi, Əbu Davud və s.) olduğunu mütləq qeyd et.\n" +
       "4. Əgər istifadəçi dini mövzulardan kənar suallar verərsə, zərif şəkildə ona yalnız Quran, hədis və İslam dini mövzusunda kömək edə biləcəyini xatırlat.\n" +
-      "5. Cavablarında həmişə hörmətli, zərif, elmi və yardımsevər ton istifadə et.";
+      "5. Cavablarında həmişə hörmətli, zərif, elmi və yardımsevər ton istifadə et." +
+      ragContext;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
