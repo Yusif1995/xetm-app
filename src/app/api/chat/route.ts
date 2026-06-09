@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       "4. Əgər istifadəçi dini mövzulardan kənar suallar verərsə, zərif şəkildə ona yalnız Quran, hədis və İslam dini mövzusunda kömək edə biləcəyini xatırlat.\n" +
       "5. Cavablarında həmişə hörmətli, zərif, elmi və yardımsevər ton istifadə et.";
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: "POST",
