@@ -1,5 +1,7 @@
 import fs from "fs";
 import path from "path";
+import { db } from "./firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 // 114 Surah names in Azerbaijani
 export const SURAH_NAMES = [
@@ -99,4 +101,61 @@ export function searchQuran(query: string, maxResults = 8) {
     }));
 
   return matches;
+}
+
+export async function searchHadiths(queryText: string, maxResults = 5) {
+  try {
+    const cleanQuery = queryText
+      .toLowerCase()
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const queryWords = cleanQuery
+      .split(" ")
+      .filter(word => word.length >= 3 && !AZ_STOP_WORDS.has(word));
+
+    if (queryWords.length === 0) return [];
+
+    const hadithsRef = collection(db, "hadiths");
+    // Firestore only allows up to 10 elements in array-contains-any
+    const q = query(hadithsRef, where("keywords", "array-contains-any", queryWords.slice(0, 10)));
+    const querySnapshot = await getDocs(q);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const matches: any[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      let score = 0;
+      const hadithTextLower = data.text.toLowerCase();
+      
+      queryWords.forEach(word => {
+        if (hadithTextLower.includes(word)) {
+          score += 2;
+          // Exact word matching bonus
+          const regex = new RegExp(`\\b${word}\\b`, "i");
+          if (regex.test(hadithTextLower)) {
+            score += 3;
+          }
+        }
+      });
+
+      if (score > 0) {
+        matches.push({
+          text: data.text,
+          source: data.source,
+          narrator: data.narrator,
+          topic: data.topic,
+          score: score
+        });
+      }
+    });
+
+    return matches
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxResults);
+  } catch (error) {
+    console.error("Error searching hadiths in Firestore:", error);
+    return [];
+  }
 }

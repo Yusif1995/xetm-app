@@ -36,5 +36,14 @@ service cloud.firestore {
       // Only admins can update the Daily settings
       allow write: if isAdmin();
     }
+
+    // Rules for hadiths collection
+    match /hadiths/{hadithId} {
+      // Authenticated users can read the hadiths
+      allow read: if isAuthenticated();
+      
+      // Only admins can write/update hadiths
+      allow write: if isAdmin(); 
+    }
   }
 }

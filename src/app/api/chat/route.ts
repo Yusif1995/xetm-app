@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchQuran } from "@/lib/rag";
+import { searchQuran, searchHadiths } from "@/lib/rag";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,14 +29,22 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // Run local RAG search based on the last user message
+    // Run local RAG search (parallel search for Quran and Hadiths)
     const lastUserMessage = messages[messages.length - 1]?.content || "";
-    const retrievedVerses = searchQuran(lastUserMessage);
+    const [retrievedVerses, retrievedHadiths] = await Promise.all([
+      searchQuran(lastUserMessage),
+      searchHadiths(lastUserMessage)
+    ]);
 
     let ragContext = "";
     if (retrievedVerses.length > 0) {
-      ragContext = "\n\nİstifadəçinin son sualı ilə əlaqəli rəsmi verilənlər bazasından tapılmış Quran ayələri (Cavabında bu tərcümələrə üstünlük ver və mütləq istifadə et):\n" +
+      ragContext += "\n\nİstifadəçinin son sualı ilə əlaqəli rəsmi verilənlər bazasından tapılmış Quran ayələri (Cavabında bu tərcümələrə üstünlük ver və mütləq istifadə et):\n" +
         retrievedVerses.map(v => `[${v.chapterName} surəsi, ${v.verse}-ci ayə]: "${v.text}"`).join("\n");
+    }
+
+    if (retrievedHadiths.length > 0) {
+      ragContext += "\n\nİstifadəçinin son sualı ilə əlaqəli rəsmi verilənlər bazasından tapılmış Səhih hədislər (Cavabında bu hədis mətni, mənbə və ravilərdən mütləq sitat gətirərək istifadə et):\n" +
+        retrievedHadiths.map(h => `[Mənbə: ${h.source}, Ravi: ${h.narrator}]: "${h.text}"`).join("\n");
     }
 
     const systemInstruction = 
