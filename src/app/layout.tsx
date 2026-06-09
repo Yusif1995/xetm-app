@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Amiri, Inter } from "next/font/google";
-import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
+import AiChatWidget from "@/components/AiChatWidget";
+import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -33,6 +34,7 @@ export default function RootLayout({
           <div className="flex-1 flex flex-col">
             {children}
           </div>
+          <AiChatWidget />
         </AuthProvider>
       </body>
     </html>
