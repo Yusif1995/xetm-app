@@ -59,11 +59,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       console.error("Gemini API Error Response:", errorData);
+      const apiErrorMessage = errorData?.error?.message || "Müraciət uğursuz oldu.";
       return NextResponse.json(
-        { error: "Gemini API ilə əlaqə qurarkən xəta baş verdi." },
-        { status: 502 }
+        { error: `Gemini API xətası: ${apiErrorMessage}` },
+        { status: response.status }
       );
     }
 
