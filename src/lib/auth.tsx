@@ -115,6 +115,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      const handleRegister = () => {
+        navigator.serviceWorker.register("/sw.js")
+          .then((reg) => {
+            console.log("Service Worker registered successfully:", reg.scope);
+          })
+          .catch((err) => {
+            console.error("Service Worker registration failed:", err);
+          });
+      };
+
+      if (document.readyState === "complete") {
+        handleRegister();
+      } else {
+        window.addEventListener("load", handleRegister);
+        return () => window.removeEventListener("load", handleRegister);
+      }
+    }
+  }, []);
+
   const loginWithGoogle = async () => {
     setLoading(true);
     const provider = new GoogleAuthProvider();
