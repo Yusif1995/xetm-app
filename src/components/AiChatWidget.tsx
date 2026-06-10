@@ -167,10 +167,11 @@ export default function AiChatWidget() {
 
       {/* Floating Chat Container */}
       {isOpen && (
-        <div className="fixed bottom-24 right-4 md:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[380px] md:w-[420px] h-[550px] max-h-[70vh] islamic-card flex flex-col overflow-hidden animate-fadeIn">
-          <div className="islamic-card-inner" />
-          <div className="islamic-pattern" />
-          <div className="relative z-10 flex flex-col h-full w-full overflow-hidden">
+        <div className="fixed bottom-24 right-4 md:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[380px] md:w-[420px] h-[550px] max-h-[70vh] flex flex-col overflow-hidden animate-fadeIn">
+          <div className="islamic-card flex-1 flex flex-col h-full w-full relative">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10 flex flex-col h-full w-full overflow-hidden">
             {/* Widget Header */}
             <div className="bg-[#0b301a]/60 border-b border-[#c9a84c]/20 p-4 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2.5">
@@ -295,6 +296,7 @@ export default function AiChatWidget() {
                 ➔
               </button>
             </form>
+            </div>
           </div>
         </div>
       )}

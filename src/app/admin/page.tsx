@@ -14,7 +14,7 @@ import {
 } from "@/lib/db";
 import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
-import Link from "next/link";
+import AppLayout from "@/components/AppLayout";
 
 export default function AdminPage() {
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -244,40 +244,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen islamic-bg">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-[#0b301a]/95 backdrop-blur-md border-b border-[#c9a84c]/20 px-4 md:px-8 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 flex items-center justify-center relative">
-              <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-0 rounded-sm"></div>
-              <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-45 rounded-sm"></div>
-              <div className="absolute w-2.2 h-2.2 bg-[#0b301a] rounded-full z-10"></div>
-            </div>
-            <h1 className="text-xl md:text-2xl font-amiri font-bold text-[#fdf6e3]">
-              İnzibatçı Paneli (Admin)
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 bg-[#1a5c38]/20 hover:bg-[#1a5c38]/40 border border-[#1a5c38]/40 text-[#fdf6e3]/90 font-semibold rounded-lg text-xs md:text-sm transition-all"
-            >
-              Panelimə Keç
-            </Link>
-            <Link
-              href="/progress"
-              className="px-4 py-2 bg-[#c9a84c]/15 hover:bg-[#c9a84c] border border-[#c9a84c]/30 text-[#c9a84c] hover:text-[#0b301a] font-semibold rounded-lg text-xs md:text-sm transition-all"
-            >
-              Gedişat Cədvəli
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-8 space-y-8">
+    <AppLayout activeTab="admin">
         
         {/* Global Progress overview */}
         <div className="islamic-card p-6 shadow-md">
@@ -564,8 +531,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-      </main>
-
       {/* Auto Distribution Modal */}
       {showAutoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05180d]/80 backdrop-blur-sm p-4">
@@ -639,6 +604,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </div>
+    </AppLayout>
   );
 }

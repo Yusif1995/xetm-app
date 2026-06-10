@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { getAllUsers, getGlobalSettings, type UserDoc, type AppSettings } from "@/lib/db";
-import { useAuth } from "@/lib/auth";
 import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
-import Link from "next/link";
+import AppLayout from "@/components/AppLayout";
 
 export default function ProgressPage() {
-  const { user: currentUser, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
   const [loading, setLoading] = useState(true);
@@ -59,44 +57,7 @@ export default function ProgressPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen islamic-bg">
-      {/* Navigation Header */}
-      <header className="sticky top-0 z-30 bg-[#0b301a]/95 backdrop-blur-md border-b border-[#c9a84c]/20 px-4 md:px-8 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            {/* Logo */}
-            <div className="w-8 h-8 flex items-center justify-center relative">
-              <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-0 rounded-sm"></div>
-              <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-45 rounded-sm"></div>
-              <div className="absolute w-2.2 h-2.2 bg-[#0b301a] rounded-full z-10"></div>
-            </div>
-            <h1 className="text-xl md:text-2xl font-amiri font-bold text-[#fdf6e3]">
-              Quran Xətm İzləyicisi
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {!authLoading && currentUser ? (
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 bg-[#c9a84c] hover:bg-[#b0913e] text-[#0b301a] font-semibold rounded-lg text-xs md:text-sm transition-all"
-              >
-                Panelimə Keç
-              </Link>
-            ) : (
-              <Link
-                href="/"
-                className="px-4 py-2 islamic-btn-gold rounded-lg text-xs md:text-sm transition-all"
-              >
-                Google ilə Daxil Ol
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-8 space-y-8">
+    <AppLayout activeTab="progress">
         
         {/* Top Summary Card */}
         <div className="islamic-card p-6 shadow-xl relative overflow-hidden">
@@ -188,8 +149,6 @@ export default function ProgressPage() {
             )}
           </div>
         </div>
-
-      </main>
-    </div>
+    </AppLayout>
   );
 }

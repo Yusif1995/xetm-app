@@ -5,6 +5,7 @@ import { getGlobalSettings, type AppSettings } from "@/lib/db";
 import PageCard from "@/components/PageCard";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import AppLayout from "@/components/AppLayout";
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -16,7 +17,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function DashboardPage() {
-  const { user, loading, logout, refreshUser } = useAuth();
+  const { user, loading, refreshUser } = useAuth();
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [showDua, setShowDua] = useState(false);
   const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
@@ -141,71 +142,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen islamic-bg">
-      {/* Navigation Header */}
-      <header className="sticky top-0 z-30 bg-[#0b301a]/95 backdrop-blur-md border-b border-[#c9a84c]/20 px-4 md:px-8 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            {/* Rub el Hizb logo decoration */}
-            <div className="w-8 h-8 flex items-center justify-center relative">
-              <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-0 rounded-sm"></div>
-              <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-45 rounded-sm"></div>
-              <div className="absolute w-2.2 h-2.2 bg-[#0b301a] rounded-full z-10"></div>
-            </div>
-            <h1 className="text-xl md:text-2xl font-amiri font-bold text-[#fdf6e3]">
-              Quran Xətm İzləyicisi
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-4 flex-wrap justify-center">
-            {/* User Profile Info */}
-            <div className="flex items-center gap-2">
-              {user.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt={user.name}
-                  className="w-8 h-8 rounded-full border border-[#c9a84c]/30 shadow"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-[#1a5c38]/40 border border-[#c9a84c]/30 flex items-center justify-center font-bold text-[#c9a84c] text-xs">
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <span className="text-xs md:text-sm font-semibold text-[#fdf6e3]/90">{user.name}</span>
-            </div>
-
-            {/* Navigation links */}
-            <nav className="flex items-center gap-2.5">
-              <Link
-                href="/progress"
-                className="px-3 py-1.5 bg-[#1a5c38]/20 hover:bg-[#1a5c38]/40 border border-[#1a5c38]/40 hover:border-[#1a5c38] text-[#fdf6e3]/90 text-xs font-semibold rounded-lg transition-all"
-              >
-                Gedişat Cədvəli
-              </Link>
-
-              {user.role === "admin" && (
-                <Link
-                  href="/admin"
-                  className="px-3 py-1.5 bg-[#c9a84c]/15 hover:bg-[#c9a84c] border border-[#c9a84c]/30 hover:border-[#c9a84c] text-[#c9a84c] hover:text-[#0b301a] text-xs font-semibold rounded-lg transition-all"
-                >
-                  Admin Panel
-                </Link>
-              )}
-
-              <button
-                onClick={logout}
-                className="px-3 py-1.5 bg-red-950/20 hover:bg-red-900/40 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold rounded-lg transition-all"
-              >
-                Çıxış
-              </button>
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-8">
+    <AppLayout activeTab="dashboard">
         {/* PWA Install Banner */}
         {!isStandalone && (
           <div className="mb-6 p-4 islamic-card flex flex-col md:flex-row items-center justify-between gap-4 animate-fadeIn">
@@ -369,7 +306,6 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-      </main>
 
       {/* iOS Instructions Modal */}
       {showIOSInstructions && (
@@ -399,6 +335,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-    </div>
+    </AppLayout>
   );
 }
