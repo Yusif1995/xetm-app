@@ -90,3 +90,36 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+self.addEventListener('push', (event) => {
+  if (!event.data) {
+    return;
+  }
+
+  try {
+    const data = event.data.json();
+    const title = data.title || "Quran Xətm";
+    const options = {
+      body: data.body || "",
+      icon: data.icon || "/icon.png",
+      badge: data.badge || "/favicon.ico",
+      vibrate: data.vibrate || [200, 100, 200],
+      data: data.data || { url: "/" }
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(title, options)
+    );
+  } catch (err) {
+    console.error("Error processing push event:", err);
+    // Fallback to text payload if not JSON
+    const text = event.data.text();
+    event.waitUntil(
+      self.registration.showNotification("Quran Xətm", {
+        body: text,
+        icon: "/icon.png",
+        badge: "/favicon.ico"
+      })
+    );
+  }
+});

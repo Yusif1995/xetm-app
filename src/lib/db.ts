@@ -36,6 +36,7 @@ export interface UserDoc {
   previousCompletedPages?: number[];
   previousStartDate?: string;
   previousEndDate?: string;
+  pushSubscriptions?: string[];
 }
 
 export interface AppSettings {
@@ -177,6 +178,14 @@ export async function toggleCompletedPages(
 
   await updateDoc(docRef, updates);
   await checkAndUpdateKhatmCompletion();
+
+  if (isCompleted && typeof window !== "undefined") {
+    fetch("/api/send-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid, pageNumbers })
+    }).catch((err) => console.error("Error triggering push notification API:", err));
+  }
 }
 
 // Update a user's role in Firestore
@@ -454,6 +463,14 @@ export async function togglePreviousCompletedPages(
   }
 
   await updateDoc(docRef, updates);
+
+  if (isCompleted && typeof window !== "undefined") {
+    fetch("/api/send-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid, pageNumbers })
+    }).catch((err) => console.error("Error triggering push notification API:", err));
+  }
 }
 
 // Clear all page assignments and resets everything
@@ -487,3 +504,18 @@ export async function clearAllAssignments(): Promise<void> {
   
   await batch.commit();
 }
+
+export async function addPushSubscription(uid: string, subscription: string): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await updateDoc(docRef, {
+    pushSubscriptions: arrayUnion(subscription)
+  });
+}
+
+export async function removePushSubscription(uid: string, subscription: string): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await updateDoc(docRef, {
+    pushSubscriptions: arrayRemove(subscription)
+  });
+}
+

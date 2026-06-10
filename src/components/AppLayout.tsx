@@ -5,10 +5,26 @@ import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
+import { addPushSubscription } from "@/lib/db";
 
 interface AppLayoutProps {
   children: React.ReactNode;
   activeTab: "dashboard" | "readings" | "progress" | "stats" | "admin" | "ai";
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
 }
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
@@ -17,14 +33,47 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const prevCompletionsRef = useRef<Record<string, number[]>>({});
   const isFirstLoadRef = useRef(true);
 
-  // Request browser Notification permission on mount
+  // Request browser Notification permission and register push subscription on mount/login
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "default") {
-        Notification.requestPermission();
+    if (!user) return;
+    
+    const initPush = async () => {
+      if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+        let permission = Notification.permission;
+        if (permission === "default") {
+          permission = await Notification.requestPermission();
+        }
+        
+        if (permission === "granted") {
+          try {
+            const registration = await navigator.serviceWorker.ready;
+            let subscription = await registration.pushManager.getSubscription();
+            
+            if (!subscription) {
+              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+              if (publicKey) {
+                subscription = await registration.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: urlBase64ToUint8Array(publicKey)
+                });
+              } else {
+                console.warn("VAPID public key not found in env variables.");
+              }
+            }
+            
+            if (subscription) {
+              await addPushSubscription(user.uid, JSON.stringify(subscription));
+              console.log("Registered Push Subscription for user", user.uid);
+            }
+          } catch (err) {
+            console.error("Error setting up push subscription:", err);
+          }
+        }
       }
-    }
-  }, []);
+    };
+    
+    initPush();
+  }, [user]);
 
   // Listen to completedPages updates in real-time
   useEffect(() => {
