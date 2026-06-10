@@ -1,20 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, getDoc, collection, getDocs } from "firebase/firestore";
-
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDaVwYICjVWAc_KLeF0KSgtYNwC_7atPBo",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "quran-khetm.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "quran-khetm",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "quran-khetm.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "562127471618",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:562127471618:web:67d05c07630b0aeb7e931b",
-};
-
-// Initialize Firebase (Server-side)
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const db = getFirestore(app);
 
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "diItSNkdB7QOBkjy4dH2YgmOu6uKRhNIWACqjreiCDw";
@@ -27,29 +12,12 @@ webpush.setVapidDetails(
 
 export async function POST(req: NextRequest) {
   try {
-    const { uid, pageNumbers } = await req.json();
+    const { senderName, pageNumbers, subscriptions } = await req.json();
 
-    if (!uid || !pageNumbers || !Array.isArray(pageNumbers) || pageNumbers.length === 0) {
+    if (!senderName || !pageNumbers || !Array.isArray(pageNumbers) || pageNumbers.length === 0 || !Array.isArray(subscriptions)) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    if (!vapidPublicKey || !vapidPrivateKey) {
-      return NextResponse.json({ error: "VAPID keys not configured" }, { status: 500 });
-    }
-
-    // 1. Get the sender's user document to get their name
-    const senderRef = doc(db, "users", uid);
-    const senderSnap = await getDoc(senderRef);
-    if (!senderSnap.exists()) {
-      return NextResponse.json({ error: "Sender not found" }, { status: 404 });
-    }
-    const senderName = senderSnap.data().name || "Bir iştirakçı";
-
-    // 2. Get all users
-    const usersSnap = await getDocs(collection(db, "users"));
-    const notifications: Promise<unknown>[] = [];
-
-    // Formulate the push notification payload
     const payload = JSON.stringify({
       title: "Quran Xətm - Yeni Tamamlama!",
       body: `${senderName} yeni səhifəni tamamladı: Səhifə ${pageNumbers.sort((a, b) => a - b).join(", ")}`,
@@ -59,35 +27,19 @@ export async function POST(req: NextRequest) {
       data: { url: "/dashboard" }
     });
 
-    usersSnap.forEach((userDoc) => {
-      const userUid = userDoc.id;
-      // Skip the sender themselves
-      if (userUid === uid) return;
+    const notifications: Promise<unknown>[] = [];
 
-      const userData = userDoc.data();
-      const subscriptions: string[] = userData.pushSubscriptions || [];
-
-      subscriptions.forEach((subStr) => {
-        try {
-          const subscription = JSON.parse(subStr);
-          const promise = webpush.sendNotification(subscription, payload)
-            .catch(async (err) => {
-              console.error(`Error sending push to user ${userUid}:`, err.statusCode);
-              // If subscription is invalid (e.g. 410 Gone, 404 Not Found), remove it from Firestore
-              if (err.statusCode === 410 || err.statusCode === 404) {
-                console.log(`Removing stale subscription for user ${userUid}`);
-                const { arrayRemove, updateDoc } = await import("firebase/firestore");
-                const userRef = doc(db, "users", userUid);
-                await updateDoc(userRef, {
-                  pushSubscriptions: arrayRemove(subStr)
-                });
-              }
-            });
-          notifications.push(promise);
-        } catch (e) {
-          console.error("Failed to parse push subscription JSON:", e);
-        }
-      });
+    subscriptions.forEach((subStr) => {
+      try {
+        const subscription = JSON.parse(subStr);
+        const promise = webpush.sendNotification(subscription, payload)
+          .catch((err) => {
+            console.error("Error sending push notification to endpoint:", err.statusCode);
+          });
+        notifications.push(promise);
+      } catch (e) {
+        console.error("Failed to parse push subscription JSON:", e);
+      }
     });
 
     await Promise.all(notifications);

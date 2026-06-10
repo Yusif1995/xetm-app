@@ -179,12 +179,10 @@ export async function toggleCompletedPages(
   await updateDoc(docRef, updates);
   await checkAndUpdateKhatmCompletion();
 
-  if (isCompleted && typeof window !== "undefined") {
-    fetch("/api/send-push", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid, pageNumbers })
-    }).catch((err) => console.error("Error triggering push notification API:", err));
+  if (isCompleted) {
+    sendPushNotificationForCompletedPages(uid, pageNumbers).catch((err) =>
+      console.error("Failed to send push:", err)
+    );
   }
 }
 
@@ -464,12 +462,10 @@ export async function togglePreviousCompletedPages(
 
   await updateDoc(docRef, updates);
 
-  if (isCompleted && typeof window !== "undefined") {
-    fetch("/api/send-push", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid, pageNumbers })
-    }).catch((err) => console.error("Error triggering push notification API:", err));
+  if (isCompleted) {
+    sendPushNotificationForCompletedPages(uid, pageNumbers).catch((err) =>
+      console.error("Failed to send push:", err)
+    );
   }
 }
 
@@ -517,5 +513,37 @@ export async function removePushSubscription(uid: string, subscription: string):
   await updateDoc(docRef, {
     pushSubscriptions: arrayRemove(subscription)
   });
+}
+
+// Client-side helper to query other users' subscriptions and trigger Next.js push API
+export async function sendPushNotificationForCompletedPages(senderUid: string, pageNumbers: number[]): Promise<void> {
+  try {
+    const users = await getAllUsers();
+    let senderName = "Bir iştirakçı";
+    const subscriptions: string[] = [];
+
+    users.forEach((userData) => {
+      if (userData.uid === senderUid) {
+        senderName = userData.name || "Bir iştirakçı";
+      } else {
+        const userSubs: string[] = userData.pushSubscriptions || [];
+        subscriptions.push(...userSubs);
+      }
+    });
+
+    if (subscriptions.length === 0) return;
+
+    await fetch("/api/send-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        senderName,
+        pageNumbers,
+        subscriptions
+      })
+    });
+  } catch (err) {
+    console.error("Error in sendPushNotificationForCompletedPages:", err);
+  }
 }
 
