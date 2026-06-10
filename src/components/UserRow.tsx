@@ -65,7 +65,7 @@ export default function UserRow({ user, isAdminView, onAssignPagesClick, onRoleT
   };
 
   return (
-    <tr className="border-b border-[#c9a84c]/10 bg-[#1a1a2e]/25 hover:bg-[#1a5c38]/5 transition-colors">
+    <tr className="border-b border-[#c9a84c]/10 bg-[#05180d]/40 hover:bg-[#1a5c38]/10 transition-colors">
       <td className="px-4 py-3 md:px-6 md:py-4">
         <div className="flex items-center gap-3">
           {user.photoURL ? (
@@ -118,8 +118,8 @@ export default function UserRow({ user, isAdminView, onAssignPagesClick, onRoleT
               title={isSelf ? "Öz rolunuzu dəyişə bilməzsiniz" : "Rolunu dəyiş"}
               className={`px-2.5 py-1.5 border rounded-md text-xs font-semibold transition-all duration-300 transform active:scale-95 whitespace-nowrap ${
                 user.role === "admin"
-                  ? "bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border-red-500/30 hover:border-red-500"
-                  : "bg-[#1a5c38]/15 hover:bg-[#1a5c38] text-[#c9a84c] hover:text-[#fdf6e3] border-[#1a5c38]/30 hover:border-[#1a5c38]"
+                  ? "bg-red-950/20 hover:bg-red-900/40 text-red-400 hover:text-red-300 border-red-500/30 hover:border-red-500"
+                  : "bg-[#1a5c38]/30 hover:bg-[#1a5c38]/60 text-[#fdf6e3] border border-[#c9a84c]/20 hover:border-[#c9a84c]"
               } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               {user.role === "admin" ? "Admin" : "İştirakçı"}
@@ -127,7 +127,7 @@ export default function UserRow({ user, isAdminView, onAssignPagesClick, onRoleT
 
             <button
               onClick={() => onAssignPagesClick(user)}
-              className="px-2.5 py-1.5 bg-[#c9a84c]/10 hover:bg-[#c9a84c] text-[#c9a84c] hover:text-[#1a1a2e] border border-[#c9a84c]/30 hover:border-[#c9a84c] rounded-md text-xs font-semibold transition-all duration-300 transform active:scale-95 whitespace-nowrap"
+              className="px-2.5 py-1.5 islamic-btn-gold rounded-md text-xs transition-all duration-300 transform active:scale-95 whitespace-nowrap"
             >
               Səhifə Təyin Et
             </button>

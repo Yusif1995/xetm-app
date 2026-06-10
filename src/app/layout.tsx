@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="az" className="h-full">
       <body
-        className={`${inter.variable} ${amiri.variable} font-sans antialiased bg-[#1a1a2e] text-[#fdf6e3] h-full flex flex-col`}
+        className={`${inter.variable} ${amiri.variable} font-sans antialiased text-[#fdf6e3] h-full flex flex-col`}
       >
         <AuthProvider>
           <div className="flex-1 flex flex-col">

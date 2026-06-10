@@ -154,7 +154,7 @@ export default function AiChatWidget() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         aria-label="AI Köməkçi"
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-gradient-to-br from-[#c9a84c] to-[#b0913e] text-[#1a1a2e] rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer border border-[#c9a84c]/40 group"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-gradient-to-br from-[#c9a84c] to-[#b0913e] text-[#0b301a] rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer border border-[#c9a84c]/40 group"
       >
         <span className="text-2xl transition-transform duration-300 group-hover:rotate-12">
           {isOpen ? "✖" : "🤖"}
@@ -167,131 +167,135 @@ export default function AiChatWidget() {
 
       {/* Floating Chat Container */}
       {isOpen && (
-        <div className="fixed bottom-24 right-4 md:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[380px] md:w-[420px] h-[550px] max-h-[70vh] bg-[#1a1a2e]/95 backdrop-blur-md border border-[#c9a84c]/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn">
-          {/* Widget Header */}
-          <div className="bg-[#1a5c38]/20 border-b border-[#c9a84c]/20 p-4 flex justify-between items-center shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 flex items-center justify-center relative">
-                <div className="absolute w-6 h-6 bg-[#c9a84c] rotate-0 rounded-sm"></div>
-                <div className="absolute w-6 h-6 bg-[#c9a84c] rotate-45 rounded-sm"></div>
-                <div className="absolute w-1.5 h-1.5 bg-[#1a1a2e] rounded-full z-10"></div>
+        <div className="fixed bottom-24 right-4 md:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[380px] md:w-[420px] h-[550px] max-h-[70vh] islamic-card flex flex-col overflow-hidden animate-fadeIn">
+          <div className="islamic-card-inner" />
+          <div className="islamic-pattern" />
+          <div className="relative z-10 flex flex-col h-full w-full overflow-hidden">
+            {/* Widget Header */}
+            <div className="bg-[#0b301a]/60 border-b border-[#c9a84c]/20 p-4 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 flex items-center justify-center relative">
+                  <div className="absolute w-6 h-6 bg-[#c9a84c] rotate-0 rounded-sm"></div>
+                  <div className="absolute w-6 h-6 bg-[#c9a84c] rotate-45 rounded-sm"></div>
+                  <div className="absolute w-1.5 h-1.5 bg-[#0b301a] rounded-full z-10"></div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-amiri font-bold text-[#fdf6e3] leading-none">AI Köməkçi</h3>
+                  <span className="text-[9px] text-[#c9a84c] font-semibold uppercase tracking-wider">İslam AI Assistant</span>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-amiri font-bold text-[#fdf6e3] leading-none">AI Köməkçi</h3>
-                <span className="text-[9px] text-[#c9a84c] font-semibold uppercase tracking-wider">İslam AI Assistant</span>
-              </div>
-            </div>
-            
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-[#fdf6e3]/60 hover:text-[#fdf6e3] text-sm p-1 transition-colors"
-            >
-              ✖
-            </button>
-          </div>
-
-          {/* Chat History Area */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-[#c9a84c]/20 bg-[#1a1a2e]/40">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex w-full gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-[#fdf6e3]/60 hover:text-[#fdf6e3] text-sm p-1 transition-colors focus:outline-none"
               >
-                {msg.role === "assistant" && (
-                  <div className="w-7 h-7 rounded-full bg-[#1a5c38]/40 border border-[#c9a84c]/20 flex items-center justify-center font-bold text-[#c9a84c] text-[10px] shrink-0 self-start mt-0.5">
-                    🕋
-                  </div>
-                )}
-                
+                ✖
+              </button>
+            </div>
+
+            {/* Chat History Area */}
+            <div className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-[#c9a84c]/20 bg-[#05180d]/60">
+              {messages.map((msg) => (
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-md ${
-                    msg.role === "user"
-                      ? "bg-gradient-to-br from-[#c9a84c]/90 to-[#b0913e]/90 text-[#1a1a2e] rounded-tr-none font-medium text-xs"
-                      : "bg-[#1a5c38]/10 border border-[#c9a84c]/15 text-[#fdf6e3] rounded-tl-none"
-                  }`}
+                  key={msg.id}
+                  className={`flex w-full gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  {msg.role === "user" ? (
-                    <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                  ) : (
-                    <div className="space-y-1">{parseMessageText(msg.content)}</div>
+                  {msg.role === "assistant" && (
+                    <div className="w-7 h-7 rounded-full bg-[#1a5c38]/40 border border-[#c9a84c]/20 flex items-center justify-center font-bold text-[#c9a84c] text-[10px] shrink-0 self-start mt-0.5">
+                      🕋
+                    </div>
+                  )}
+                  
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-md ${
+                      msg.role === "user"
+                        ? "bg-gradient-to-br from-[#c9a84c]/90 to-[#b0913e]/90 text-[#0b301a] rounded-tr-none font-semibold text-xs"
+                        : "bg-[#05180d]/80 border border-[#c9a84c]/20 text-[#fdf6e3] rounded-tl-none"
+                    }`}
+                  >
+                    {msg.role === "user" ? (
+                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    ) : (
+                      <div className="space-y-1">{parseMessageText(msg.content)}</div>
+                    )}
+                  </div>
+
+                  {msg.role === "user" && (
+                    <div className="w-7 h-7 rounded-full bg-[#c9a84c]/10 border border-[#c9a84c]/30 flex items-center justify-center font-bold text-[#c9a84c] text-[9px] shrink-0 self-start mt-0.5">
+                      👤
+                    </div>
                   )}
                 </div>
+              ))}
 
-                {msg.role === "user" && (
-                  <div className="w-7 h-7 rounded-full bg-[#c9a84c]/10 border border-[#c9a84c]/30 flex items-center justify-center font-bold text-[#c9a84c] text-[9px] shrink-0 self-start mt-0.5">
-                    👤
+              {/* Typing indicator */}
+              {isSending && (
+                <div className="flex w-full gap-2.5 justify-start">
+                  <div className="w-7 h-7 rounded-full bg-[#1a5c38]/40 border border-[#c9a84c]/20 flex items-center justify-center font-bold text-[#c9a84c] text-[10px] shrink-0">
+                    🕋
                   </div>
-                )}
-              </div>
-            ))}
-
-            {/* Typing indicator */}
-            {isSending && (
-              <div className="flex w-full gap-2.5 justify-start">
-                <div className="w-7 h-7 rounded-full bg-[#1a5c38]/40 border border-[#c9a84c]/20 flex items-center justify-center font-bold text-[#c9a84c] text-[10px] shrink-0">
-                  🕋
-                </div>
-                <div className="bg-[#1a5c38]/10 border border-[#c9a84c]/15 text-[#fdf6e3] rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-1.5">
-                  <span className="text-[10px] text-[#fdf6e3]/70 font-medium animate-pulse">Düşünür</span>
-                  <span className="flex gap-0.5">
-                    <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                    <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                    <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Error Message */}
-            {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 text-[10px] rounded-xl text-center">
-                ⚠️ {error}
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Suggested Prompts (only visible when chat starts and not sending) */}
-          {messages.length === 1 && !isSending && (
-            <div className="p-3 border-t border-[#c9a84c]/10 bg-[#1a1a2e]/60 shrink-0">
-              <span className="text-[9px] text-[#c9a84c] uppercase tracking-wider font-bold block mb-1.5">
-                Hazır Sorğular
-              </span>
-              <div className="grid grid-cols-2 gap-1.5">
-                {SUGGESTIONS.map((sug, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSendMessage(sug.prompt)}
-                    className="p-2 text-left bg-[#1a5c38]/5 hover:bg-[#1a5c38]/15 border border-[#c9a84c]/15 hover:border-[#c9a84c]/30 rounded-lg transition-all group flex flex-col justify-between"
-                  >
-                    <span className="text-[10px] font-bold text-[#c9a84c] block line-clamp-1 group-hover:text-[#fdf6e3]">
-                      {sug.label}
+                  <div className="bg-[#05180d]/80 border border-[#c9a84c]/20 text-[#fdf6e3] rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-1.5">
+                    <span className="text-[10px] text-[#fdf6e3]/70 font-medium animate-pulse">Düşünür</span>
+                    <span className="flex gap-0.5">
+                      <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                      <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                      <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                     </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+                  </div>
+                </div>
+              )}
 
-          {/* Message Input Box */}
-          <form onSubmit={handleFormSubmit} className="p-3 border-t border-[#c9a84c]/15 bg-[#1a1a2e] flex gap-2 shrink-0">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Quran ayəsi, hədis və ya mövzu..."
-              disabled={isSending}
-              className="flex-1 bg-[#1a1a2e]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-xl px-3 py-2 text-xs text-[#fdf6e3] placeholder-[#fdf6e3]/40 focus:outline-none focus:ring-1 focus:ring-[#c9a84c]/40 transition-all disabled:opacity-60"
-            />
-            <button
-              type="submit"
-              disabled={isSending || !input.trim()}
-              className="bg-[#c9a84c] hover:bg-[#b0913e] disabled:bg-[#c9a84c]/40 disabled:text-[#1a1a2e]/60 text-[#1a1a2e] font-bold px-3.5 py-2 rounded-xl text-xs transition-all flex items-center justify-center shrink-0"
-            >
-              ➔
-            </button>
-          </form>
+              {/* Error Message */}
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 text-[10px] rounded-xl text-center">
+                  ⚠️ {error}
+                </div>
+              )}
+              
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Suggested Prompts (only visible when chat starts and not sending) */}
+            {messages.length === 1 && !isSending && (
+              <div className="p-3 border-t border-[#c9a84c]/10 bg-[#05180d]/80 shrink-0">
+                <span className="text-[9px] text-[#c9a84c] uppercase tracking-wider font-bold block mb-1.5">
+                  Hazır Sorğular
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {SUGGESTIONS.map((sug, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSendMessage(sug.prompt)}
+                      className="p-2 text-left bg-[#05180d]/60 hover:bg-[#1a5c38]/20 border border-[#c9a84c]/20 hover:border-[#c9a84c]/40 rounded-lg transition-all group flex flex-col justify-between"
+                    >
+                      <span className="text-[10px] font-bold text-[#c9a84c] block line-clamp-1 group-hover:text-[#fdf6e3]">
+                        {sug.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Message Input Box */}
+            <form onSubmit={handleFormSubmit} className="p-3 border-t border-[#c9a84c]/15 bg-[#05180d]/90 flex gap-2 shrink-0">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Quran ayəsi, hədis və ya mövzu..."
+                disabled={isSending}
+                className="flex-1 bg-[#05180d]/80 border border-[#c9a84c]/30 focus:border-[#c9a84c] rounded-xl px-3 py-2 text-xs text-[#fdf6e3] placeholder-[#fdf6e3]/40 focus:outline-none transition-all disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={isSending || !input.trim()}
+                className="bg-[#c9a84c] hover:bg-[#b0913e] disabled:bg-[#c9a84c]/40 disabled:text-[#0b301a]/60 text-[#0b301a] font-bold px-3.5 py-2 rounded-xl text-xs transition-all flex items-center justify-center shrink-0"
+              >
+                ➔
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </>

@@ -86,7 +86,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col justify-center items-center bg-[#1a1a2e] text-[#fdf6e3] min-h-screen">
+      <div className="flex-1 flex flex-col justify-center items-center islamic-bg text-[#fdf6e3] min-h-screen">
         <div className="animate-spin h-10 w-10 text-[#c9a84c] mb-4">
           <svg className="w-full h-full" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -141,16 +141,16 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-[#1a1a2e]">
+    <div className="flex-1 flex flex-col min-h-screen islamic-bg">
       {/* Navigation Header */}
-      <header className="sticky top-0 z-30 bg-[#1a1a2e]/90 backdrop-blur-md border-b border-[#c9a84c]/20 px-4 md:px-8 py-4">
+      <header className="sticky top-0 z-30 bg-[#0b301a]/95 backdrop-blur-md border-b border-[#c9a84c]/20 px-4 md:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             {/* Rub el Hizb logo decoration */}
             <div className="w-8 h-8 flex items-center justify-center relative">
               <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-0 rounded-sm"></div>
               <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-45 rounded-sm"></div>
-              <div className="absolute w-2.2 h-2.2 bg-[#1a1a2e] rounded-full z-10"></div>
+              <div className="absolute w-2.2 h-2.2 bg-[#0b301a] rounded-full z-10"></div>
             </div>
             <h1 className="text-xl md:text-2xl font-amiri font-bold text-[#fdf6e3]">
               Quran Xətm İzləyicisi
@@ -179,7 +179,7 @@ export default function DashboardPage() {
             <nav className="flex items-center gap-2.5">
               <Link
                 href="/progress"
-                className="px-3 py-1.5 bg-[#1a5c38]/10 hover:bg-[#1a5c38]/30 border border-[#1a5c38]/30 hover:border-[#1a5c38] text-[#fdf6e3]/90 text-xs font-semibold rounded-lg transition-all"
+                className="px-3 py-1.5 bg-[#1a5c38]/20 hover:bg-[#1a5c38]/40 border border-[#1a5c38]/40 hover:border-[#1a5c38] text-[#fdf6e3]/90 text-xs font-semibold rounded-lg transition-all"
               >
                 Gedişat Cədvəli
               </Link>
@@ -187,7 +187,7 @@ export default function DashboardPage() {
               {user.role === "admin" && (
                 <Link
                   href="/admin"
-                  className="px-3 py-1.5 bg-[#c9a84c]/10 hover:bg-[#c9a84c] border border-[#c9a84c]/30 hover:border-[#c9a84c] text-[#c9a84c] hover:text-[#1a1a2e] text-xs font-semibold rounded-lg transition-all"
+                  className="px-3 py-1.5 bg-[#c9a84c]/15 hover:bg-[#c9a84c] border border-[#c9a84c]/30 hover:border-[#c9a84c] text-[#c9a84c] hover:text-[#0b301a] text-xs font-semibold rounded-lg transition-all"
                 >
                   Admin Panel
                 </Link>
@@ -195,7 +195,7 @@ export default function DashboardPage() {
 
               <button
                 onClick={logout}
-                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold rounded-lg transition-all"
+                className="px-3 py-1.5 bg-red-950/20 hover:bg-red-900/40 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold rounded-lg transition-all"
               >
                 Çıxış
               </button>
@@ -208,66 +208,75 @@ export default function DashboardPage() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-8">
         {/* PWA Install Banner */}
         {!isStandalone && (
-          <div className="mb-6 p-4 bg-[#1a5c38]/20 border border-[#c9a84c]/30 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 animate-fadeIn">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl md:text-3xl">📱</span>
-              <div>
-                <h4 className="text-sm md:text-base font-bold text-[#c9a84c] font-amiri">Tətbiqi Ana Ekrana Əlavə Edin</h4>
-                <p className="text-[11px] md:text-xs text-[#fdf6e3]/75">
-                  Uygulama kimi sürətli daxil olmaq və daha rahat istifadə etmək üçün ana ekrana əlavə edin.
-                </p>
+          <div className="mb-6 p-4 islamic-card flex flex-col md:flex-row items-center justify-between gap-4 animate-fadeIn">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4 w-full">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl md:text-3xl">📱</span>
+                <div>
+                  <h4 className="text-sm md:text-base font-bold text-[#c9a84c] font-amiri">Tətbiqi Ana Ekrana Əlavə Edin</h4>
+                  <p className="text-[11px] md:text-xs text-[#fdf6e3]/75">
+                    Uygulama kimi sürətli daxil olmaq və daha rahat istifadə etmək üçün ana ekrana əlavə edin.
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={handleInstallClick}
+                className="px-4 py-2 islamic-btn-gold rounded-lg transition-all shadow-md flex items-center gap-1.5 whitespace-nowrap self-start md:self-auto text-xs"
+              >
+                📥 Ana Ekrana Əlavə Et
+              </button>
             </div>
-            <button
-              onClick={handleInstallClick}
-              className="px-4 py-2 bg-[#c9a84c] hover:bg-[#b0913e] text-[#1a1a2e] font-bold text-xs rounded-lg transition-all shadow-md flex items-center gap-1.5 whitespace-nowrap self-start md:self-auto"
-            >
-              📥 Ana Ekrana Əlavə Et
-            </button>
           </div>
         )}
 
         {/* Welcome Card banner */}
-        <div className="mb-8 p-6 bg-[#1a5c38]/10 rounded-2xl border border-[#c9a84c]/20 relative overflow-hidden">
-          <div className="absolute right-0 bottom-0 translate-y-4 translate-x-4 opacity-5 pointer-events-none text-9xl">
-            📖
+        <div className="mb-8 p-6 islamic-card relative overflow-hidden">
+          <div className="islamic-card-inner" />
+          <div className="islamic-pattern" />
+          <div className="relative z-10 flex flex-col">
+            <h2 className="text-2xl md:text-3xl font-amiri font-bold text-[#c9a84c] mb-1">
+              Salam, {user.name}!
+            </h2>
+            <p className="text-sm text-[#fdf6e3]/75 max-w-xl">
+              Sizin üçün təyin edilmiş Quran səhifələrini aşağıdakı siyahıdan izləyə bilərsiniz. Oxuduğunuz hər bir səhifəni işarələməyi unutmayın.
+            </p>
           </div>
-          <h2 className="text-2xl md:text-3xl font-amiri font-bold text-[#c9a84c] mb-1">
-            Salam, {user.name}!
-          </h2>
-          <p className="text-sm text-[#fdf6e3]/75 max-w-xl">
-            Sizin üçün təyin edilmiş Quran səhifələrini aşağıdakı siyahıdan izləyə bilərsiniz. Oxuduğunuz hər bir səhifəni işarələməyi unutmayın.
-          </p>
         </div>
 
         {/* Assigned Pages validation */}
         {assignedPages.length === 0 ? (
-          <div className="text-center py-16 px-6 bg-[#1a1a2e]/45 border border-[#c9a84c]/20 rounded-2xl max-w-2xl mx-auto flex flex-col items-center shadow-lg">
-            <span className="text-5xl mb-4">🕋</span>
-            <h3 className="text-lg md:text-xl font-semibold text-[#fdf6e3] mb-2">Səhifə təyin edilməyib</h3>
-            <p className="text-sm text-[#fdf6e3]/60 leading-relaxed mb-4 max-w-md">
-              Hörmətli iştirakçı, hazırda sizə oxumaq üçün heç bir səhifə təyin edilməyib. İnzibatçı səhifə təyin edən kimi səhifələriniz burada görünəcək.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-3 items-center">
-              <Link
-                href="/progress"
-                className="px-4 py-2 bg-[#c9a84c]/20 hover:bg-[#c9a84c]/30 text-[#c9a84c] border border-[#c9a84c]/40 font-semibold rounded-lg transition-all text-sm shadow"
-              >
-                Ümumi gedişata baxın
-              </Link>
+          <div className="text-center py-16 px-6 islamic-card max-w-2xl mx-auto flex flex-col items-center">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10 flex flex-col items-center w-full">
+              <span className="text-5xl mb-4">🕋</span>
+              <h3 className="text-lg md:text-xl font-semibold text-[#fdf6e3] mb-2">Səhifə təyin edilməyib</h3>
+              <p className="text-sm text-[#fdf6e3]/60 leading-relaxed mb-6 max-w-md">
+                Hörmətli iştirakçı, hazırda sizə oxumaq üçün heç bir səhifə təyin edilməyib. İnzibatçı səhifə təyin edən kimi səhifələriniz burada görünəcək.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 items-center">
+                <Link
+                  href="/progress"
+                  className="px-4 py-2 bg-[#c9a84c]/20 hover:bg-[#c9a84c]/30 text-[#c9a84c] border border-[#c9a84c]/40 font-semibold rounded-lg transition-all text-sm shadow"
+                >
+                  Ümumi gedişata baxın
+                </Link>
+              </div>
             </div>
           </div>
         ) : (
           <div className="space-y-8">
             {/* Date Range Banner */}
             {user.assignmentStartDate && user.assignmentEndDate && (
-              <div className="p-4 bg-[#c9a84c]/5 border border-[#c9a84c]/20 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm animate-fadeIn">
+              <div className="p-4 bg-[#0b301a]/40 border border-[#c9a84c]/25 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm animate-fadeIn">
                 <div>
                   <span className="text-xs font-bold text-[#c9a84c] uppercase tracking-wider block">Oxuma Müddətiniz</span>
                   <span className="text-[10px] text-[#fdf6e3]/50">Bu tarixlər ərzində sizə təyin olunmuş cüzü oxuyub bitirməlisiniz.</span>
                 </div>
-                <span className="text-xs md:text-sm font-extrabold text-[#fdf6e3] font-mono bg-[#1a1a2e] px-3 py-1.5 rounded-lg border border-[#c9a84c]/10 self-start sm:self-auto">
+                <span className="text-xs md:text-sm font-extrabold text-[#fdf6e3] font-mono bg-[#05180d] px-3 py-1.5 rounded-lg border border-[#c9a84c]/20 self-start sm:self-auto">
                   📅 {formatDateDisplay(user.assignmentStartDate)} — {formatDateDisplay(user.assignmentEndDate)}
                 </span>
               </div>
@@ -275,56 +284,64 @@ export default function DashboardPage() {
 
             {/* Juz 30 & Khatm Dua Banner */}
             {user.assignedJuz === 30 && (
-              <div className="p-5 bg-[#1a5c38]/10 border border-[#c9a84c]/30 rounded-xl space-y-4 animate-fadeIn">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">📖</span>
-                  <div>
-                    <h4 className="text-sm md:text-base font-bold text-[#c9a84c] font-amiri">30-cu Cüz və Xətm Duası</h4>
-                    <p className="text-[11px] text-[#fdf6e3]/75">
-                      Sizə Quranın sonuncu (30-cu) cüzü təyin edilmişdir. Zəhmət olmasa 24 səhifəni bitirdikdən sonra **Xətm Duasını** oxuyun.
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="border border-[#c9a84c]/20 rounded-lg overflow-hidden bg-[#1a1a2e]/60">
-                  <button
-                    onClick={() => setShowDua(!showDua)}
-                    className="w-full px-4 py-2.5 flex justify-between items-center text-xs font-bold text-[#c9a84c] hover:bg-[#c9a84c]/5 transition-all"
-                  >
-                    <span>{showDua ? "Xətm Duasını Gizlə" : "Xətm Duasını Oxu"}</span>
-                    <span>{showDua ? "▲" : "▼"}</span>
-                  </button>
-                  {showDua && (
-                    <div className="p-4 space-y-3 border-t border-[#c9a84c]/20 text-center font-amiri text-[#fdf6e3]">
-                      <div className="text-xl md:text-2xl leading-loose text-[#c9a84c] py-2" dir="rtl">
-                        صَدَقَ اللهُ الْعَلِيُّ الْعَظِيمُ، وَبَلَّغَ رَسُولُهُ النَّبِيُّ الْكَرِيمُ، وَنَحْنُ عَلَى ذَلِكَ مِنَ الشَّاهِدِينَ وَالشَّاكِرِينَ. اَللَّهُمَّ انْفَعْنَا وَارْفَعْنَا بِالْقُرْآنِ الْعَظِيمِ، وَبَارِكْ لَنَا بِالآيَاتِ وَالذِّكْرِ الْحَكِيمِ. اَللَّهُمَّ اجْعَلْهُ لَنَا إِمَاماً وَنُوراً وَهُدًى وَرَحْمَةً. اَللَّهُمَّ ذَكِّرْنَا مِنْهُ مَا نَسِينَا، وَعَلِّمْنَا مِنْهُ مَا جَهِلْنَا، وَارْزُقْنَا تِلاَوَتَهُ آنَاءَ اللَّيْلِ وَأَطْرَافَ النَّهَارِ، وَاجْعَلْهُ لَنَا حُجَّةً يَا رَبَّ الْعَالَمِينَ.
-                      </div>
-                      <div className="text-[11px] md:text-xs font-sans italic text-[#fdf6e3]/70 border-t border-[#c9a84c]/10 pt-3 leading-relaxed">
-                        &quot;Uca və Əzəmətli Allah doğru söylədi! Onun şərəfli Peyğəmbər elçisi bunu təbliğ etdi. Biz də buna şahidlik edənlərdən və şükr edənlərdənik. Allahım! Qurani-Kərim ilə bizə fayda ver, bizi ucalt, ayələr və hikmətli zikr ilə bizə bərəkət bəxş et. Allahım! Quranı bizim üçün rəhbər, nur, doğru yol göstərən və rəhmət et. Allahım! Ondan unutduqlarımızı yadımıza sal, bilmədiklərimizi öyrət, gecənin bəzi saatlarında və günün hər iki tərəfində onu oxumağı bizə nəsib et. Ey aləmlərin Rəbbi, onu bizim xeyrimizə dəlil et!&quot;
-                      </div>
+              <div className="p-5 islamic-card space-y-4 animate-fadeIn">
+                <div className="islamic-card-inner" />
+                <div className="islamic-pattern" />
+                <div className="relative z-10 space-y-4 w-full">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">📖</span>
+                    <div>
+                      <h4 className="text-sm md:text-base font-bold text-[#c9a84c] font-amiri">30-cu Cüz və Xətm Duası</h4>
+                      <p className="text-[11px] text-[#fdf6e3]/75">
+                        Sizə Quranın sonuncu (30-cu) cüzü təyin edilmişdir. Zəhmət olmasa 24 səhifəni bitirdikdən sonra **Xətm Duasını** oxuyun.
+                      </p>
                     </div>
-                  )}
+                  </div>
+                  
+                  <div className="border border-[#c9a84c]/25 rounded-lg overflow-hidden bg-[#05180d]/80">
+                    <button
+                      onClick={() => setShowDua(!showDua)}
+                      className="w-full px-4 py-2.5 flex justify-between items-center text-xs font-bold text-[#c9a84c] hover:bg-[#c9a84c]/5 transition-all focus:outline-none"
+                    >
+                      <span>{showDua ? "Xətm Duasını Gizlə" : "Xətm Duasını Oxu"}</span>
+                      <span>{showDua ? "▲" : "▼"}</span>
+                    </button>
+                    {showDua && (
+                      <div className="p-4 space-y-3 border-t border-[#c9a84c]/20 text-center font-amiri text-[#fdf6e3]">
+                        <div className="text-xl md:text-2xl leading-loose text-[#c9a84c] py-2" dir="rtl">
+                          صَدَقَ اللهُ الْعَلِيُّ الْعَظِيمُ، وَبَلَّغَ رَسُولُهُ النَّبِيُّ الْكَرِيمُ، وَنَحْنُ عَلَى ذَلِكَ مِنَ الشَّاهِدِينَ وَالشَّاكِرِينَ. اَللَّهُمَّ انْفَعْنَا وَارْفَعْنَا بِالْقُرْآنِ الْعَظِيمِ، وَبَارِkْ لَنَا بِالآيَاتِ وَالذِّكْرِ الْحَكِيمِ. اَللَّهُمَّ اجْعَلْهُ لَنَا إِمَاماً وَنُوراً وَهُدًى وَرَحْمَةً. اَللَّهُمَّ ذَكِّرْنَا مِنْهُ مَا نَسِينَا، وَعَلِّمْنَا مِنْهُ مَا جَهِلْنَا، وَارْزُقْنَا تِلاَوَتَهُ آنَاءَ اللَّيْلِ وَأَطْرَافَ النَّهَارِ، وَاجْعَلْهُ لَنَا حُجَّةً يَا رَبَّ الْعَالَمِينَ.
+                        </div>
+                        <div className="text-[11px] md:text-xs font-sans italic text-[#fdf6e3]/70 border-t border-[#c9a84c]/20 pt-3 leading-relaxed">
+                          &quot;Uca və Əzəmətli Allah doğru söylədi! Onun şərəfli Peyğəmbər elçisi bunu təbliğ etdi. Biz də buna şahidlik edənlərdən və şükr edənlərdənik. Allahım! Qurani-Kərim ilə bizə fayda ver, bizi ucalt, ayələr və hikmətli zikr ilə bizə bərəkət bəxş et. Allahım! Quranı bizim üçün rəhbər, nur, doğru yol göstərən və rəhmət et. Allahım! Ondan unutduqlarımızı yadımıza sal, bilmədiklərimizi öyrət, gecənin bəzi saatlarında və günün hər iki tərəfində onu oxumağı bizə nəsib et. Ey aləmlərin Rəbbi, onu bizim xeyrimizə dəlil et!&quot;
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Progress metrics */}
-            <div className="bg-[#1a1a2e]/40 border border-[#c9a84c]/10 rounded-2xl p-6">
-              <h3 className="text-xs font-bold text-[#c9a84c] mb-4 uppercase tracking-wider">
-                Şəxsi Oxuma Gedişatınız
-              </h3>
-              {/* Personal Stats Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-[#c9a84c]/10">
-                <div className="p-4 bg-[#1a1a2e]/60 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-                  <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Mənim Tamamlanan Səhifələrim</span>
-                  <div className="text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">
-                    {activeCompleted.length} / {assignedPages.length}
+            <div className="islamic-card p-6">
+              <div className="islamic-card-inner" />
+              <div className="islamic-pattern" />
+              <div className="relative z-10 w-full">
+                <h3 className="text-xs font-bold text-[#c9a84c] mb-4 uppercase tracking-wider">
+                  Şəxsi Oxuma Gedişatınız
+                </h3>
+                {/* Personal Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-[#c9a84c]/20">
+                  <div className="p-4 bg-[#05180d]/80 border border-[#c9a84c]/20 rounded-xl text-center shadow-sm">
+                    <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Mənim Tamamlanan Səhifələrim</span>
+                    <div className="text-2xl font-extrabold text-[#fdf6e3] mt-1 font-mono">
+                      {activeCompleted.length} / {assignedPages.length}
+                    </div>
                   </div>
-                </div>
-                <div className="p-4 bg-[#1a5c38]/10 border border-[#c9a84c]/20 rounded-xl text-center shadow-md">
-                  <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup Üzrə Tamamlanan Xətmlər</span>
-                  <div className="text-2xl font-extrabold text-[#c9a84c] mt-1 font-mono">
-                    {settings.completedKhatms || 0} xətm
+                  <div className="p-4 bg-[#1a5c38]/20 border border-[#c9a84c]/25 rounded-xl text-center shadow-md">
+                    <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Qrup Üzrə Tamamlanan Xətmlər</span>
+                    <div className="text-2xl font-extrabold text-[#c9a84c] mt-1 font-mono">
+                      {settings.completedKhatms || 0} xətm
+                    </div>
                   </div>
                 </div>
               </div>

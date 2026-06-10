@@ -63,7 +63,7 @@ export default function AdminPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex-1 flex flex-col justify-center items-center bg-[#1a1a2e] text-[#fdf6e3] min-h-screen">
+      <div className="flex-1 flex flex-col justify-center items-center islamic-bg text-[#fdf6e3] min-h-screen">
         <div className="animate-spin h-10 w-10 text-[#c9a84c] mb-4">
           <svg className="w-full h-full" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -244,15 +244,15 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-[#1a1a2e]">
+    <div className="flex-1 flex flex-col min-h-screen islamic-bg">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-[#1a1a2e]/90 backdrop-blur-md border-b border-[#c9a84c]/20 px-4 md:px-8 py-4">
+      <header className="sticky top-0 z-30 bg-[#0b301a]/95 backdrop-blur-md border-b border-[#c9a84c]/20 px-4 md:px-8 py-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 flex items-center justify-center relative">
               <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-0 rounded-sm"></div>
               <div className="absolute w-7 h-7 bg-[#c9a84c] rotate-45 rounded-sm"></div>
-              <div className="absolute w-2.2 h-2.2 bg-[#1a1a2e] rounded-full z-10"></div>
+              <div className="absolute w-2.2 h-2.2 bg-[#0b301a] rounded-full z-10"></div>
             </div>
             <h1 className="text-xl md:text-2xl font-amiri font-bold text-[#fdf6e3]">
               İnzibatçı Paneli (Admin)
@@ -262,13 +262,13 @@ export default function AdminPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
-              className="px-4 py-2 bg-[#1a5c38]/10 hover:bg-[#1a5c38]/30 border border-[#1a5c38]/30 text-[#fdf6e3]/90 font-semibold rounded-lg text-xs md:text-sm transition-all"
+              className="px-4 py-2 bg-[#1a5c38]/20 hover:bg-[#1a5c38]/40 border border-[#1a5c38]/40 text-[#fdf6e3]/90 font-semibold rounded-lg text-xs md:text-sm transition-all"
             >
               Panelimə Keç
             </Link>
             <Link
               href="/progress"
-              className="px-4 py-2 bg-[#c9a84c]/10 hover:bg-[#c9a84c] border border-[#c9a84c]/30 text-[#c9a84c] hover:text-[#1a1a2e] font-semibold rounded-lg text-xs md:text-sm transition-all"
+              className="px-4 py-2 bg-[#c9a84c]/15 hover:bg-[#c9a84c] border border-[#c9a84c]/30 text-[#c9a84c] hover:text-[#0b301a] font-semibold rounded-lg text-xs md:text-sm transition-all"
             >
               Gedişat Cədvəli
             </Link>
@@ -280,27 +280,43 @@ export default function AdminPage() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-8 space-y-8">
         
         {/* Global Progress overview */}
-        <div className="bg-[#1a5c38]/10 border border-[#c9a84c]/20 rounded-2xl p-6 shadow-md">
-          <h2 className="text-sm font-bold text-[#c9a84c] mb-3 uppercase tracking-wider">
-            Quranın Ümumi Xətm Vəziyyəti
-          </h2>
-          <ProgressBar completed={totalUniqueCompleted} total={604} label="Tamamlanan Səhifələr (Bütün iştirakçılar)" />
+        <div className="islamic-card p-6 shadow-md">
+          <div className="islamic-card-inner" />
+          <div className="islamic-pattern" />
+          <div className="relative z-10">
+            <h2 className="text-sm font-bold text-[#c9a84c] mb-3 uppercase tracking-wider">
+              Quranın Ümumi Xətm Vəziyyəti
+            </h2>
+            <ProgressBar completed={totalUniqueCompleted} total={604} label="Tamamlanan Səhifələr (Bütün iştirakçılar)" />
+          </div>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-[#1a5c38]/10 border border-[#c9a84c]/20 rounded-xl text-center shadow-md">
-            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Tamamlanan Ümumi Xətm</span>
-            <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{settings.completedKhatms || 0}</div>
+          <div className="islamic-card p-6 text-center shadow-md">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10">
+              <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Tamamlanan Ümumi Xətm</span>
+              <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{settings.completedKhatms || 0}</div>
+            </div>
           </div>
-          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Cari Xətmin Səhifələri</span>
-            <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{totalUniqueCompleted} / 604</div>
+          <div className="islamic-card p-6 text-center shadow-md">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10">
+              <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Cari Xətmin Səhifələri</span>
+              <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{totalUniqueCompleted} / 604</div>
+            </div>
           </div>
-          <div className="p-4 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-xl text-center shadow-sm">
-            <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Cari Xətm Faiz</span>
-            <div className="text-3xl font-extrabold text-[#c9a84c] mt-1 font-mono">
-              {Math.round((totalUniqueCompleted / 604) * 100)}%
+          <div className="islamic-card p-6 text-center shadow-md">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10">
+              <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Cari Xətm Faiz</span>
+              <div className="text-3xl font-extrabold text-[#c9a84c] mt-1 font-mono">
+                {Math.round((totalUniqueCompleted / 604) * 100)}%
+              </div>
             </div>
           </div>
         </div>
@@ -308,300 +324,318 @@ export default function AdminPage() {
         {/* Mid grid: User pages assignment & Login settings */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* User page assignment card */}
-          <div className="lg:col-span-2 bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-2xl p-6 flex flex-col justify-between">
-            <div>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div>
-                  <h3 className="text-lg font-bold text-[#c9a84c] font-amiri">
-                    Səhifə Təyin Etmə Paneli
-                  </h3>
-                  <p className="text-xs text-[#fdf6e3]/60 font-sans">
-                    İstifadəçiyə səhifə təyin etmək üçün aşağıdakı cədvəldən &quot;Səhifə Təyin Et&quot; düyməsinə klikləyin.
-                  </p>
+          <div className="lg:col-span-2 islamic-card p-6 flex flex-col justify-between">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10 flex flex-col justify-between h-full w-full">
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-[#c9a84c] font-amiri">
+                      Səhifə Təyin Etmə Paneli
+                    </h3>
+                    <p className="text-xs text-[#fdf6e3]/60 font-sans">
+                      İstifadəçiyə səhifə təyin etmək üçün aşağıdakı cədvəldən &quot;Səhifə Təyin Et&quot; düyməsinə klikləyin.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAutoModal(true)}
+                    className="px-4 py-2 islamic-btn-gold rounded-lg text-xs transition-all whitespace-nowrap self-start sm:self-auto shadow-md"
+                  >
+                    Cüzləri Avtomatik Payla
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAutoModal(true)}
-                  className="px-4 py-2 bg-[#1a5c38] hover:bg-[#1a5c38]/80 text-[#fdf6e3] border border-[#c9a84c]/30 font-semibold rounded-lg text-xs transition-all whitespace-nowrap self-start sm:self-auto shadow-md"
-                >
-                  Cüzləri Avtomatik Payla
-                </button>
-              </div>
 
-              {autoSuccess && (
-                <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-xs rounded">
-                  Cüzlər iştirakçılara uğurla və təsadüfi ardıcıllıqla paylanıldı!
+                {autoSuccess && (
+                  <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-xs rounded">
+                    Cüzlər iştirakçılara uğurla və təsadüfi ardıcıllıqla paylanıldı!
+                  </div>
+                )}
+
+                {selectedUser ? (
+                  <form onSubmit={handleAssignSubmit} className="space-y-4">
+                    <div className="p-4 bg-[#05180d]/80 border border-[#c9a84c]/30 rounded-lg">
+                      <span className="text-xs text-[#c9a84c] block mb-1">Seçilən İstifadəçi:</span>
+                      <span className="text-sm font-bold text-[#fdf6e3]">{selectedUser.name}</span>
+                      <span className="text-xs text-[#fdf6e3]/50 block">({selectedUser.email})</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                        Səhifə Aralığı və ya Nömrələri
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={pagesInput}
+                        onChange={(e) => setPagesInput(e.target.value)}
+                        placeholder="Məsələn: 1-20, 35, 40-50"
+                        className="w-full px-4 py-3 bg-[#05180d]/80 border border-[#c9a84c]/30 focus:border-[#c9a84c] rounded-lg text-[#fdf6e3] focus:outline-none font-mono text-sm"
+                      />
+                      <span className="text-[10px] text-[#fdf6e3]/40 mt-1 block">
+                        Range-ləri tire (-) ilə ayırın, tək səhifələri isə vergüllə daxil edin (1-604 arası).
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                          Başlama Tarixi
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={startDateInput}
+                          onChange={(e) => setStartDateInput(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                          Bitmə Tarixi
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={endDateInput}
+                          onChange={(e) => setEndDateInput(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {assignError && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded">
+                        {assignError}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="submit"
+                        disabled={assignLoading}
+                        className="px-5 py-2.5 islamic-btn-gold rounded-lg text-sm transition-all"
+                      >
+                        {assignLoading ? "Yadda saxlanılır..." : "Təyin et"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUser(null)}
+                        className="px-5 py-2.5 bg-red-950/20 hover:bg-red-900/40 border border-red-500/30 text-red-400 hover:text-red-300 rounded-lg text-sm transition-all"
+                      >
+                        Ləğv Et
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-[#c9a84c]/20 rounded-xl bg-[#05180d]/30">
+                    <span className="text-3xl mb-2">📋</span>
+                    <p className="text-xs text-[#fdf6e3]/50 max-w-xs font-medium">
+                      Heç bir iştirakçı seçilməyib. Aşağıdakı cədvəldən bir istifadəçi seçin.
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {assignSuccess && (
+                <div className="mt-4 p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-xs rounded">
+                  Səhifələr uğurla təyin edildi!
                 </div>
               )}
+            </div>
+          </div>
 
-              {selectedUser ? (
-                <form onSubmit={handleAssignSubmit} className="space-y-4">
-                  <div className="p-4 bg-[#1a5c38]/10 border border-[#c9a84c]/20 rounded-lg">
-                    <span className="text-xs text-[#c9a84c] block mb-1">Seçilən İstifadəçi:</span>
-                    <span className="text-sm font-bold text-[#fdf6e3]">{selectedUser.name}</span>
-                    <span className="text-xs text-[#fdf6e3]/50 block">({selectedUser.email})</span>
+          {/* Login Page Config (Ayah/Hadith) */}
+          <div className="islamic-card p-6 flex flex-col justify-between">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10 flex flex-col justify-between h-full w-full">
+              <div>
+                <h3 className="text-lg font-bold text-[#c9a84c] mb-2 font-amiri">
+                  Giriş Səhifəsi Ayarları
+                </h3>
+                <p className="text-xs text-[#fdf6e3]/60 mb-6">
+                  Giriş səhifəsində nümayiş etdirilməsi üçün Quran Ayəsini və ya Hədisi buradan təyin edə bilərsiniz.
+                </p>
+
+                <form onSubmit={handleSettingsSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                      Günün Ayəsi (Ərəb və ya Tərcümə)
+                    </label>
+                    <textarea
+                      value={settings.currentAyah || ""}
+                      onChange={(e) => setSettings({ ...settings, currentAyah: e.target.value })}
+                      placeholder="Ayəni daxil edin..."
+                      rows={3}
+                      className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none resize-none"
+                    />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
-                      Səhifə Aralığı və ya Nömrələri
+                      Günün Hədisi
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={pagesInput}
-                      onChange={(e) => setPagesInput(e.target.value)}
-                      placeholder="Məsələn: 1-20, 35, 40-50"
-                      className="w-full px-4 py-3 bg-[#1a1a2e] border border-[#c9a84c]/30 rounded-lg text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono text-sm"
+                    <textarea
+                      value={settings.currentHadith || ""}
+                      onChange={(e) => setSettings({ ...settings, currentHadith: e.target.value })}
+                      placeholder="Hədisi daxil edin..."
+                      rows={3}
+                      className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none resize-none"
                     />
-                    <span className="text-[10px] text-[#fdf6e3]/40 mt-1 block">
-                      Range-ləri tire (-) ilə ayırın, tək səhifələri isə vergüllə daxil edin (1-604 arası).
-                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
-                        Başlama Tarixi
-                      </label>
-                      <input
-                        type="date"
-                        required
-                        value={startDateInput}
-                        onChange={(e) => setStartDateInput(e.target.value)}
-                        className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
-                        Bitmə Tarixi
-                      </label>
-                      <input
-                        type="date"
-                        required
-                        value={endDateInput}
-                        onChange={(e) => setEndDateInput(e.target.value)}
-                        className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {assignError && (
-                    <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded">
-                      {assignError}
+                  {settingsSuccess && (
+                    <div className="p-2.5 bg-green-500/10 border border-green-500/25 text-green-400 text-xs rounded animate-fadeIn">
+                      Ayarlar uğurla yadda saxlanıldı!
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      type="submit"
-                      disabled={assignLoading}
-                      className="px-5 py-2.5 bg-[#c9a84c] hover:bg-[#b0913e] disabled:opacity-50 text-[#1a1a2e] font-semibold rounded-lg text-sm transition-all"
-                    >
-                      {assignLoading ? "Yadda saxlanılır..." : "Təyin et"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedUser(null)}
-                      className="px-5 py-2.5 bg-gray-500/10 hover:bg-gray-500/20 text-[#fdf6e3]/80 rounded-lg text-sm transition-all"
-                    >
-                      Ləğv Et
-                    </button>
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={settingsLoading}
+                    className="w-full px-4 py-2.5 islamic-btn-gold rounded-lg text-xs transition-all"
+                  >
+                    {settingsLoading ? "Yadda saxlanılır..." : "Məlumatları Yenilə"}
+                  </button>
                 </form>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-[#c9a84c]/20 rounded-xl bg-[#1a1a2e]/20">
-                  <span className="text-3xl mb-2">📋</span>
-                  <p className="text-xs text-[#fdf6e3]/50 max-w-xs">
-                    Heç bir iştirakçı seçilməyib. Aşağıdakı cədvəldən bir istifadəçi seçin.
-                  </p>
-                </div>
-              )}
+              </div>
             </div>
-            
-            {assignSuccess && (
-              <div className="mt-4 p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-xs rounded">
-                Səhifələr uğurla təyin edildi!
-              </div>
-            )}
-          </div>
-
-          {/* Login Page Config (Ayah/Hadith) */}
-          <div className="bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-2xl p-6">
-            <h3 className="text-lg font-bold text-[#c9a84c] mb-2 font-amiri">
-              Giriş Səhifəsi Ayarları
-            </h3>
-            <p className="text-xs text-[#fdf6e3]/60 mb-6">
-              Giriş səhifəsində nümayiş etdirilməsi üçün Quran Ayəsini və ya Hədisi buradan təyin edə bilərsiniz.
-            </p>
-
-            <form onSubmit={handleSettingsSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#c9a84c] mb-1 uppercase tracking-wide">
-                  Günün Ayəsi (Ərəb və ya Tərcümə)
-                </label>
-                <textarea
-                  value={settings.currentAyah || ""}
-                  onChange={(e) => setSettings({ ...settings, currentAyah: e.target.value })}
-                  placeholder="Ayəni daxil edin..."
-                  rows={3}
-                  className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#c9a84c] mb-1 uppercase tracking-wide">
-                  Günün Hədisi
-                </label>
-                <textarea
-                  value={settings.currentHadith || ""}
-                  onChange={(e) => setSettings({ ...settings, currentHadith: e.target.value })}
-                  placeholder="Hədisi daxil edin..."
-                  rows={3}
-                  className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] resize-none"
-                />
-              </div>
-
-              {settingsSuccess && (
-                <div className="p-2.5 bg-green-500/10 border border-green-500/25 text-green-400 text-xs rounded">
-                  Ayarlar uğurla yadda saxlanıldı!
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={settingsLoading}
-                className="w-full px-4 py-2.5 bg-[#1a5c38] hover:bg-[#1a5c38]/80 disabled:opacity-50 text-[#fdf6e3] border border-[#c9a84c]/30 font-semibold rounded-lg text-xs transition-all"
-              >
-                {settingsLoading ? "Yadda saxlanılır..." : "Məlumatları Yenilə"}
-              </button>
-            </form>
           </div>
         </div>
 
         {/* User list with search */}
-        <div className="bg-[#1a1a2e]/45 border border-[#c9a84c]/15 rounded-2xl shadow-lg overflow-hidden">
-          <div className="p-5 border-b border-[#c9a84c]/15 bg-[#1a5c38]/5 flex flex-col md:flex-row justify-between items-center gap-4">
-            <h3 className="text-lg font-bold text-[#fdf6e3] flex items-center gap-2">
-              <span>Qeydiyyatlı İştirakçılar</span>
-              <span className="text-xs bg-[#c9a84c]/25 text-[#c9a84c] px-2.5 py-0.5 rounded-full border border-[#c9a84c]/30 font-mono">
-                {filteredUsers.length} / {users.length} iştirakçı
-              </span>
-            </h3>
+        <div className="islamic-card shadow-lg overflow-hidden">
+          <div className="islamic-card-inner" />
+          <div className="islamic-pattern" />
+          <div className="relative z-10 w-full">
+            <div className="p-5 border-b border-[#c9a84c]/15 bg-[#0b301a]/60 flex flex-col md:flex-row justify-between items-center gap-4">
+              <h3 className="text-lg font-bold text-[#fdf6e3] flex items-center gap-2">
+                <span>Qeydiyyatlı İştirakçılar</span>
+                <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] px-2.5 py-0.5 rounded-full border border-[#c9a84c]/30 font-mono">
+                  {filteredUsers.length} / {users.length} iştirakçı
+                </span>
+              </h3>
 
-            {/* Search Input */}
-            <div className="w-full md:w-72">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Ad və ya e-poçt ilə axtar..."
-                className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c]"
-              />
+              {/* Search Input */}
+              <div className="w-full md:w-72">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Ad və ya e-poçt ilə axtar..."
+                  className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none"
+                />
+              </div>
             </div>
+
+            {filteredUsers.length === 0 ? (
+              <div className="text-center py-16 text-[#fdf6e3]/50 text-sm">
+                Heç bir iştirakçı tapılmadı.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#05180d]/85 border-b border-[#c9a84c]/15 text-xs text-[#c9a84c] uppercase font-bold tracking-wider">
+                      <th className="px-4 py-3 md:px-6 md:py-4">İştirakçı</th>
+                      <th className="px-4 py-3 md:px-6 md:py-4">Təyin edilmiş Səhifələr</th>
+                      <th className="px-4 py-3 md:px-6 md:py-4">Tamamlanan</th>
+                      <th className="px-4 py-3 md:px-6 md:py-4">Faiz</th>
+                      <th className="px-4 py-3 md:px-6 md:py-4">Status</th>
+                      <th className="px-4 py-3 md:px-6 md:py-4 text-right">Əməliyyat</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((u) => (
+                      <UserRow 
+                        key={u.uid} 
+                        user={u} 
+                        isAdminView={true} 
+                        onAssignPagesClick={handleSelectUser} 
+                        onRoleToggle={handleRoleToggle}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-
-          {filteredUsers.length === 0 ? (
-            <div className="text-center py-16 text-[#fdf6e3]/50 text-sm">
-              Heç bir iştirakçı tapılmadı.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-[#1a1a2e]/60 border-b border-[#c9a84c]/15 text-xs text-[#c9a84c] uppercase font-bold tracking-wider">
-                    <th className="px-4 py-3 md:px-6 md:py-4">İştirakçı</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4">Təyin edilmiş Səhifələr</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4">Tamamlanan</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4">Faiz</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4">Status</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4 text-right">Əməliyyat</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((u) => (
-                    <UserRow 
-                      key={u.uid} 
-                      user={u} 
-                      isAdminView={true} 
-                      onAssignPagesClick={handleSelectUser} 
-                      onRoleToggle={handleRoleToggle}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
 
       </main>
 
       {/* Auto Distribution Modal */}
       {showAutoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1a1a2e]/80 backdrop-blur-sm p-4">
-          <div className="bg-[#1a1a2e] border border-[#c9a84c]/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-[#c9a84c] font-amiri flex items-center gap-2">
-              <span>🕋</span>
-              <span>Cüzləri Avtomatik Payla</span>
-            </h3>
-            <p className="text-xs text-[#fdf6e3]/70 leading-relaxed">
-              Bu əməliyyat bütün aktiv iştirakçılara növbəti xətm üzrə təsadüfi cüzləri (20-şər səhifə, 30-cu cüz üçün 24 səhifə) paylayacaq və oxunma tarixçələrini sıfırlayacaq.
-            </p>
-            
-            <form onSubmit={handleAutoDistribute} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
-                    Başlama Tarixi
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={autoStartDate}
-                    onChange={(e) => setAutoStartDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono"
-                  />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05180d]/80 backdrop-blur-sm p-4">
+          <div className="islamic-card max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="islamic-card-inner" />
+            <div className="islamic-pattern" />
+            <div className="relative z-10 w-full space-y-4">
+              <h3 className="text-lg font-bold text-[#c9a84c] font-amiri flex items-center gap-2">
+                <span>🕋</span>
+                <span>Cüzləri Avtomatik Payla</span>
+              </h3>
+              <p className="text-xs text-[#fdf6e3]/70 leading-relaxed font-sans">
+                Bu əməliyyat bütün aktiv iştirakçılara növbəti xətm üzrə təsadüfi cüzləri (20-şər səhifə, 30-cu cüz üçün 24 səhifə) paylayacaq və oxunma tarixçələrini sıfırlayacaq.
+              </p>
+              
+              <form onSubmit={handleAutoDistribute} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                      Başlama Tarixi
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={autoStartDate}
+                      onChange={(e) => setAutoStartDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
+                      Bitmə Tarixi
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={autoEndDate}
+                      onChange={(e) => setAutoEndDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none font-mono"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
-                    Bitmə Tarixi
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={autoEndDate}
-                    onChange={(e) => setAutoEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1a1a2e] border border-[#c9a84c]/20 rounded-lg text-xs text-[#fdf6e3] focus:outline-none focus:border-[#c9a84c] font-mono"
-                  />
-                </div>
-              </div>
 
-              {autoError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded">
-                  {autoError}
-                </div>
-              )}
+                {autoError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded">
+                    {autoError}
+                  </div>
+                )}
 
-              <div className="flex gap-2 justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAutoModal(false);
-                    setAutoError(null);
-                  }}
-                  className="px-4 py-2 bg-gray-500/10 hover:bg-gray-500/20 text-[#fdf6e3]/85 text-xs font-semibold rounded-lg transition-all"
-                >
-                  Ləğv Et
-                </button>
-                <button
-                  type="submit"
-                  disabled={autoLoading}
-                  className="px-4 py-2 bg-[#c9a84c] hover:bg-[#b0913e] disabled:opacity-50 text-[#1a1a2e] text-xs font-semibold rounded-lg transition-all shadow-md"
-                >
-                  {autoLoading ? "Paylanılır..." : "Paylanmanı Başlat"}
-                </button>
-              </div>
-            </form>
+                <div className="flex gap-2 justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAutoModal(false);
+                      setAutoError(null);
+                    }}
+                    className="px-4 py-2 bg-[#05180d]/60 hover:bg-[#05180d] border border-[#c9a84c]/30 text-[#fdf6e3]/85 text-xs font-semibold rounded-lg transition-all"
+                  >
+                    Ləğv Et
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={autoLoading}
+                    className="px-4 py-2 islamic-btn-gold rounded-lg text-xs transition-all shadow-md"
+                  >
+                    {autoLoading ? "Paylanılır..." : "Paylanmanı Başlat"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
