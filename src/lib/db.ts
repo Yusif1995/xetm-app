@@ -293,18 +293,12 @@ export async function distributeJuzToUsers(
       assignedJuz: nextJuz
     };
 
-    // If they have unfinished pages in their current assignment, save it to previous
-    if (user.assignedPages && user.assignedPages.length > 0 && (user.completedPages || []).length < user.assignedPages.length) {
+    // Save current assignment to previous before assigning new one, so history and dates are preserved
+    if (user.assignedPages && user.assignedPages.length > 0) {
       updates.previousAssignedPages = user.assignedPages;
       updates.previousCompletedPages = user.completedPages || [];
       updates.previousStartDate = user.assignmentStartDate || "";
       updates.previousEndDate = user.assignmentEndDate || "";
-    } else {
-      // Clear previous assignment
-      updates.previousAssignedPages = [];
-      updates.previousCompletedPages = [];
-      updates.previousStartDate = "";
-      updates.previousEndDate = "";
     }
 
     batch.update(userRef, updates);

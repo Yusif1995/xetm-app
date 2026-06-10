@@ -8,7 +8,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  activeTab: "dashboard" | "readings" | "progress" | "stats" | "admin";
+  activeTab: "dashboard" | "readings" | "progress" | "stats" | "admin" | "ai";
 }
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
@@ -246,7 +246,25 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                 <path d="M21 15H3" />
                 <path d="M12 3v18" />
               </svg>
-              <span className="text-[10px] font-bold tracking-wide">Admin Panel</span>
+              <span className="text-[10px] font-bold tracking-wide">Admin</span>
+            </Link>
+          )}
+
+          {/* AI Assistant (Visible ONLY to admins) */}
+          {user.role === "admin" && (
+            <Link
+              href="/admin/ai"
+              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all gap-1.5 shadow-sm w-full ${
+                activeTab === "ai"
+                  ? "bg-[#c9a84c] border-[#c9a84c] text-[#05160c]"
+                  : "bg-transparent border-transparent text-[#fdf6e3]/50 hover:text-[#fdf6e3] hover:bg-[#1a5c38]/10"
+              }`}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" />
+                <circle cx="12" cy="12" r="5" />
+              </svg>
+              <span className="text-[10px] font-bold tracking-wide">AI Köməkçi</span>
             </Link>
           )}
         </aside>
@@ -321,6 +339,20 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <rect x="3" y="3" width="18" height="18" rx="2" />
             </svg>
             <span className="text-[9px] font-bold mt-0.5">Admin</span>
+          </Link>
+        )}
+        {user.role === "admin" && (
+          <Link
+            href="/admin/ai"
+            className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+              activeTab === "ai" ? "text-[#c9a84c]" : "text-[#fdf6e3]/50"
+            }`}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" />
+              <circle cx="12" cy="12" r="5" />
+            </svg>
+            <span className="text-[9px] font-bold mt-0.5">AI</span>
           </Link>
         )}
       </nav>

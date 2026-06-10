@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/lib/auth";
 import { useEffect, useState, useRef } from "react";
+import AppLayout from "@/components/AppLayout";
 
 interface Message {
   id: string;
@@ -11,14 +12,13 @@ interface Message {
 
 const SUGGESTIONS = [
   { label: "Səbr haqqında ayə gətir", prompt: "Mənə səbr və çətinliklər qarşısında dözümlü olmaq haqqında bir Quran ayəsi (ərəbcə orijinalı, Azərbaycan dilində tərcüməsi və surə adı ilə) gətir." },
-  { label: "Elm haqqında hədis yaz", prompt: "Mənə elm öyrənməyin fəziləti haqqında mötəbər bir hədis (ərəbcə orijinalı, Azərbaycan dilində tərcüməsi və mənbəsi ilə) yaz." },
+  { label: "Elm haqqında hədis yaz", prompt: "Mənə elmin fəziləti haqqında mötəbər bir hədis (ərəbcə orijinalı, Azərbaycan dilində tərcüməsi və mənbəsi ilə) yaz." },
   { label: "İnşirah surəsinin təfsiri", prompt: "İnşirah (Şərh) surəsinin ümumi mənası və bizə verdiyi nəsihətlər haqqında qısa məlumat verə bilərsən?" },
   { label: "Valideynə hörmət", prompt: "Quran və hədislərdə valideynə yaxşılıq etmək və onlara hörmətlə yanaşmaq barədə nə buyurulub?" }
 ];
 
-export default function AiChatWidget() {
+export default function AiPage() {
   const { user, loading } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -34,14 +34,25 @@ export default function AiChatWidget() {
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, isSending, isOpen]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isSending]);
 
-  // Don't render the widget if the user is not authenticated or loading
-  if (loading || !user) {
-    return null;
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col justify-center items-center islamic-bg text-[#fdf6e3] min-h-screen">
+        <div className="animate-spin h-10 w-10 text-[#c9a84c] mb-4">
+          <svg className="w-full h-full" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+        </div>
+        <p className="text-sm font-semibold tracking-wide text-[#fdf6e3]/85">Süni İntellekt Köməkçisi yüklənir...</p>
+      </div>
+    );
+  }
+
+  if (!user || user.role !== "admin") {
+    return null; // Guarded by middleware
   }
 
   const handleSendMessage = async (textToSend: string) => {
@@ -101,15 +112,12 @@ export default function AiChatWidget() {
     handleSendMessage(input);
   };
 
-  // Helper parser to render text beautifully with Arabic styling
   const parseMessageText = (text: string) => {
     const lines = text.split("\n");
     return lines.map((line, index) => {
-      // Check for list item
       const isListItem = line.trim().startsWith("- ") || line.trim().startsWith("* ");
       const cleanLine = isListItem ? line.replace(/^[\s*-]+/, "") : line;
 
-      // Parse bold markdown "**text**"
       const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
       const content = parts.map((part, partIdx) => {
         if (part.startsWith("**") && part.endsWith("**")) {
@@ -130,7 +138,6 @@ export default function AiChatWidget() {
         );
       }
 
-      // Check for Arabic characters
       const hasArabic = /[\u0600-\u06FF]/.test(line);
       if (hasArabic) {
         return (
@@ -149,58 +156,36 @@ export default function AiChatWidget() {
   };
 
   return (
-    <>
-      {/* Floating Action Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label="AI Köməkçi"
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-gradient-to-br from-[#c9a84c] to-[#b0913e] text-[#0b301a] rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer border border-[#c9a84c]/40 group"
-      >
-        {isOpen ? (
-          <span className="text-xl font-bold text-[#0b301a]">✖</span>
-        ) : (
-          <svg className="w-8 h-8 text-[#05160c] group-hover:rotate-12 transition-transform duration-300" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" />
-            <circle cx="12" cy="12" r="5" stroke="#c9a84c" strokeWidth="1.2" fill="none" />
-            <circle cx="12" cy="12" r="2.5" fill="#c9a84c" />
-          </svg>
-        )}
-        {/* Subtle Pulse Ring */}
-        {!isOpen && (
-          <span className="absolute inset-0 rounded-full border-2 border-[#c9a84c]/60 animate-ping opacity-75 pointer-events-none"></span>
-        )}
-      </button>
-
-      {/* Floating Chat Container */}
-      {isOpen && (
-        <div className="fixed bottom-24 right-4 md:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[380px] md:w-[420px] h-[550px] max-h-[70vh] flex flex-col overflow-hidden animate-fadeIn">
-          <div className="islamic-card flex-1 flex flex-col h-full w-full relative">
-            <div className="islamic-card-inner" />
-            <div className="islamic-pattern" />
-            <div className="relative z-10 flex flex-col h-full w-full overflow-hidden">
-            {/* Widget Header */}
-            <div className="bg-[#0b301a]/60 border-b border-[#c9a84c]/20 p-4 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2.5">
-                <svg className="w-7 h-7 text-[#c9a84c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" fill="currentColor" fillOpacity="0.15" />
-                  <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" />
-                  <circle cx="12" cy="12" r="2.5" fill="currentColor" />
-                </svg>
-                <div>
-                  <h3 className="text-sm font-amiri font-bold text-[#fdf6e3] leading-none">AI Köməkçi</h3>
-                  <span className="text-[9px] text-[#c9a84c] font-semibold uppercase tracking-wider">İslam AI Assistant</span>
-                </div>
-              </div>
-              
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-[#fdf6e3]/60 hover:text-[#fdf6e3] text-sm p-1 transition-colors focus:outline-none"
-              >
-                ✖
-              </button>
+    <AppLayout activeTab="ai">
+      <div className="space-y-6 max-w-4xl mx-auto h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)] flex flex-col">
+        {/* Page Header */}
+        <div className="p-4 islamic-card shrink-0 relative overflow-hidden">
+          <div className="islamic-card-inner" />
+          <div className="islamic-pattern" />
+          <div className="relative z-10 flex items-center gap-3">
+            <svg className="w-8 h-8 text-[#c9a84c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" fill="currentColor" fillOpacity="0.15" />
+              <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+            </svg>
+            <div>
+              <h2 className="text-lg font-amiri font-bold text-[#c9a84c] leading-none">
+                Süni İntellekt Köməkçisi
+              </h2>
+              <p className="text-[10px] text-[#fdf6e3]/60 font-sans mt-1">
+                Quran ayələri, hədislər və İslam dini barədə öyrənmək istədiyiniz sualları ünvanlayın.
+              </p>
             </div>
+          </div>
+        </div>
 
-            {/* Chat History Area */}
+        {/* Chat Card Box */}
+        <div className="islamic-card flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="islamic-card-inner" />
+          <div className="islamic-pattern" />
+          
+          <div className="relative z-10 flex flex-col h-full w-full overflow-hidden bg-[#05180d]/40">
+            {/* Chat History */}
             <div className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-[#c9a84c]/20 bg-[#05180d]/60">
               {messages.map((msg) => (
                 <div
@@ -235,7 +220,6 @@ export default function AiChatWidget() {
                 </div>
               ))}
 
-              {/* Typing indicator */}
               {isSending && (
                 <div className="flex w-full gap-2.5 justify-start">
                   <div className="w-7 h-7 rounded-full bg-[#1a5c38]/40 border border-[#c9a84c]/20 flex items-center justify-center font-bold text-[#c9a84c] text-[10px] shrink-0">
@@ -252,7 +236,6 @@ export default function AiChatWidget() {
                 </div>
               )}
 
-              {/* Error Message */}
               {error && (
                 <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 text-[10px] rounded-xl text-center">
                   ⚠️ {error}
@@ -262,13 +245,13 @@ export default function AiChatWidget() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Suggested Prompts (only visible when chat starts and not sending) */}
+            {/* Suggestions */}
             {messages.length === 1 && !isSending && (
-              <div className="p-3 border-t border-[#c9a84c]/10 bg-[#05180d]/80 shrink-0">
+              <div className="p-3 border-t border-[#c9a84c]/10 bg-[#05180d]/85 shrink-0">
                 <span className="text-[9px] text-[#c9a84c] uppercase tracking-wider font-bold block mb-1.5">
-                  Hazır Sorğular
+                  Hazır Sorğular:
                 </span>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {SUGGESTIONS.map((sug, idx) => (
                     <button
                       key={idx}
@@ -284,28 +267,27 @@ export default function AiChatWidget() {
               </div>
             )}
 
-            {/* Message Input Box */}
+            {/* Input Form */}
             <form onSubmit={handleFormSubmit} className="p-3 border-t border-[#c9a84c]/15 bg-[#05180d]/90 flex gap-2 shrink-0">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Quran ayəsi, hədis və ya mövzu..."
+                placeholder="Quran ayəsi, hədis və ya dini sual..."
                 disabled={isSending}
-                className="flex-1 bg-[#05180d]/80 border border-[#c9a84c]/30 focus:border-[#c9a84c] rounded-xl px-3 py-2 text-xs text-[#fdf6e3] placeholder-[#fdf6e3]/40 focus:outline-none transition-all disabled:opacity-60"
+                className="flex-1 bg-[#05180d]/80 border border-[#c9a84c]/30 focus:border-[#c9a84c] rounded-xl px-3 py-2.5 text-xs text-[#fdf6e3] placeholder-[#fdf6e3]/40 focus:outline-none transition-all disabled:opacity-60"
               />
               <button
                 type="submit"
                 disabled={isSending || !input.trim()}
-                className="bg-[#c9a84c] hover:bg-[#b0913e] disabled:bg-[#c9a84c]/40 disabled:text-[#0b301a]/60 text-[#0b301a] font-bold px-3.5 py-2 rounded-xl text-xs transition-all flex items-center justify-center shrink-0"
+                className="bg-[#c9a84c] hover:bg-[#b0913e] disabled:bg-[#c9a84c]/40 disabled:text-[#0b301a]/60 text-[#0b301a] font-bold px-4 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center shrink-0"
               >
-                ➔
+                Göndər
               </button>
             </form>
-            </div>
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </AppLayout>
   );
 }
