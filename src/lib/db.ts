@@ -262,34 +262,23 @@ export async function distributeJuzToUsers(
 
   if (activeUsers.length === 0) return;
 
-  const numUsers = activeUsers.length;
-  // Create an array of 30 Juz: 1, 2, ..., 30
-  const allJuzList = Array.from({ length: 30 }, (_, idx) => idx + 1);
-
-  const juzPerUser = Math.floor(30 / numUsers);
-  const extraJuz = 30 % numUsers;
+  const settings = await getGlobalSettings();
+  let lastJuz = settings.lastDistributedJuz || 0;
 
   const { writeBatch } = await import("firebase/firestore");
   const batch = writeBatch(db);
 
-  let juzIndex = 0;
-
-  for (let i = 0; i < numUsers; i++) {
-    const user = activeUsers[i];
-    const count = juzPerUser + (i < extraJuz ? 1 : 0);
-    const assignedJuzs = count > 0 ? allJuzList.slice(juzIndex, juzIndex + count) : [];
-    juzIndex += count;
-
+  for (const user of activeUsers) {
+    const nextJuz = (lastJuz % 30) + 1;
+    
     // Page ranges for Juz
+    const startPage = (nextJuz - 1) * 20 + 1;
+    const endPage = nextJuz === 30 ? 604 : nextJuz * 20;
+
     const pages: number[] = [];
-    for (const juzNum of assignedJuzs) {
-      const startPage = (juzNum - 1) * 20 + 1;
-      const endPage = juzNum === 30 ? 604 : juzNum * 20;
-      for (let p = startPage; p <= endPage; p++) {
-        pages.push(p);
-      }
+    for (let p = startPage; p <= endPage; p++) {
+      pages.push(p);
     }
-    pages.sort((a, b) => a - b);
 
     const userRef = doc(db, "users", user.uid);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -299,8 +288,8 @@ export async function distributeJuzToUsers(
       completedAt: {},
       assignmentStartDate: startDate,
       assignmentEndDate: endDate,
-      assignedJuz: assignedJuzs.length > 0 ? assignedJuzs[0] : null,
-      assignedJuzs: assignedJuzs
+      assignedJuz: nextJuz,
+      assignedJuzs: [nextJuz]
     };
 
     // Save current assignment to previous before assigning new one, so history and dates are preserved
@@ -312,11 +301,13 @@ export async function distributeJuzToUsers(
     }
 
     batch.update(userRef, updates);
+
+    lastJuz = nextJuz;
   }
 
   const settingsRef = doc(db, "settings", "config");
   batch.set(settingsRef, {
-    lastDistributedJuz: 30, // all 30 were distributed
+    lastDistributedJuz: lastJuz,
     isCurrentKhatmCompleted: false
   }, { merge: true });
 
