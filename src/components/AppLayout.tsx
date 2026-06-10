@@ -55,14 +55,33 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
         if (newlyCompleted.length > 0) {
           const name = doc.data().name || "Bir iştirakçı";
+          const title = "Quran Xətm - Yeni Tamamlama!";
+          const options = {
+            body: `${name} yeni səhifəni tamamladı: Səhifə ${newlyCompleted.sort((a: number, b: number) => a - b).join(", ")}`,
+            icon: "/icon.png",
+            badge: "/favicon.ico",
+            vibrate: [200, 100, 200],
+            data: { url: "/dashboard" }
+          };
+
           if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-            try {
-              new Notification("Quran Xətm - Yeni Tamamlama!", {
-                body: `${name} yeni səhifəni tamamladı: Səhifə ${newlyCompleted.sort((a: number, b: number) => a - b).join(", ")}`,
-                icon: "/icon.png"
+            if ("serviceWorker" in navigator) {
+              navigator.serviceWorker.ready.then((registration) => {
+                registration.showNotification(title, options);
+              }).catch((err) => {
+                console.error("Error in service worker notification:", err);
+                try {
+                  new Notification(title, { body: options.body, icon: options.icon });
+                } catch (e) {
+                  console.error("Fallback notification error:", e);
+                }
               });
-            } catch (err) {
-              console.error("Error triggering HTML5 notification:", err);
+            } else {
+              try {
+                new Notification(title, { body: options.body, icon: options.icon });
+              } catch (err) {
+                console.error("Error triggering HTML5 notification:", err);
+              }
             }
           }
         }
