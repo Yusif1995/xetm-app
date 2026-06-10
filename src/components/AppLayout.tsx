@@ -207,9 +207,38 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                 >
                   <div className="islamic-card-inner" />
                   <div className="relative z-10 flex flex-col">
-                    <div className="px-3 py-2 border-b border-[#c9a84c]/20 text-[10px] text-[#fdf6e3]/60">
+                    <div className="px-3 py-2 border-b border-[#c9a84c]/20 text-[10px] text-[#fdf6e3]/60 font-mono">
                       Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
                     </div>
+                    <button
+                      onClick={async () => {
+                        if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+                          try {
+                            const permission = await Notification.requestPermission();
+                            if (permission === "granted") {
+                              const registration = await navigator.serviceWorker.ready;
+                              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
+                              const subscription = await registration.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: urlBase64ToUint8Array(publicKey)
+                              });
+                              await addPushSubscription(user.uid, JSON.stringify(subscription));
+                              alert("Bildirişlər uğurla aktiv edildi!");
+                            } else {
+                              alert("Bildiriş icazəsi rədd edildi: " + permission);
+                            }
+                          } catch (err) {
+                            console.error("Subscription error:", err);
+                            alert("Bildirişləri aktiv edərkən xəta baş verdi: " + (err instanceof Error ? err.message : String(err)));
+                          }
+                        } else {
+                          alert("Cihazınız və ya brauzeriniz Web Push bildirişləri dəstəkləmir.");
+                        }
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-[#c9a84c] hover:bg-[#1a5c38]/20 rounded-lg transition-colors mt-1 border-b border-[#c9a84c]/20 flex items-center gap-1.5"
+                    >
+                      <span>🔔</span> Bildirişləri Aktiv Et
+                    </button>
                     <button
                       onClick={logout}
                       className="w-full text-left px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-950/20 hover:text-red-300 rounded-lg transition-colors mt-1"
