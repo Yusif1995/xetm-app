@@ -9,7 +9,6 @@ interface UserRowProps {
   isAdminView?: boolean;
   onAssignPagesClick?: (user: UserDoc) => void;
   onRoleToggle?: (user: UserDoc) => void;
-  onApprovalToggle?: (user: UserDoc, approved: boolean) => void;
   onDeleteClick?: (user: UserDoc) => void;
   onNotifyClick?: (user: UserDoc) => void;
 }
@@ -19,7 +18,6 @@ export default function UserRow({
   isAdminView, 
   onAssignPagesClick, 
   onRoleToggle,
-  onApprovalToggle,
   onDeleteClick,
   onNotifyClick
 }: UserRowProps) {
@@ -152,20 +150,7 @@ export default function UserRow({
         {isAdminView && (
           <td className="px-4 py-3 md:px-6 md:py-4 text-right" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-wrap items-center justify-end gap-1.5">
-              {/* Approval status toggle */}
-              {onApprovalToggle && (
-                <button
-                  onClick={() => onApprovalToggle(user, !user.approved)}
-                  disabled={isSelf}
-                  className={`px-2 py-1 rounded-md text-[9px] font-bold border transition-all ${
-                    user.approved
-                      ? "bg-green-950/20 text-green-400 border-green-500/30 hover:bg-green-900/30"
-                      : "bg-yellow-950/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-900/30 animate-pulse"
-                  } disabled:opacity-40`}
-                >
-                  {user.approved ? "Təsdiqli" : "Təsdiqlə"}
-                </button>
-              )}
+
 
               {/* Page assign shortcut */}
               {onAssignPagesClick && (

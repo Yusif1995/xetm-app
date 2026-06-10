@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { getAllUsers, toggleCompletedPages, type UserDoc } from "@/lib/db";
+import { getAllUsers, toggleCompletedPages, getGlobalSettings, type UserDoc, type AppSettings } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 
@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const [allUsers, setAllUsers] = useState<UserDoc[]>([]);
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [isMarking, setIsMarking] = useState(false);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -65,8 +66,12 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const usersList = await getAllUsers();
+        const [usersList, appSettings] = await Promise.all([
+          getAllUsers(),
+          getGlobalSettings()
+        ]);
         setAllUsers(usersList);
+        setSettings(appSettings);
       } catch (err) {
         console.error("Error loading dashboard data:", err);
       }
@@ -176,6 +181,31 @@ export default function DashboardPage() {
         <h1 className="text-center font-serif text-3xl md:text-4xl text-transparent bg-clip-text bg-gradient-to-b from-[#fdf6e3] via-[#c9a84c] to-[#b0913e] font-bold mb-8 tracking-wide relative z-10">
           Xətm İdarəetmə Paneli
         </h1>
+
+        {/* Günün Ayəsi & Günün Hədisi Kartı */}
+        {(settings?.currentAyah || settings?.currentHadith) && (
+          <div className="mb-6 bg-[#05180d]/80 border border-[#c9a84c]/20 rounded-2xl p-5 md:p-6 shadow-inner relative overflow-hidden z-10">
+            <div className="islamic-card-inner !border-[#c9a84c]/10" />
+            <div className={`relative z-10 grid gap-6 ${settings.currentAyah && settings.currentHadith ? "grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#c9a84c]/15" : "grid-cols-1"}`}>
+              {settings.currentAyah && (
+                <div className="flex flex-col items-center text-center px-4 justify-center">
+                  <span className="text-[10px] font-bold text-[#c9a84c] uppercase tracking-wider mb-2">GÜNÜN AYƏSİ</span>
+                  <p className="text-xs md:text-sm font-serif text-[#fdf6e3] italic leading-relaxed whitespace-pre-line">
+                    {settings.currentAyah}
+                  </p>
+                </div>
+              )}
+              {settings.currentHadith && (
+                <div className={`flex flex-col items-center text-center px-4 justify-center ${settings.currentAyah ? "pt-4 md:pt-0 md:pl-6" : ""}`}>
+                  <span className="text-[10px] font-bold text-[#c9a84c] uppercase tracking-wider mb-2">GÜNÜN HƏDİSİ</span>
+                  <p className="text-xs md:text-sm font-serif text-[#fdf6e3] italic leading-relaxed whitespace-pre-line">
+                    {settings.currentHadith}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 3-Column Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">

@@ -9,7 +9,6 @@ import {
   setAssignmentForUser,
   distributeJuzToUsers,
   updateUserRole,
-  updateUserApproval,
   deleteUserDoc,
   updateUserAdminNotification,
   type UserDoc, 
@@ -107,15 +106,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleApprovalToggle = async (user: UserDoc, approved: boolean) => {
-    try {
-      await updateUserApproval(user.uid, approved);
-      await loadData();
-    } catch (err) {
-      console.error("Error toggling approval:", err);
-      alert("Status yenilənərkən xəta baş verdi.");
-    }
-  };
 
   const handleDeleteClick = async (user: UserDoc) => {
     if (window.confirm(`${user.name} adlı iştirakçını tamamilə silmək istəyirsiniz?`)) {
@@ -471,7 +461,7 @@ export default function AdminPage() {
                 <form onSubmit={handleSettingsSubmit} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#c9a84c] mb-1.5 uppercase tracking-wide">
-                      Günün Ayəsi (Ərəb və ya Tərcümə)
+                      Günün Ayəsi
                     </label>
                     <textarea
                       value={settings.currentAyah || ""}
@@ -526,7 +516,7 @@ export default function AdminPage() {
               <h3 className="text-lg font-bold text-[#fdf6e3] flex items-center gap-2">
                 <span>Qeydiyyatlı İştirakçılar</span>
                 <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] px-2.5 py-0.5 rounded-full border border-[#c9a84c]/30 font-mono">
-                  {filteredUsers.length} / {users.length} iştirakçı
+                  {users.length} iştirakçı
                 </span>
                 <span className="text-xs text-[#c9a84c] ml-1 font-mono">
                   {showParticipantsList ? "▲" : "▼"}
@@ -573,7 +563,6 @@ export default function AdminPage() {
                           isAdminView={true} 
                           onAssignPagesClick={handleSelectUser} 
                           onRoleToggle={handleRoleToggle}
-                          onApprovalToggle={handleApprovalToggle}
                           onDeleteClick={handleDeleteClick}
                           onNotifyClick={handleNotifyClick}
                         />

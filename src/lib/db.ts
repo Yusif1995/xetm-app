@@ -92,7 +92,7 @@ export async function createUserDoc(
     assignedPages: [],
     completedPages: [],
     createdAt: serverTimestamp(),
-    approved: isFirstUser,
+    approved: true,
   };
 
   await setDoc(docRef, newUser);

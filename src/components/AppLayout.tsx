@@ -137,7 +137,10 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               </button>
 
               {isProfileOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-[#05180d] border border-[#c9a84c]/30 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn islamic-card">
+                <div 
+                  className="absolute right-0 mt-2 w-48 bg-[#05180d] border border-[#c9a84c]/30 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn islamic-card !absolute"
+                  style={{ position: "absolute" }}
+                >
                   <div className="islamic-card-inner" />
                   <div className="relative z-10 flex flex-col">
                     <div className="px-3 py-2 border-b border-[#c9a84c]/20 text-[10px] text-[#fdf6e3]/60">
