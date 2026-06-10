@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
-import { getAllUsers, UserDoc } from "@/lib/db";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -17,7 +16,6 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const prevCompletionsRef = useRef<Record<string, number[]>>({});
   const isFirstLoadRef = useRef(true);
-  const [admins, setAdmins] = useState<UserDoc[]>([]);
 
   // Request browser Notification permission on mount
   useEffect(() => {
@@ -76,20 +74,6 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     return () => unsubscribe();
   }, [user]);
 
-  // Fetch admins if user is not approved
-  useEffect(() => {
-    if (user && !user.approved) {
-      getAllUsers()
-        .then((allUsers) => {
-          const adminUsers = allUsers.filter((u) => u.role === "admin");
-          setAdmins(adminUsers);
-        })
-        .catch((err) => {
-          console.error("Error fetching admins in AppLayout:", err);
-        });
-    }
-  }, [user]);
-
   if (loading) {
     return (
       <div className="flex-1 flex flex-col justify-center items-center islamic-bg text-[#fdf6e3] min-h-screen">
@@ -105,58 +89,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   }
 
   if (!user) {
-    return null; // Guarded by page components / middleware
-  }
-
-  // Approval Gate: If user is not approved by admin, render approval pending screen
-  if (!user.approved) {
-    return (
-      <div className="min-h-screen flex flex-col justify-center items-center islamic-bg p-4 relative overflow-hidden">
-        <IslamicBorders />
-        <div className="islamic-card w-full max-w-md p-6 md:p-8 text-center shadow-2xl rounded-2xl relative z-10 border-[5px] border-double border-[#c9a84c]/85 bg-gradient-to-b from-[#0c2e1b] to-[#05160c]">
-          <div className="islamic-card-inner" />
-          <div className="islamic-pattern opacity-[0.03]" />
-          
-          <div className="relative z-10 space-y-6">
-            {/* Rosette SVG */}
-            <div className="w-16 h-16 mx-auto text-[#c9a84c] flex items-center justify-center">
-              <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" fill="currentColor" fillOpacity="0.15" />
-                <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" />
-                <circle cx="12" cy="12" r="2.5" fill="currentColor" />
-              </svg>
-            </div>
-
-            <h2 className="text-2xl font-amiri font-bold text-[#c9a84c] tracking-wide">
-              Təsdiq Gözləyir
-            </h2>
-            
-            <p className="text-sm text-[#fdf6e3]/75 leading-relaxed">
-              Hörmətli iştirakçı, hesabınız hələ inzibatçı (admin) tərəfindən təsdiqlənməyib. Zəhmət olmasa təsdiq olunmasını gözləyin. İcazə verildikdən sonra tətbiqə girişiniz açılacaqdır.
-            </p>
-
-            {admins.length > 0 && (
-              <div className="p-4 bg-[#05180d]/80 border border-[#c9a84c]/20 rounded-xl text-left space-y-2 animate-fadeIn relative z-20">
-                <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider block border-b border-[#c9a84c]/10 pb-1">Təsdiq üçün əlaqə saxlayın:</span>
-                {admins.map((admin) => (
-                  <div key={admin.uid} className="text-xs text-[#fdf6e3] flex flex-col sm:flex-row sm:justify-between gap-0.5 sm:gap-2">
-                    <span className="font-semibold">{admin.name}</span>
-                    <span className="font-mono text-[#c9a84c] text-[10.5px]">{admin.email}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <button
-              onClick={logout}
-              className="px-6 py-2.5 bg-red-950/20 hover:bg-red-900/40 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-bold rounded-xl transition-all shadow-md active:scale-95 uppercase tracking-wider"
-            >
-              Çıxış (Logout)
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
