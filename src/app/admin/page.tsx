@@ -17,6 +17,8 @@ import {
 import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
 import AppLayout from "@/components/AppLayout";
+import { db } from "@/lib/firebase";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 
 export default function AdminPage() {
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -61,7 +63,30 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    loadData();
+    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+      const list: UserDoc[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ uid: docSnap.id, ...docSnap.data() } as UserDoc);
+      });
+      setUsers(list);
+      setLoading(false);
+    }, (err) => {
+      console.error("Error in real-time users listener:", err);
+      setLoading(false);
+    });
+
+    const unsubSettings = onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data() as AppSettings);
+      }
+    }, (err) => {
+      console.error("Error in real-time settings listener:", err);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubSettings();
+    };
   }, []);
 
   if (authLoading || loading) {

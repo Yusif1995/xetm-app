@@ -8,7 +8,8 @@ import {
   onAuthStateChanged,
   type User as FirebaseUser
 } from "firebase/auth";
-import { auth } from "./firebase";
+import { auth, db } from "./firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 import { getUserDoc, createUserDoc, type UserDoc } from "./db";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
@@ -53,9 +54,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeDoc: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
-        await handleUserChange(firebaseUser);
+        if (unsubscribeDoc) {
+          unsubscribeDoc();
+          unsubscribeDoc = null;
+        }
+
+        if (firebaseUser) {
+          // Get or create user document in Firestore first (one-off check on login)
+          let userDoc = await getUserDoc(firebaseUser.uid);
+          if (!userDoc) {
+            userDoc = await createUserDoc(
+              firebaseUser.uid,
+              firebaseUser.displayName || "",
+              firebaseUser.email || "",
+              firebaseUser.photoURL || ""
+            );
+          }
+
+          // Set initial user state
+          setUser(userDoc);
+          Cookies.set("khatm_uid", firebaseUser.uid, { expires: 30, path: "/" });
+          Cookies.set("khatm_role", userDoc.role, { expires: 30, path: "/" });
+
+          // Start listening to the document in real-time
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+              const updatedDoc = { uid: firebaseUser.uid, ...docSnap.data() } as UserDoc;
+              setUser(updatedDoc);
+              Cookies.set("khatm_uid", firebaseUser.uid, { expires: 30, path: "/" });
+              Cookies.set("khatm_role", updatedDoc.role, { expires: 30, path: "/" });
+            }
+          }, (err) => {
+            console.error("Error in user doc real-time listener:", err);
+          });
+        } else {
+          setUser(null);
+          Cookies.remove("khatm_uid", { path: "/" });
+          Cookies.remove("khatm_role", { path: "/" });
+        }
       } catch (error) {
         console.error("Error in auth state change listener:", error);
         setUser(null);
@@ -65,7 +106,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+      }
+    };
   }, []);
 
   const loginWithGoogle = async () => {

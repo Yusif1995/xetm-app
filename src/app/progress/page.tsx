@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAllUsers, getGlobalSettings, type UserDoc, type AppSettings } from "@/lib/db";
+import { type UserDoc, type AppSettings } from "@/lib/db";
 import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
 import AppLayout from "@/components/AppLayout";
+import { db } from "@/lib/firebase";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 
 export default function ProgressPage() {
   const [users, setUsers] = useState<UserDoc[]>([]);
@@ -12,19 +14,30 @@ export default function ProgressPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const allUsers = await getAllUsers();
-        setUsers(allUsers);
-        const appSettings = await getGlobalSettings();
-        setSettings(appSettings);
-      } catch (err) {
-        console.error("Error loading progress data:", err);
-      } finally {
-        setLoading(false);
+    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+      const list: UserDoc[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ uid: docSnap.id, ...docSnap.data() } as UserDoc);
+      });
+      setUsers(list);
+      setLoading(false);
+    }, (err) => {
+      console.error("Error in real-time users listener:", err);
+      setLoading(false);
+    });
+
+    const unsubSettings = onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data() as AppSettings);
       }
-    }
-    loadData();
+    }, (err) => {
+      console.error("Error in real-time settings listener:", err);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubSettings();
+    };
   }, []);
 
   // Calculate unique pages completed by the group out of 604

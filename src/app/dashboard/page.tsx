@@ -1,9 +1,11 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { getAllUsers, toggleCompletedPages, getGlobalSettings, type UserDoc, type AppSettings } from "@/lib/db";
+import { toggleCompletedPages, type UserDoc, type AppSettings } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
+import { db } from "@/lib/firebase";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 
 // 1-30 Cüz üzrə Surə aralıqları xəritəsi
 const JUZ_MAP: Record<number, { surah: string }> = {
@@ -64,19 +66,28 @@ export default function DashboardPage() {
   }, [user]);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [usersList, appSettings] = await Promise.all([
-          getAllUsers(),
-          getGlobalSettings()
-        ]);
-        setAllUsers(usersList);
-        setSettings(appSettings);
-      } catch (err) {
-        console.error("Error loading dashboard data:", err);
+    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+      const list: UserDoc[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ uid: docSnap.id, ...docSnap.data() } as UserDoc);
+      });
+      setAllUsers(list);
+    }, (err) => {
+      console.error("Error in real-time users listener:", err);
+    });
+
+    const unsubSettings = onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data() as AppSettings);
       }
-    }
-    loadData();
+    }, (err) => {
+      console.error("Error in real-time settings listener:", err);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubSettings();
+    };
   }, []);
 
   if (loading || !user) {
