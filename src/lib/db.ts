@@ -252,7 +252,7 @@ export async function distributeJuzToUsers(
   endDate: string
 ): Promise<void> {
   const users = await getAllUsers();
-  const activeUsers = users.filter(u => u.approved === true).sort((a, b) => a.name.localeCompare(b.name));
+  const activeUsers = [...users].sort((a, b) => a.name.localeCompare(b.name));
   
   // Fisher-Yates Shuffle user order
   for (let i = activeUsers.length - 1; i > 0; i--) {

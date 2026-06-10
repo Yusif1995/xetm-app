@@ -26,9 +26,9 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     }
   }, []);
 
-  // Listen to completedPages updates for approved users in real-time
+  // Listen to completedPages updates in real-time
   useEffect(() => {
-    if (!user || !user.approved) return;
+    if (!user) return;
 
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const currentCompletions: Record<string, number[]> = {};

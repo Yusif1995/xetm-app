@@ -387,7 +387,7 @@ export default function DashboardPage() {
                 <span className="text-[9px] text-[#c9a84c] uppercase tracking-wider font-bold block mb-2">Aktiv Oxucular</span>
                 <div className="space-y-2">
                   {allUsers
-                    .filter(u => u.approved === true && (u.assignedPages || []).length > 0)
+                    .filter(u => (u.assignedPages || []).length > 0)
                     .slice(0, 3)
                     .map((reciter) => {
                       const completed = (reciter.completedPages || []).length === (reciter.assignedPages || []).length;
