@@ -9,6 +9,9 @@ import {
   setAssignmentForUser,
   distributeJuzToUsers,
   updateUserRole,
+  updateUserApproval,
+  deleteUserDoc,
+  updateUserAdminNotification,
   type UserDoc, 
   type AppSettings 
 } from "@/lib/db";
@@ -43,6 +46,7 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<AppSettings>({ currentAyah: "", currentHadith: "" });
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [showParticipantsList, setShowParticipantsList] = useState(true);
 
   async function loadData() {
     try {
@@ -100,6 +104,44 @@ export default function AdminPage() {
     } catch (err) {
       console.error("Error toggling role:", err);
       alert("Rol dəyişdirilərkən xəta baş verdi.");
+    }
+  };
+
+  const handleApprovalToggle = async (user: UserDoc, approved: boolean) => {
+    try {
+      await updateUserApproval(user.uid, approved);
+      await loadData();
+    } catch (err) {
+      console.error("Error toggling approval:", err);
+      alert("Status yenilənərkən xəta baş verdi.");
+    }
+  };
+
+  const handleDeleteClick = async (user: UserDoc) => {
+    if (window.confirm(`${user.name} adlı iştirakçını tamamilə silmək istəyirsiniz?`)) {
+      try {
+        await deleteUserDoc(user.uid);
+        await loadData();
+      } catch (err) {
+        console.error("Error deleting user:", err);
+        alert("İştirakçı silinərkən xəta baş verdi.");
+      }
+    }
+  };
+
+  const handleNotifyClick = async (user: UserDoc) => {
+    const msg = window.prompt(
+      "İştirakçıya admin bildirişi daxil edin (Boş buraxdıqda mövcud bildiriş silinir):",
+      user.adminNotification || ""
+    );
+    if (msg !== null) {
+      try {
+        await updateUserAdminNotification(user.uid, msg);
+        await loadData();
+      } catch (err) {
+        console.error("Error updating admin notification:", err);
+        alert("Bildiriş göndərilərkən xəta baş verdi.");
+      }
     }
   };
 
@@ -477,56 +519,69 @@ export default function AdminPage() {
           <div className="islamic-card-inner" />
           <div className="islamic-pattern" />
           <div className="relative z-10 w-full">
-            <div className="p-5 border-b border-[#c9a84c]/15 bg-[#0b301a]/60 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div 
+              onClick={() => setShowParticipantsList(!showParticipantsList)}
+              className="p-5 border-b border-[#c9a84c]/15 bg-[#0b301a]/60 flex flex-col md:flex-row justify-between items-center gap-4 cursor-pointer hover:bg-[#0b301a]/80 transition-colors select-none"
+            >
               <h3 className="text-lg font-bold text-[#fdf6e3] flex items-center gap-2">
                 <span>Qeydiyyatlı İştirakçılar</span>
                 <span className="text-xs bg-[#c9a84c]/20 text-[#c9a84c] px-2.5 py-0.5 rounded-full border border-[#c9a84c]/30 font-mono">
                   {filteredUsers.length} / {users.length} iştirakçı
                 </span>
+                <span className="text-xs text-[#c9a84c] ml-1 font-mono">
+                  {showParticipantsList ? "▲" : "▼"}
+                </span>
               </h3>
 
               {/* Search Input */}
-              <div className="w-full md:w-72">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Ad və ya e-poçt ilə axtar..."
-                  className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none"
-                />
-              </div>
+              {showParticipantsList && (
+                <div className="w-full md:w-72" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Ad və ya e-poçt ilə axtar..."
+                    className="w-full px-3 py-2 bg-[#05180d]/80 border border-[#c9a84c]/20 focus:border-[#c9a84c] rounded-lg text-xs text-[#fdf6e3] focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
 
-            {filteredUsers.length === 0 ? (
-              <div className="text-center py-16 text-[#fdf6e3]/50 text-sm">
-                Heç bir iştirakçı tapılmadı.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#05180d]/85 border-b border-[#c9a84c]/15 text-xs text-[#c9a84c] uppercase font-bold tracking-wider">
-                      <th className="px-4 py-3 md:px-6 md:py-4">İştirakçı</th>
-                      <th className="px-4 py-3 md:px-6 md:py-4">Təyin edilmiş Səhifələr</th>
-                      <th className="px-4 py-3 md:px-6 md:py-4">Tamamlanan</th>
-                      <th className="px-4 py-3 md:px-6 md:py-4">Faiz</th>
-                      <th className="px-4 py-3 md:px-6 md:py-4">Status</th>
-                      <th className="px-4 py-3 md:px-6 md:py-4 text-right">Əməliyyat</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((u) => (
-                      <UserRow 
-                        key={u.uid} 
-                        user={u} 
-                        isAdminView={true} 
-                        onAssignPagesClick={handleSelectUser} 
-                        onRoleToggle={handleRoleToggle}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            {showParticipantsList && (
+              filteredUsers.length === 0 ? (
+                <div className="text-center py-16 text-[#fdf6e3]/50 text-sm">
+                  Heç bir iştirakçı tapılmadı.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#05180d]/85 border-b border-[#c9a84c]/15 text-xs text-[#c9a84c] uppercase font-bold tracking-wider">
+                        <th className="px-4 py-3 md:px-6 md:py-4">İştirakçı</th>
+                        <th className="px-4 py-3 md:px-6 md:py-4">Təyin edilmiş Səhifələr</th>
+                        <th className="px-4 py-3 md:px-6 md:py-4">Tamamlanan</th>
+                        <th className="px-4 py-3 md:px-6 md:py-4">Faiz</th>
+                        <th className="px-4 py-3 md:px-6 md:py-4">Status</th>
+                        <th className="px-4 py-3 md:px-6 md:py-4 text-right">Əməliyyat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map((u) => (
+                        <UserRow 
+                          key={u.uid} 
+                          user={u} 
+                          isAdminView={true} 
+                          onAssignPagesClick={handleSelectUser} 
+                          onRoleToggle={handleRoleToggle}
+                          onApprovalToggle={handleApprovalToggle}
+                          onDeleteClick={handleDeleteClick}
+                          onNotifyClick={handleNotifyClick}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         </div>

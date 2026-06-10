@@ -5,38 +5,38 @@ import { getAllUsers, toggleCompletedPages, type UserDoc } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 
-// 1-30 Juz to Surah & Ayat Mapping
-const JUZ_MAP: Record<number, { surah: string; ayat: string }> = {
-  1: { surah: "Əl-Fatihə / Əl-Bəqərə", ayat: "1:1 - 2:141" },
-  2: { surah: "Əl-Bəqərə", ayat: "2:142 - 2:252" },
-  3: { surah: "Əl-Bəqərə / Ali-İmran", ayat: "2:253 - 3:92" },
-  4: { surah: "Ali-İmran / An-Nisa", ayat: "3:93 - 4:23" },
-  5: { surah: "An-Nisa", ayat: "4:24 - 4:147" },
-  6: { surah: "An-Nisa / Al-Maidə", ayat: "4:148 - 5:81" },
-  7: { surah: "Al-Maidə / Al-Ənam", ayat: "5:82 - 6:110" },
-  8: { surah: "Al-Ənam / Al-Əraf", ayat: "6:111 - 7:87" },
-  9: { surah: "Al-Əraf / Al-Ənfal", ayat: "7:88 - 8:40" },
-  10: { surah: "Al-Ənfal / At-Tövbə", ayat: "8:41 - 9:92" },
-  11: { surah: "At-Tövbə / Hud", ayat: "9:93 - 11:5" },
-  12: { surah: "Hud / Yusuf", ayat: "11:6 - 12:52" },
-  13: { surah: "Yusuf / Ar-Rad / İbrahim", ayat: "12:53 - 14:52" },
-  14: { surah: "Al-Hicr / An-Nahl", ayat: "15:1 - 16:128" },
-  15: { surah: "Al-İsra / Al-Kəhf", ayat: "17:1 - 18:74" },
-  16: { surah: "Al-Kəhf / Məryəm / Taha", ayat: "18:75 - 20:135" },
-  17: { surah: "Al-Ənbiya / Al-Həcc", ayat: "21:1 - 22:78" },
-  18: { surah: "Al-Muminun / An-Nur / Al-Furqan", ayat: "23:1 - 25:20" },
-  19: { surah: "Al-Furqan / Ash-Shuara / An-Naml", ayat: "25:21 - 27:55" },
-  20: { surah: "An-Naml / Al-Qasas / Al-Ankabut", ayat: "27:56 - 29:45" },
-  21: { surah: "Al-Ankabut / Ar-Rum / Luqman / As-Sajdah / Al-Ahzab", ayat: "29:46 - 33:30" },
-  22: { surah: "Al-Ahzab / Saba / Fatir / Yasin", ayat: "33:31 - 36:27" },
-  23: { surah: "Yasin / As-Saffat / Sad / Az-Zumar", ayat: "36:28 - 39:31" },
-  24: { surah: "Az-Zumar / Ghafir / Fussilat", ayat: "39:32 - 41:46" },
-  25: { surah: "Fussilat / Ash-Shura / Az-Zuxruf / Ad-Duxan / Al-Jasiya", ayat: "41:47 - 45:37" },
-  26: { surah: "Al-Ahqaf / Muhammad / Al-Fath / Al-Hujurat / Qaf / Az-Zariyat", ayat: "46:1 - 51:30" },
-  27: { surah: "Az-Zariyat / At-Tur / An-Najm / Al-Qamar / Ar-Rahman / Al-Waqiah / Al-Hadid", ayat: "51:31 - 57:29" },
-  28: { surah: "Al-Mujadilah - At-Tahrim", ayat: "Surə 58 - 66" },
-  29: { surah: "Al-Mulk - Al-Mursalat", ayat: "Surə 67 - 77" },
-  30: { surah: "An-Naba - An-Nas", ayat: "Surə 78 - 114" }
+// 1-30 Cüz üzrə Surə aralıqları xəritəsi
+const JUZ_MAP: Record<number, { surah: string }> = {
+  1: { surah: "Əl-Fatihə - Əl-Bəqərə" },
+  2: { surah: "Əl-Bəqərə" },
+  3: { surah: "Əl-Bəqərə - Ali-İmran" },
+  4: { surah: "Ali-İmran - An-Nisa" },
+  5: { surah: "An-Nisa" },
+  6: { surah: "An-Nisa - Al-Maidə" },
+  7: { surah: "Al-Maidə - Al-Ənam" },
+  8: { surah: "Al-Ənam - Al-Əraf" },
+  9: { surah: "Al-Əraf - Al-Ənfal" },
+  10: { surah: "Al-Ənfal - At-Tövbə" },
+  11: { surah: "At-Tövbə - Hud" },
+  12: { surah: "Hud - Yusuf" },
+  13: { surah: "Yusuf - İbrahim" },
+  14: { surah: "Al-Hicr - An-Nahl" },
+  15: { surah: "Al-İsra - Al-Kəhf" },
+  16: { surah: "Al-Kəhf - Taha" },
+  17: { surah: "Al-Ənbiya - Al-Həcc" },
+  18: { surah: "Al-Muminun - Al-Furqan" },
+  19: { surah: "Al-Furqan - An-Naml" },
+  20: { surah: "An-Naml - Al-Ankabut" },
+  21: { surah: "Al-Ankabut - Al-Ahzab" },
+  22: { surah: "Al-Ahzab - Yasin" },
+  23: { surah: "Yasin - Az-Zumar" },
+  24: { surah: "Az-Zumar - Fussilat" },
+  25: { surah: "Fussilat - Al-Jasiya" },
+  26: { surah: "Al-Ahqaf - Az-Zariyat" },
+  27: { surah: "Az-Zariyat - Al-Hadid" },
+  28: { surah: "Al-Mujadilah - At-Tahrim" },
+  29: { surah: "Al-Mulk - Al-Mursalat" },
+  30: { surah: "Ən-Nəbə - Ən-Nas" }
 };
 
 const CornerOrnament = ({ className }: { className?: string }) => (
@@ -91,7 +91,7 @@ export default function DashboardPage() {
   const assignedPages = user.assignedPages || [];
   const activeCompleted = completedPagesState.filter(p => assignedPages.includes(p));
 
-  // Find the first uncompleted 5-page chunk
+  // 5-lik qruplar
   const sortedPages = [...assignedPages].sort((a, b) => a - b);
   const chunks: number[][] = [];
   for (let i = 0; i < sortedPages.length; i += 5) {
@@ -99,13 +99,12 @@ export default function DashboardPage() {
   }
   const activeChunk = chunks.find(chunk => !chunk.every(page => completedPagesState.includes(page))) || chunks[0] || [];
 
-  // Personal percentage
+  // Şəxsi faiz
   const personalPercentage = assignedPages.length > 0
     ? Math.round((activeCompleted.length / assignedPages.length) * 100)
     : 0;
 
-  // Group stats calculation
-  // Total completed pages across all users
+  // Qrup statistikası
   const totalAssignedPagesList = allUsers.flatMap(u => u.assignedPages || []);
   const totalUniqueAssigned = Array.from(new Set(totalAssignedPagesList)).length;
 
@@ -118,7 +117,7 @@ export default function DashboardPage() {
 
   const activeRecitersCount = allUsers.filter(u => (u.assignedPages || []).length > 0).length;
 
-  // Last read minutes calculation
+  // Son oxu vaxtı
   const getLastReadTime = () => {
     if (!user.completedAt || Object.keys(user.completedAt).length === 0) return "Oxunmayıb";
     const timestamps = Object.values(user.completedAt).map(t => new Date(t).getTime());
@@ -132,13 +131,12 @@ export default function DashboardPage() {
     return `${Math.floor(diffHours / 24)} gün əvvəl`;
   };
 
-  // Mark active chunk as complete
+  // Oxundu olaraq qeyd et
   const handleMarkAsComplete = async () => {
     if (activeChunk.length === 0 || isMarking) return;
     setIsMarking(true);
     try {
       await toggleCompletedPages(user.uid, activeChunk, true);
-      // Sync local state
       setCompletedPagesState(prev => {
         const next = [...prev];
         activeChunk.forEach(p => {
@@ -154,8 +152,8 @@ export default function DashboardPage() {
     }
   };
 
-  // Surah / Ayat / Pages for Active Chunk
-  const juzDetails = JUZ_MAP[user.assignedJuz || 30] || { surah: "Qrup Xətmi", ayat: "Quran" };
+  // Surə / Səhifə
+  const juzDetails = JUZ_MAP[user.assignedJuz || 30] || { surah: "Qrup Xətmi" };
   const chunkPagesLabel = activeChunk.length > 0 
     ? `${activeChunk[0]}-${activeChunk[activeChunk.length - 1]}`
     : "Təyin edilməyib";
@@ -176,19 +174,19 @@ export default function DashboardPage() {
 
         {/* Dashboard Title */}
         <h1 className="text-center font-serif text-3xl md:text-4xl text-transparent bg-clip-text bg-gradient-to-b from-[#fdf6e3] via-[#c9a84c] to-[#b0913e] font-bold mb-8 tracking-wide relative z-10">
-          Quran Khatm Dashboard
+          Xətm İdarəetmə Paneli
         </h1>
 
         {/* 3-Column Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
           
-          {/* Column 1: Your Assigned Pages */}
+          {/* Column 1: Təyin Olunmuş Səhifələr */}
           <div className="flex flex-col bg-[#05180d]/80 border border-[#c9a84c]/20 rounded-2xl p-5 shadow-inner relative overflow-hidden min-h-[360px]">
             <div className="islamic-card-inner !border-[#c9a84c]/10" />
             <div className="relative z-10 flex-1 flex flex-col justify-between">
               <div>
-                <h3 className="text-center text-sm font-bold text-[#fdf6e3] tracking-wide mb-1 uppercase">Your Assigned Pages</h3>
-                <h4 className="text-center text-[11px] font-bold text-[#c9a84c] uppercase tracking-wider mb-5">Today&apos;s Reading ({activeChunk.length} Pages)</h4>
+                <h3 className="text-center text-sm font-bold text-[#fdf6e3] tracking-wide mb-1 uppercase">Təyin Olunmuş Səhifələr</h3>
+                <h4 className="text-center text-[10px] font-bold text-[#c9a84c] uppercase tracking-wider mb-5">Bugünkü Oxu ({activeChunk.length} Səhifə)</h4>
                 
                 {assignedPages.length === 0 ? (
                   <p className="text-center text-xs text-[#fdf6e3]/50 py-8 leading-relaxed">
@@ -196,15 +194,13 @@ export default function DashboardPage() {
                   </p>
                 ) : (
                   <div className="w-full space-y-4 border-b border-[#c9a84c]/15 pb-4">
-                    {/* Reading Table */}
-                    <div className="grid grid-cols-3 text-center text-xs font-bold pb-2 text-[#c9a84c] border-b border-[#c9a84c]/15">
-                      <span>Surah</span>
-                      <span>Ayat</span>
-                      <span>Pages</span>
+                    {/* Reading Table - Ayat column removed */}
+                    <div className="grid grid-cols-2 text-center text-xs font-bold pb-2 text-[#c9a84c] border-b border-[#c9a84c]/15">
+                      <span>Surə</span>
+                      <span>Səhifələr</span>
                     </div>
-                    <div className="grid grid-cols-3 text-center text-[11px] text-[#fdf6e3] font-semibold">
-                      <span className="truncate px-1">{juzDetails.surah.split("/")[0].trim()}</span>
-                      <span className="font-mono">{juzDetails.ayat.split("-")[0].trim()}</span>
+                    <div className="grid grid-cols-2 text-center text-[11px] text-[#fdf6e3] font-semibold">
+                      <span className="truncate px-1 font-serif text-xs text-[#c9a84c]">{juzDetails.surah}</span>
                       <span className="font-mono">{chunkPagesLabel}</span>
                     </div>
                   </div>
@@ -220,11 +216,11 @@ export default function DashboardPage() {
                       disabled={isMarking}
                       className="w-full py-2.5 bg-gradient-to-r from-[#c9a84c] to-[#b0913e] text-[#05160c] hover:shadow-lg hover:shadow-[#c9a84c]/20 font-bold rounded-xl text-xs uppercase tracking-wider transition-all select-none border border-[#c9a84c]/50 active:scale-98"
                     >
-                      {isMarking ? "Yadda saxlanılır..." : "Mark as Complete"}
+                      {isMarking ? "Qeyd olunur..." : "OXUNDU OLARAQ QEYD ET"}
                     </button>
                   ) : (
                     <div className="w-full py-2.5 bg-[#1a5c38]/10 text-[#c9a84c] border border-[#c9a84c]/30 text-center font-bold rounded-xl text-xs select-none">
-                      TƏBRİKLƏR! BÜTÜN SƏHİFƏLƏR OXUNDU
+                      TƏBRİKLƏR! BÜTÜN SƏHİFƏLƏRİNİZ OXUNUB
                     </div>
                   )}
 
@@ -243,12 +239,12 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Column 2: Personal Progress */}
+          {/* Column 2: Şəxsi Gedişat */}
           <div className="flex flex-col bg-[#05180d]/80 border border-[#c9a84c]/20 rounded-2xl p-5 shadow-inner relative overflow-hidden min-h-[360px]">
             <div className="islamic-card-inner !border-[#c9a84c]/10" />
             <div className="relative z-10 flex-1 flex flex-col justify-between">
               <div>
-                <h3 className="text-center text-sm font-bold text-[#fdf6e3] tracking-wide mb-5 uppercase">Personal Progress</h3>
+                <h3 className="text-center text-sm font-bold text-[#fdf6e3] tracking-wide mb-5 uppercase">Şəxsi Gedişat</h3>
                 
                 {/* Circular Progress Ring */}
                 <div className="relative w-36 h-36 mx-auto flex items-center justify-center my-2">
@@ -283,35 +279,35 @@ export default function DashboardPage() {
                 </div>
 
                 <p className="text-center text-[10px] text-[#fdf6e3]/75 font-semibold mt-4">
-                  Personal Progress: <span className="text-[#c9a84c] font-bold font-mono text-xs ml-0.5">{activeCompleted.length}/{assignedPages.length} Pages</span>
+                  Şəxsi Gedişat: <span className="text-[#c9a84c] font-bold font-mono text-xs ml-0.5">{activeCompleted.length}/{assignedPages.length} Səhifə</span>
                 </p>
               </div>
 
               {/* Stats at bottom */}
               <div className="w-full border-t border-[#c9a84c]/15 pt-4 mt-6 space-y-2.5">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-[#fdf6e3]/65 font-medium">Current Juz:</span>
+                  <span className="text-[#fdf6e3]/65 font-medium">Cari Cüz:</span>
                   <span className="font-extrabold text-[#c9a84c] font-mono text-sm">{user.assignedJuz || "Təyin edilməyib"}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-[#fdf6e3]/65 font-medium">Last Read:</span>
+                  <span className="text-[#fdf6e3]/65 font-medium">Son oxu:</span>
                   <span className="font-semibold text-[#fdf6e3]/85 font-mono">{getLastReadTime()}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Column 3: Group Progress */}
+          {/* Column 3: Qrup Gedişatı */}
           <div className="flex flex-col bg-[#05180d]/80 border border-[#c9a84c]/20 rounded-2xl p-5 shadow-inner relative overflow-hidden min-h-[360px]">
             <div className="islamic-card-inner !border-[#c9a84c]/10" />
             <div className="relative z-10 flex-1 flex flex-col justify-between">
               <div>
-                <h3 className="text-center text-sm font-bold text-[#fdf6e3] tracking-wide mb-3 uppercase">Group Progress</h3>
+                <h3 className="text-center text-sm font-bold text-[#fdf6e3] tracking-wide mb-3 uppercase">Qrup Gedişatı</h3>
                 
                 {/* Horizontal progress bar */}
                 <div className="space-y-2 mt-2">
                   <div className="flex justify-between items-center text-[10px] font-bold text-[#c9a84c] uppercase tracking-wider">
-                    <span>Group Khatm Progress</span>
+                    <span>Qrup Xətm Gedişatı</span>
                     <span className="font-mono text-xs">{groupPercentage}%</span>
                   </div>
                   <div className="w-full h-5 bg-[#030e07] border border-[#c9a84c]/30 rounded-full p-0.5 shadow-inner overflow-hidden relative flex items-center justify-center">
@@ -327,11 +323,11 @@ export default function DashboardPage() {
                 {/* Group Stats */}
                 <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-b border-[#c9a84c]/15 pb-4">
                   <div className="text-left">
-                    <span className="text-[9px] text-[#fdf6e3]/60 uppercase block font-medium">Total Read</span>
+                    <span className="text-[9px] text-[#fdf6e3]/60 uppercase block font-medium">Cəmi Oxunub</span>
                     <span className="text-[11px] font-bold text-[#fdf6e3] font-mono">{totalUniqueCompleted} / 604</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[9px] text-[#fdf6e3]/60 uppercase block font-medium">Active Reciters</span>
+                    <span className="text-[9px] text-[#fdf6e3]/60 uppercase block font-medium">Aktiv Oxucular</span>
                     <span className="text-[11px] font-bold text-[#c9a84c] font-mono">{activeRecitersCount} / {allUsers.length}</span>
                   </div>
                 </div>
@@ -339,10 +335,10 @@ export default function DashboardPage() {
 
               {/* Active Reciters List */}
               <div className="mt-4 flex-1 flex flex-col justify-end">
-                <span className="text-[9px] text-[#c9a84c] uppercase tracking-wider font-bold block mb-2">Active Reciters</span>
+                <span className="text-[9px] text-[#c9a84c] uppercase tracking-wider font-bold block mb-2">Aktiv Oxucular</span>
                 <div className="space-y-2">
                   {allUsers
-                    .filter(u => (u.assignedPages || []).length > 0)
+                    .filter(u => u.approved === true && (u.assignedPages || []).length > 0)
                     .slice(0, 3)
                     .map((reciter) => {
                       const completed = (reciter.completedPages || []).length === (reciter.assignedPages || []).length;
@@ -358,11 +354,11 @@ export default function DashboardPage() {
                             )}
                             <div className="flex flex-col text-[10px]">
                               <span className="font-bold text-[#fdf6e3] truncate max-w-[90px]">{reciter.name.split(" ")[0]}</span>
-                              <span className="text-[8px] text-[#fdf6e3]/50 capitalize">{reciter.role}</span>
+                              <span className="text-[8px] text-[#fdf6e3]/50">{reciter.role === "admin" ? "İnzibatçı" : "İştirakçı"}</span>
                             </div>
                           </div>
                           <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${completed ? "text-[#c9a84c] bg-[#c9a84c]/10" : "text-[#fdf6e3]/45 bg-[#fdf6e3]/5"}`}>
-                            {completed ? "Completed" : "Reading"}
+                            {completed ? "Tamamladı" : "Oxuyur"}
                           </span>
                         </div>
                       );

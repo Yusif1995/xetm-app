@@ -1,17 +1,78 @@
 "use client";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  activeTab: "dashboard" | "readings" | "progress" | "stats" | "settings" | "admin";
+  activeTab: "dashboard" | "readings" | "progress" | "stats" | "admin";
 }
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const { user, loading, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const prevCompletionsRef = useRef<Record<string, number[]>>({});
+  const isFirstLoadRef = useRef(true);
+
+  // Request browser Notification permission on mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
+  // Listen to completedPages updates for approved users in real-time
+  useEffect(() => {
+    if (!user || !user.approved) return;
+
+    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+      const currentCompletions: Record<string, number[]> = {};
+      
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        currentCompletions[doc.id] = data.completedPages || [];
+      });
+
+      if (isFirstLoadRef.current) {
+        prevCompletionsRef.current = currentCompletions;
+        isFirstLoadRef.current = false;
+        return;
+      }
+
+      // Check for changes
+      snapshot.forEach((doc) => {
+        const uid = doc.id;
+        if (uid === user.uid) return; // Do not notify about self
+
+        const oldPages = prevCompletionsRef.current[uid] || [];
+        const newPages = doc.data().completedPages || [];
+        const newlyCompleted = newPages.filter((p: number) => !oldPages.includes(p));
+
+        if (newlyCompleted.length > 0) {
+          const name = doc.data().name || "Bir iştirakçı";
+          if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+            try {
+              new Notification("Quran Xətm - Yeni Tamamlama!", {
+                body: `${name} yeni səhifəni tamamladı: Səhifə ${newlyCompleted.sort((a: number, b: number) => a - b).join(", ")}`,
+                icon: "/icon.png"
+              });
+            } catch (err) {
+              console.error("Error triggering HTML5 notification:", err);
+            }
+          }
+        }
+      });
+
+      prevCompletionsRef.current = currentCompletions;
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   if (loading) {
     return (
@@ -29,6 +90,45 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
   if (!user) {
     return null; // Guarded by page components / middleware
+  }
+
+  // Approval Gate: If user is not approved by admin, render approval pending screen
+  if (!user.approved) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center islamic-bg p-4 relative overflow-hidden">
+        <IslamicBorders />
+        <div className="islamic-card w-full max-w-md p-6 md:p-8 text-center shadow-2xl rounded-2xl relative z-10 border-[5px] border-double border-[#c9a84c]/85 bg-gradient-to-b from-[#0c2e1b] to-[#05160c]">
+          <div className="islamic-card-inner" />
+          <div className="islamic-pattern opacity-[0.03]" />
+          
+          <div className="relative z-10 space-y-6">
+            {/* Rosette SVG */}
+            <div className="w-16 h-16 mx-auto text-[#c9a84c] flex items-center justify-center">
+              <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" fill="currentColor" fillOpacity="0.15" />
+                <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" />
+                <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+              </svg>
+            </div>
+
+            <h2 className="text-2xl font-amiri font-bold text-[#c9a84c] tracking-wide">
+              Təsdiq Gözləyir
+            </h2>
+            
+            <p className="text-sm text-[#fdf6e3]/75 leading-relaxed">
+              Hörmətli iştirakçı, hesabınız hələ inzibatçı (admin) tərəfindən təsdiqlənməyib. Zəhmət olmasa təsdiq olunmasını gözləyin. İcazə verildikdən sonra tətbiqə girişiniz açılacaqdır.
+            </p>
+
+            <button
+              onClick={logout}
+              className="px-6 py-2.5 bg-red-950/20 hover:bg-red-900/40 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-bold rounded-xl transition-all shadow-md active:scale-95 uppercase tracking-wider"
+            >
+              Çıxış (Logout)
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -51,20 +151,8 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             </span>
           </div>
 
-          {/* Right side: Notifications + User Profile */}
+          {/* Right side: User Profile (Notifications bell removed) */}
           <div className="flex items-center gap-4">
-            {/* Notifications Bell */}
-            <div className="flex items-center gap-1.5 text-[#fdf6e3]/70 hover:text-[#fdf6e3] transition-colors cursor-pointer mr-1">
-              <div className="relative">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <span className="absolute -top-0.5 -right-0.5 w-2.2 h-2.2 bg-red-500 rounded-full border border-[#030e07]"></span>
-              </div>
-              <span className="text-xs font-semibold hidden sm:inline">Notifications</span>
-            </div>
-
             {/* User Profile Dropdown */}
             <div className="relative">
               <button
@@ -112,7 +200,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       <div className="flex-1 max-w-7xl w-full mx-auto flex relative">
         {/* Left Sidebar (Desktop) */}
         <aside className="w-24 shrink-0 hidden md:flex flex-col border-r border-[#c9a84c]/10 py-8 px-2 gap-4 relative z-10 bg-[#030e07]/45">
-          {/* Dashboard (Grid Icon) */}
+          {/* Panel (Dashboard) */}
           <Link
             href="/dashboard"
             className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all gap-1.5 shadow-sm w-full ${
@@ -127,10 +215,10 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <rect x="14" y="14" width="7" height="7" rx="1.5" />
               <rect x="3" y="14" width="7" height="7" rx="1.5" />
             </svg>
-            <span className="text-[10px] font-bold tracking-wide">Dashboard</span>
+            <span className="text-[10px] font-bold tracking-wide">Panel</span>
           </Link>
 
-          {/* Readings (Open Book) */}
+          {/* Səhifələrim (Readings) */}
           <Link
             href="/readings"
             className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all gap-1.5 shadow-sm w-full ${
@@ -143,10 +231,10 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
             </svg>
-            <span className="text-[10px] font-bold tracking-wide">Readings</span>
+            <span className="text-[10px] font-bold tracking-wide">Səhifələrim</span>
           </Link>
 
-          {/* Group (Users) */}
+          {/* Qrup (Group) */}
           <Link
             href="/progress"
             className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all gap-1.5 shadow-sm w-full ${
@@ -161,10 +249,10 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            <span className="text-[10px] font-bold tracking-wide">Group</span>
+            <span className="text-[10px] font-bold tracking-wide">Qrup</span>
           </Link>
 
-          {/* Stats (Bar Chart) */}
+          {/* Statistika (Stats) */}
           <Link
             href="/stats"
             className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all gap-1.5 shadow-sm w-full ${
@@ -178,24 +266,28 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <line x1="12" y1="20" x2="12" y2="4" />
               <line x1="6" y1="20" x2="6" y2="14" />
             </svg>
-            <span className="text-[10px] font-bold tracking-wide">Stats</span>
+            <span className="text-[10px] font-bold tracking-wide">Statistika</span>
           </Link>
 
-          {/* Settings / Admin (Gear) */}
-          <Link
-            href="/settings"
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all gap-1.5 shadow-sm w-full ${
-              activeTab === "settings" || activeTab === "admin"
-                ? "bg-[#c9a84c] border-[#c9a84c] text-[#05160c]"
-                : "bg-transparent border-transparent text-[#fdf6e3]/50 hover:text-[#fdf6e3] hover:bg-[#1a5c38]/10"
-            }`}
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-            <span className="text-[10px] font-bold tracking-wide">Settings</span>
-          </Link>
+          {/* Admin Panel (Visible ONLY to admins, Settings removed) */}
+          {user.role === "admin" && (
+            <Link
+              href="/admin"
+              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all gap-1.5 shadow-sm w-full ${
+                activeTab === "admin"
+                  ? "bg-[#c9a84c] border-[#c9a84c] text-[#05160c]"
+                  : "bg-transparent border-transparent text-[#fdf6e3]/50 hover:text-[#fdf6e3] hover:bg-[#1a5c38]/10"
+              }`}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M21 9H3" />
+                <path d="M21 15H3" />
+                <path d="M12 3v18" />
+              </svg>
+              <span className="text-[10px] font-bold tracking-wide">Admin Panel</span>
+            </Link>
+          )}
         </aside>
 
         {/* Content Area */}
@@ -218,7 +310,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             <rect x="14" y="14" width="7" height="7" rx="1.5" />
             <rect x="3" y="14" width="7" height="7" rx="1.5" />
           </svg>
-          <span className="text-[9px] font-bold mt-0.5">Dashboard</span>
+          <span className="text-[9px] font-bold mt-0.5">Panel</span>
         </Link>
         <Link
           href="/readings"
@@ -230,7 +322,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
             <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
           </svg>
-          <span className="text-[9px] font-bold mt-0.5">Readings</span>
+          <span className="text-[9px] font-bold mt-0.5">Səhifələr</span>
         </Link>
         <Link
           href="/progress"
@@ -242,7 +334,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
             <circle cx="9" cy="7" r="4" />
           </svg>
-          <span className="text-[9px] font-bold mt-0.5">Group</span>
+          <span className="text-[9px] font-bold mt-0.5">Qrup</span>
         </Link>
         <Link
           href="/stats"
@@ -255,19 +347,21 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             <line x1="12" y1="20" x2="12" y2="4" />
             <line x1="6" y1="20" x2="6" y2="14" />
           </svg>
-          <span className="text-[9px] font-bold mt-0.5">Stats</span>
+          <span className="text-[9px] font-bold mt-0.5">Statistika</span>
         </Link>
-        <Link
-          href="/settings"
-          className={`flex flex-col items-center py-1 px-3 rounded-lg ${
-            activeTab === "settings" || activeTab === "admin" ? "text-[#c9a84c]" : "text-[#fdf6e3]/50"
-          }`}
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-          <span className="text-[9px] font-bold mt-0.5">Settings</span>
-        </Link>
+        {user.role === "admin" && (
+          <Link
+            href="/admin"
+            className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+              activeTab === "admin" ? "text-[#c9a84c]" : "text-[#fdf6e3]/50"
+            }`}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+            </svg>
+            <span className="text-[9px] font-bold mt-0.5">Admin</span>
+          </Link>
+        )}
       </nav>
     </div>
   );

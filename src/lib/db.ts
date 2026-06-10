@@ -11,7 +11,8 @@ import {
   query, 
   orderBy,
   serverTimestamp,
-  deleteField
+  deleteField,
+  deleteDoc
 } from "firebase/firestore";
 
 export interface UserDoc {
@@ -28,6 +29,12 @@ export interface UserDoc {
   assignedJuz?: number;         // 1-30
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createdAt: any;
+  approved?: boolean;
+  adminNotification?: string;
+  previousAssignedPages?: number[];
+  previousCompletedPages?: number[];
+  previousStartDate?: string;
+  previousEndDate?: string;
 }
 
 export interface AppSettings {
@@ -74,18 +81,22 @@ export async function createUserDoc(
     return existingDoc;
   }
 
-  const newUser: Omit<UserDoc, "uid"> = {
+  const usersList = await getAllUsers();
+  const isFirstUser = usersList.length === 0;
+
+  const newUser = {
     name: name || "Qonaq",
     email: email || "",
     photoURL: photoURL || "",
-    role: "user",
+    role: (isFirstUser ? "admin" : "user") as "admin" | "user",
     assignedPages: [],
     completedPages: [],
     createdAt: serverTimestamp(),
+    approved: isFirstUser,
   };
 
   await setDoc(docRef, newUser);
-  return { uid, ...newUser } as UserDoc;
+  return { uid, ...newUser } as unknown as UserDoc;
 }
 
 // Assign pages to a user using arrayUnion & arrayRemove
@@ -240,7 +251,7 @@ export async function distributeJuzToUsers(
   endDate: string
 ): Promise<void> {
   const users = await getAllUsers();
-  const activeUsers = [...users].sort((a, b) => a.name.localeCompare(b.name));
+  const activeUsers = users.filter(u => u.approved === true).sort((a, b) => a.name.localeCompare(b.name));
   
   // Fisher-Yates Shuffle user order
   for (let i = activeUsers.length - 1; i > 0; i--) {
@@ -272,14 +283,31 @@ export async function distributeJuzToUsers(
     }
 
     const userRef = doc(db, "users", user.uid);
-    batch.update(userRef, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: Record<string, any> = {
       assignedPages: pages,
       completedPages: [],
       completedAt: {},
       assignmentStartDate: startDate,
       assignmentEndDate: endDate,
       assignedJuz: nextJuz
-    });
+    };
+
+    // If they have unfinished pages in their current assignment, save it to previous
+    if (user.assignedPages && user.assignedPages.length > 0 && (user.completedPages || []).length < user.assignedPages.length) {
+      updates.previousAssignedPages = user.assignedPages;
+      updates.previousCompletedPages = user.completedPages || [];
+      updates.previousStartDate = user.assignmentStartDate || "";
+      updates.previousEndDate = user.assignmentEndDate || "";
+    } else {
+      // Clear previous assignment
+      updates.previousAssignedPages = [];
+      updates.previousCompletedPages = [];
+      updates.previousStartDate = "";
+      updates.previousEndDate = "";
+    }
+
+    batch.update(userRef, updates);
 
     lastJuz = nextJuz;
   }
@@ -389,4 +417,48 @@ export async function getGlobalSettings(): Promise<AppSettings> {
 export async function setGlobalSettings(settings: AppSettings): Promise<void> {
   const docRef = doc(db, "settings", "config");
   await setDoc(docRef, settings, { merge: true });
+}
+
+// Delete user document completely
+export async function deleteUserDoc(uid: string): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await deleteDoc(docRef);
+}
+
+// Update user approval status
+export async function updateUserApproval(uid: string, approved: boolean): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await updateDoc(docRef, { approved });
+}
+
+// Update user admin notification message
+export async function updateUserAdminNotification(uid: string, message: string): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await updateDoc(docRef, { adminNotification: message });
+}
+
+// Toggle completion for a page in a previous assignment
+export async function togglePreviousCompletedPages(
+  uid: string,
+  pageNumbers: number[],
+  isCompleted: boolean
+): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  const timestamp = new Date().toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: Record<string, any> = {};
+
+  if (isCompleted) {
+    updates.previousCompletedPages = arrayUnion(...pageNumbers);
+    pageNumbers.forEach((p) => {
+      updates[`completedAt.${p}`] = timestamp;
+    });
+  } else {
+    updates.previousCompletedPages = arrayRemove(...pageNumbers);
+    pageNumbers.forEach((p) => {
+      updates[`completedAt.${p}`] = deleteField();
+    });
+  }
+
+  await updateDoc(docRef, updates);
 }

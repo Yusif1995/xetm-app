@@ -8,9 +8,11 @@ interface PageCardProps {
   pageNumbers: number[];
   initialCompleted: boolean;
   onStatusChange?: (pageNumbers: number[], isCompleted: boolean) => void;
+  disabled?: boolean;
+  toggleFn?: (userId: string, pageNumbers: number[], isCompleted: boolean) => Promise<void>;
 }
 
-export default function PageCard({ userId, pageNumbers, initialCompleted, onStatusChange }: PageCardProps) {
+export default function PageCard({ userId, pageNumbers, initialCompleted, onStatusChange, disabled, toggleFn }: PageCardProps) {
   const [completed, setCompleted] = useState(initialCompleted);
   const [loading, setLoading] = useState(false);
 
@@ -20,12 +22,16 @@ export default function PageCard({ userId, pageNumbers, initialCompleted, onStat
 
   const handleToggle = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || disabled) return;
 
     setLoading(true);
     const newCompleted = !completed;
     try {
-      await toggleCompletedPages(userId, pageNumbers, newCompleted);
+      if (toggleFn) {
+        await toggleFn(userId, pageNumbers, newCompleted);
+      } else {
+        await toggleCompletedPages(userId, pageNumbers, newCompleted);
+      }
       setCompleted(newCompleted);
       if (onStatusChange) {
         onStatusChange(pageNumbers, newCompleted);
@@ -45,10 +51,12 @@ export default function PageCard({ userId, pageNumbers, initialCompleted, onStat
   return (
     <div
       onClick={handleToggle}
-      className={`group relative flex flex-col justify-between p-4 md:p-5 rounded-xl border cursor-pointer select-none transition-all duration-300 transform hover:-translate-y-1 ${
-        completed
-          ? "bg-[#1a5c38]/20 border-[#1a5c38] text-[#fdf6e3] shadow-md shadow-[#1a5c38]/10"
-          : "bg-[#1a1a2e]/40 border-[#c9a84c]/20 hover:border-[#c9a84c]/50 text-[#fdf6e3]/75"
+      className={`group relative flex flex-col justify-between p-4 md:p-5 rounded-xl border select-none transition-all duration-300 transform ${
+        disabled 
+          ? "bg-[#1a1a2e]/20 border-red-500/20 text-[#fdf6e3]/30 cursor-not-allowed opacity-50"
+          : completed
+            ? "bg-[#1a5c38]/20 border-[#1a5c38] text-[#fdf6e3] shadow-md shadow-[#1a5c38]/10 cursor-pointer hover:-translate-y-1"
+            : "bg-[#1a1a2e]/40 border-[#c9a84c]/20 hover:border-[#c9a84c]/50 text-[#fdf6e3]/75 cursor-pointer hover:-translate-y-1"
       }`}
     >
       <div className="flex justify-between items-center w-full mb-2">
@@ -56,19 +64,23 @@ export default function PageCard({ userId, pageNumbers, initialCompleted, onStat
           {isMultiple ? "Səhifələr" : "Səhifə"}
         </span>
         <div className="flex items-center justify-center">
-          <div
-            className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-              completed
-                ? "bg-[#1a5c38] border-[#1a5c38]"
-                : "border-[#c9a84c]/40 group-hover:border-[#c9a84c]"
-            }`}
-          >
-            {completed && (
-              <svg className="w-3.5 h-3.5 text-[#fdf6e3]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </div>
+          {disabled ? (
+            <span className="text-xs">🔒</span>
+          ) : (
+            <div
+              className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                completed
+                  ? "bg-[#1a5c38] border-[#1a5c38]"
+                  : "border-[#c9a84c]/40 group-hover:border-[#c9a84c]"
+              }`}
+            >
+              {completed && (
+                <svg className="w-3.5 h-3.5 text-[#fdf6e3]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -77,8 +89,8 @@ export default function PageCard({ userId, pageNumbers, initialCompleted, onStat
       </div>
 
       <div className="mt-2.5 text-[10px] md:text-xs text-center font-medium tracking-wide">
-        <span className={completed ? "text-[#1a5c38] font-bold" : "text-[#c9a84c]/70"}>
-          {completed ? "Tamamlandı" : "Oxunmayıb"}
+        <span className={disabled ? "text-red-500/50" : completed ? "text-[#1a5c38] font-bold" : "text-[#c9a84c]/70"}>
+          {disabled ? "Kilidli" : completed ? "Tamamlandı" : "Oxunmayıb"}
         </span>
       </div>
       

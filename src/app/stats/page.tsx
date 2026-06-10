@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { getAllUsers, getGlobalSettings, type UserDoc, type AppSettings } from "@/lib/db";
+import { getAllUsers, type UserDoc } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import ProgressBar from "@/components/ProgressBar";
@@ -9,18 +9,13 @@ import ProgressBar from "@/components/ProgressBar";
 export default function StatsPage() {
   const { loading } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [usersList, appSettings] = await Promise.all([
-          getAllUsers(),
-          getGlobalSettings()
-        ]);
+        const usersList = await getAllUsers();
         setUsers(usersList);
-        setSettings(appSettings);
       } catch (err) {
         console.error("Error loading stats data:", err);
       } finally {
@@ -90,35 +85,6 @@ export default function StatsPage() {
           </div>
         </div>
 
-        {/* Key Metrics Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="islamic-card p-6 text-center shadow-md">
-            <div className="islamic-card-inner" />
-            <div className="islamic-pattern" />
-            <div className="relative z-10">
-              <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Tamamlanan Ümumi Xətm</span>
-              <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{settings.completedKhatms || 0}</div>
-            </div>
-          </div>
-          <div className="islamic-card p-6 text-center shadow-md">
-            <div className="islamic-card-inner" />
-            <div className="islamic-pattern" />
-            <div className="relative z-10">
-              <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Oxunan Cari Səhifə</span>
-              <div className="text-3xl font-extrabold text-[#fdf6e3] mt-1 font-mono">{uniqueCompleted} / 604</div>
-            </div>
-          </div>
-          <div className="islamic-card p-6 text-center shadow-md">
-            <div className="islamic-card-inner" />
-            <div className="islamic-pattern" />
-            <div className="relative z-10">
-              <span className="text-xs text-[#c9a84c] uppercase font-bold tracking-wider">Aktiv İştirakçılar</span>
-              <div className="text-3xl font-extrabold text-[#c9a84c] mt-1 font-mono">
-                {users.filter(u => (u.assignedPages || []).length > 0).length} / {users.length}
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Juz Progress Grid (Visualizing all 30 Juz) */}
         <div className="islamic-card p-6 shadow-lg relative overflow-hidden">
