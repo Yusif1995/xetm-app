@@ -16,17 +16,14 @@ const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Configure web-push with VAPID keys
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "diItSNkdB7QOBkjy4dH2YgmOu6uKRhNIWACqjreiCDw";
 
-if (vapidPublicKey && vapidPrivateKey) {
-  webpush.setVapidDetails(
-    "mailto:info@xetm.app",
-    vapidPublicKey,
-    vapidPrivateKey
-  );
-}
+webpush.setVapidDetails(
+  "mailto:info@xetm.app",
+  vapidPublicKey,
+  vapidPrivateKey
+);
 
 export async function POST(req: NextRequest) {
   try {

@@ -50,15 +50,11 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             let subscription = await registration.pushManager.getSubscription();
             
             if (!subscription) {
-              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-              if (publicKey) {
-                subscription = await registration.pushManager.subscribe({
-                  userVisibleOnly: true,
-                  applicationServerKey: urlBase64ToUint8Array(publicKey)
-                });
-              } else {
-                console.warn("VAPID public key not found in env variables.");
-              }
+              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
+              subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(publicKey)
+              });
             }
             
             if (subscription) {
