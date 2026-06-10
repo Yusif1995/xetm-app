@@ -27,6 +27,7 @@ export interface UserDoc {
   assignmentStartDate?: string; // YYYY-MM-DD
   assignmentEndDate?: string;   // YYYY-MM-DD
   assignedJuz?: number;         // 1-30
+  assignedJuzs?: number[];      // Multiple Juzs
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createdAt: any;
   approved?: boolean;
@@ -261,26 +262,34 @@ export async function distributeJuzToUsers(
 
   if (activeUsers.length === 0) return;
 
-  const settings = await getGlobalSettings();
-  let lastJuz = settings.lastDistributedJuz || 0;
+  const numUsers = activeUsers.length;
+  // Create an array of 30 Juz: 1, 2, ..., 30
+  const allJuzList = Array.from({ length: 30 }, (_, idx) => idx + 1);
+
+  const juzPerUser = Math.floor(30 / numUsers);
+  const extraJuz = 30 % numUsers;
 
   const { writeBatch } = await import("firebase/firestore");
   const batch = writeBatch(db);
 
-  for (const user of activeUsers) {
-    const nextJuz = (lastJuz % 30) + 1;
-    
-    // Page ranges for Juz
-    const startPage = (nextJuz - 1) * 20 + 1;
-    let endPage = nextJuz * 20;
-    if (nextJuz === 30) {
-      endPage = 604;
-    }
+  let juzIndex = 0;
 
-    const pages = [];
-    for (let p = startPage; p <= endPage; p++) {
-      pages.push(p);
+  for (let i = 0; i < numUsers; i++) {
+    const user = activeUsers[i];
+    const count = juzPerUser + (i < extraJuz ? 1 : 0);
+    const assignedJuzs = count > 0 ? allJuzList.slice(juzIndex, juzIndex + count) : [];
+    juzIndex += count;
+
+    // Page ranges for Juz
+    const pages: number[] = [];
+    for (const juzNum of assignedJuzs) {
+      const startPage = (juzNum - 1) * 20 + 1;
+      const endPage = juzNum === 30 ? 604 : juzNum * 20;
+      for (let p = startPage; p <= endPage; p++) {
+        pages.push(p);
+      }
     }
+    pages.sort((a, b) => a - b);
 
     const userRef = doc(db, "users", user.uid);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -290,7 +299,8 @@ export async function distributeJuzToUsers(
       completedAt: {},
       assignmentStartDate: startDate,
       assignmentEndDate: endDate,
-      assignedJuz: nextJuz
+      assignedJuz: assignedJuzs.length > 0 ? assignedJuzs[0] : null,
+      assignedJuzs: assignedJuzs
     };
 
     // Save current assignment to previous before assigning new one, so history and dates are preserved
@@ -302,13 +312,11 @@ export async function distributeJuzToUsers(
     }
 
     batch.update(userRef, updates);
-
-    lastJuz = nextJuz;
   }
 
   const settingsRef = doc(db, "settings", "config");
   batch.set(settingsRef, {
-    lastDistributedJuz: lastJuz,
+    lastDistributedJuz: 30, // all 30 were distributed
     isCurrentKhatmCompleted: false
   }, { merge: true });
 
@@ -455,4 +463,36 @@ export async function togglePreviousCompletedPages(
   }
 
   await updateDoc(docRef, updates);
+}
+
+// Clear all page assignments and resets everything
+export async function clearAllAssignments(): Promise<void> {
+  const users = await getAllUsers();
+  const { writeBatch } = await import("firebase/firestore");
+  const batch = writeBatch(db);
+  
+  for (const user of users) {
+    const userRef = doc(db, "users", user.uid);
+    batch.update(userRef, {
+      assignedPages: [],
+      completedPages: [],
+      completedAt: {},
+      assignmentStartDate: "",
+      assignmentEndDate: "",
+      assignedJuz: null,
+      assignedJuzs: [],
+      previousAssignedPages: [],
+      previousCompletedPages: [],
+      previousStartDate: "",
+      previousEndDate: ""
+    });
+  }
+  
+  const settingsRef = doc(db, "settings", "config");
+  batch.set(settingsRef, {
+    lastDistributedJuz: 0,
+    isCurrentKhatmCompleted: false
+  }, { merge: true });
+  
+  await batch.commit();
 }

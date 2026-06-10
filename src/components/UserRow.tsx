@@ -9,7 +9,6 @@ interface UserRowProps {
   isAdminView?: boolean;
   onAssignPagesClick?: (user: UserDoc) => void;
   onRoleToggle?: (user: UserDoc) => void;
-  onDeleteClick?: (user: UserDoc) => void;
   onNotifyClick?: (user: UserDoc) => void;
 }
 
@@ -18,7 +17,6 @@ export default function UserRow({
   isAdminView, 
   onAssignPagesClick, 
   onRoleToggle,
-  onDeleteClick,
   onNotifyClick
 }: UserRowProps) {
   const { user: currentUser } = useAuth();
@@ -187,16 +185,6 @@ export default function UserRow({
                 </button>
               )}
 
-              {/* Delete button */}
-              {onDeleteClick && (
-                <button
-                  onClick={() => onDeleteClick(user)}
-                  disabled={isSelf}
-                  className="px-2 py-1 bg-red-950/20 hover:bg-red-950/50 text-red-400 border border-red-500/30 rounded-md text-[9px] font-bold transition-all disabled:opacity-40"
-                >
-                  Sil
-                </button>
-              )}
             </div>
           </td>
         )}

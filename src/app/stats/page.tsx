@@ -46,9 +46,18 @@ export default function StatsPage() {
   // Calculate how many users are assigned to each Juz (1-30) and their completion status
   const juzStatus = Array.from({ length: 30 }, (_, idx) => {
     const juzNum = idx + 1;
-    const juzUsers = users.filter((u) => u.assignedJuz === juzNum);
+    const juzUsers = users.filter((u) => 
+      (u.assignedJuzs && u.assignedJuzs.includes(juzNum)) || u.assignedJuz === juzNum
+    );
     const isAssigned = juzUsers.length > 0;
-    const isCompleted = isAssigned && juzUsers.every((u) => (u.completedPages || []).length === (u.assignedPages || []).length);
+    const isCompleted = isAssigned && juzUsers.every((u) => {
+      const startPage = (juzNum - 1) * 20 + 1;
+      const endPage = juzNum === 30 ? 604 : juzNum * 20;
+      for (let p = startPage; p <= endPage; p++) {
+        if (!(u.completedPages || []).includes(p)) return false;
+      }
+      return true;
+    });
     return { juzNum, isAssigned, isCompleted, usersCount: juzUsers.length };
   });
 

@@ -9,7 +9,7 @@ import {
   setAssignmentForUser,
   distributeJuzToUsers,
   updateUserRole,
-  deleteUserDoc,
+  clearAllAssignments,
   updateUserAdminNotification,
   type UserDoc, 
   type AppSettings 
@@ -107,14 +107,18 @@ export default function AdminPage() {
   };
 
 
-  const handleDeleteClick = async (user: UserDoc) => {
-    if (window.confirm(`${user.name} adlı iştirakçını tamamilə silmək istəyirsiniz?`)) {
+  const handleClearAll = async () => {
+    if (window.confirm("Bütün iştirakçıların səhifə təyinatlarını və arxiv tarixçələrini tamamilə sıfırlamaq (təmizləmək) istəyirsiniz?")) {
       try {
-        await deleteUserDoc(user.uid);
+        setLoading(true);
+        await clearAllAssignments();
+        alert("Bütün səhifə təyinatları uğurla təmizləndi.");
         await loadData();
       } catch (err) {
-        console.error("Error deleting user:", err);
-        alert("İştirakçı silinərkən xəta baş verdi.");
+        console.error("Error clearing assignments:", err);
+        alert("Təmizləmə zamanı xəta baş verdi.");
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -337,13 +341,22 @@ export default function AdminPage() {
                       İstifadəçiyə səhifə təyin etmək üçün aşağıdakı cədvəldən &quot;Səhifə Təyin Et&quot; düyməsinə klikləyin.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAutoModal(true)}
-                    className="px-4 py-2 islamic-btn-gold rounded-lg text-xs transition-all whitespace-nowrap self-start sm:self-auto shadow-md"
-                  >
-                    Cüzləri Avtomatik Payla
-                  </button>
+                  <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowAutoModal(true)}
+                      className="px-4 py-2 islamic-btn-gold rounded-lg text-xs transition-all whitespace-nowrap shadow-md"
+                    >
+                      Cüzləri Avtomatik Payla
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearAll}
+                      className="px-4 py-2 bg-red-950/20 hover:bg-red-900/35 border border-red-500/30 text-red-400 rounded-lg text-xs transition-all whitespace-nowrap shadow-md"
+                    >
+                      Təmizlə (Sıfırla)
+                    </button>
+                  </div>
                 </div>
 
                 {autoSuccess && (
@@ -563,7 +576,6 @@ export default function AdminPage() {
                           isAdminView={true} 
                           onAssignPagesClick={handleSelectUser} 
                           onRoleToggle={handleRoleToggle}
-                          onDeleteClick={handleDeleteClick}
                           onNotifyClick={handleNotifyClick}
                         />
                       ))}

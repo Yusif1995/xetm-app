@@ -158,7 +158,26 @@ export default function DashboardPage() {
   };
 
   // Surə / Səhifə
-  const juzDetails = JUZ_MAP[user.assignedJuz || 30] || { surah: "Qrup Xətmi" };
+  const assignedJuzsList = user.assignedJuzs || (user.assignedJuz ? [user.assignedJuz] : []);
+  const formattedJuzsLabel = assignedJuzsList.length > 0
+    ? assignedJuzsList.join(", ")
+    : "Təyin edilməyib";
+
+  let displaySurah = "Qrup Xətmi";
+  if (assignedJuzsList.length > 0) {
+    const firstJuz = assignedJuzsList[0];
+    const lastJuz = assignedJuzsList[assignedJuzsList.length - 1];
+    const firstSurah = JUZ_MAP[firstJuz]?.surah.split(" - ")[0] || "";
+    const lastSurah = JUZ_MAP[lastJuz]?.surah.split(" - ").pop() || "";
+    
+    if (firstJuz === lastJuz) {
+      displaySurah = JUZ_MAP[firstJuz]?.surah || "";
+    } else {
+      displaySurah = `${firstSurah} - ${lastSurah}`;
+    }
+  }
+
+  const juzDetails = { surah: displaySurah };
   const chunkPagesLabel = activeChunk.length > 0 
     ? `${activeChunk[0]}-${activeChunk[activeChunk.length - 1]}`
     : "Təyin edilməyib";
@@ -317,7 +336,7 @@ export default function DashboardPage() {
               <div className="w-full border-t border-[#c9a84c]/15 pt-4 mt-6 space-y-2.5">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-[#fdf6e3]/65 font-medium">Cari Cüz:</span>
-                  <span className="font-extrabold text-[#c9a84c] font-mono text-sm">{user.assignedJuz || "Təyin edilməyib"}</span>
+                  <span className="font-extrabold text-[#c9a84c] font-mono text-sm">{formattedJuzsLabel}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-[#fdf6e3]/65 font-medium">Son oxu:</span>
