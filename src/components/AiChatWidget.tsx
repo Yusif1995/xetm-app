@@ -156,9 +156,15 @@ export default function AiChatWidget() {
         aria-label="AI Köməkçi"
         className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-gradient-to-br from-[#c9a84c] to-[#b0913e] text-[#0b301a] rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer border border-[#c9a84c]/40 group"
       >
-        <span className="text-2xl transition-transform duration-300 group-hover:rotate-12">
-          {isOpen ? "✖" : "🤖"}
-        </span>
+        {isOpen ? (
+          <span className="text-xl font-bold text-[#0b301a]">✖</span>
+        ) : (
+          <svg className="w-8 h-8 text-[#05160c] group-hover:rotate-12 transition-transform duration-300" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" />
+            <circle cx="12" cy="12" r="5" stroke="#c9a84c" strokeWidth="1.2" fill="none" />
+            <circle cx="12" cy="12" r="2.5" fill="#c9a84c" />
+          </svg>
+        )}
         {/* Subtle Pulse Ring */}
         {!isOpen && (
           <span className="absolute inset-0 rounded-full border-2 border-[#c9a84c]/60 animate-ping opacity-75 pointer-events-none"></span>
@@ -175,11 +181,11 @@ export default function AiChatWidget() {
             {/* Widget Header */}
             <div className="bg-[#0b301a]/60 border-b border-[#c9a84c]/20 p-4 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 flex items-center justify-center relative">
-                  <div className="absolute w-6 h-6 bg-[#c9a84c] rotate-0 rounded-sm"></div>
-                  <div className="absolute w-6 h-6 bg-[#c9a84c] rotate-45 rounded-sm"></div>
-                  <div className="absolute w-1.5 h-1.5 bg-[#0b301a] rounded-full z-10"></div>
-                </div>
+                <svg className="w-7 h-7 text-[#c9a84c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" fill="currentColor" fillOpacity="0.15" />
+                  <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" />
+                  <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+                </svg>
                 <div>
                   <h3 className="text-sm font-amiri font-bold text-[#fdf6e3] leading-none">AI Köməkçi</h3>
                   <span className="text-[9px] text-[#c9a84c] font-semibold uppercase tracking-wider">İslam AI Assistant</span>

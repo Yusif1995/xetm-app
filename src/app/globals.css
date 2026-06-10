@@ -9,7 +9,7 @@
 
 body {
   color: var(--foreground);
-  background: linear-gradient(135deg, #0b301a, #05180d, #0b301a);
+  background: radial-gradient(circle at center, #072213 0%, #030e07 100%);
   font-family: var(--font-inter), Arial, sans-serif;
   min-height: 100vh;
 }
@@ -22,7 +22,7 @@ body {
 
 /* Islamic Redesign Utility Classes */
 .islamic-bg {
-  background: linear-gradient(135deg, #0b301a, #05180d, #0b301a);
+  background: radial-gradient(circle at center, #072213 0%, #030e07 100%);
 }
 
 .islamic-card {
