@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
+import { getAllUsers, UserDoc } from "@/lib/db";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const prevCompletionsRef = useRef<Record<string, number[]>>({});
   const isFirstLoadRef = useRef(true);
+  const [admins, setAdmins] = useState<UserDoc[]>([]);
 
   // Request browser Notification permission on mount
   useEffect(() => {
@@ -74,6 +76,20 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     return () => unsubscribe();
   }, [user]);
 
+  // Fetch admins if user is not approved
+  useEffect(() => {
+    if (user && !user.approved) {
+      getAllUsers()
+        .then((allUsers) => {
+          const adminUsers = allUsers.filter((u) => u.role === "admin");
+          setAdmins(adminUsers);
+        })
+        .catch((err) => {
+          console.error("Error fetching admins in AppLayout:", err);
+        });
+    }
+  }, [user]);
+
   if (loading) {
     return (
       <div className="flex-1 flex flex-col justify-center items-center islamic-bg text-[#fdf6e3] min-h-screen">
@@ -118,6 +134,18 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             <p className="text-sm text-[#fdf6e3]/75 leading-relaxed">
               Hörmətli iştirakçı, hesabınız hələ inzibatçı (admin) tərəfindən təsdiqlənməyib. Zəhmət olmasa təsdiq olunmasını gözləyin. İcazə verildikdən sonra tətbiqə girişiniz açılacaqdır.
             </p>
+
+            {admins.length > 0 && (
+              <div className="p-4 bg-[#05180d]/80 border border-[#c9a84c]/20 rounded-xl text-left space-y-2 animate-fadeIn relative z-20">
+                <span className="text-[10px] text-[#c9a84c] uppercase font-bold tracking-wider block border-b border-[#c9a84c]/10 pb-1">Təsdiq üçün əlaqə saxlayın:</span>
+                {admins.map((admin) => (
+                  <div key={admin.uid} className="text-xs text-[#fdf6e3] flex flex-col sm:flex-row sm:justify-between gap-0.5 sm:gap-2">
+                    <span className="font-semibold">{admin.name}</span>
+                    <span className="font-mono text-[#c9a84c] text-[10.5px]">{admin.email}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <button
               onClick={logout}
