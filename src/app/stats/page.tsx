@@ -27,14 +27,14 @@ export default function StatsPage() {
 
   if (loading || dataLoading) {
     return (
-      <div className="flex-1 flex flex-col justify-center items-center islamic-bg text-[#fdf6e3] min-h-screen">
-        <div className="animate-spin h-10 w-10 text-[#c9a84c] mb-4">
+      <div className="flex-1 flex flex-col justify-center items-center bg-[#FAF7F2] text-[#0F3D2C] min-h-screen">
+        <div className="animate-spin h-10 w-10 text-[#0F3D2C] mb-4">
           <svg className="w-full h-full" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
         </div>
-        <p className="text-sm font-semibold tracking-wide text-[#fdf6e3]/85">Məlumatlar yüklənir...</p>
+        <p className="text-sm font-semibold tracking-wide text-[#0F3D2C]/80">Məlumatlar yüklənir...</p>
       </div>
     );
   }
@@ -63,89 +63,72 @@ export default function StatsPage() {
 
   return (
     <AppLayout activeTab="stats">
-      <div className="space-y-6">
-        {/* Main Stats Header */}
-        <div className="p-6 islamic-card relative overflow-hidden">
-          <div className="islamic-card-inner" />
-          <div className="islamic-pattern" />
-          <div className="relative z-10">
-            <h2 className="text-2xl font-amiri font-bold text-[#c9a84c] mb-1">
-              Xətm Statistikaları
-            </h2>
-            <p className="text-xs text-[#fdf6e3]/75 max-w-xl">
-              Qrupumuzun ümumi xətm gedişatına aid statistik göstəricilər və cüzlərin tamamlanma vəziyyətini buradan izləyə bilərsiniz.
-            </p>
-          </div>
+      <div className="space-y-6 max-w-5xl mx-auto">
+        
+        {/* Title Header */}
+        <div className="flex flex-col border-b border-[#0F3D2C]/5 pb-4">
+          <h1 className="text-3xl font-bold tracking-tight text-[#0F3D2C]">
+            Xətm Statistikaları
+          </h1>
+          <p className="text-xs font-semibold text-[#0F3D2C]/60 mt-1 uppercase tracking-wider">
+            Qrupumuzun ümumi xətm gedişatına aid statistik göstəricilər və cüzlərin tamamlanma vəziyyətini buradan izləyə bilərsiniz.
+          </p>
         </div>
 
         {/* Global Progress Card */}
-        <div className="islamic-card p-6 shadow-xl relative overflow-hidden">
-          <div className="islamic-card-inner" />
-          <div className="islamic-pattern" />
-          <div className="relative z-10 w-full space-y-4">
-            <h3 className="text-xs font-bold text-[#c9a84c] uppercase tracking-wider">
-              Ümumi Xətm Gedişatı
-            </h3>
-            <ProgressBar 
-              completed={uniqueCompleted} 
-              total={604} 
-              label="Qrup Xətm Tamamlanması" 
-            />
-          </div>
-        </div>
-
+        <ProgressBar 
+          completed={uniqueCompleted} 
+          total={604} 
+          label="Qrup Xətm Tamamlanması" 
+        />
 
         {/* Juz Progress Grid (Visualizing all 30 Juz) */}
-        <div className="islamic-card p-6 shadow-lg relative overflow-hidden">
-          <div className="islamic-card-inner" />
-          <div className="islamic-pattern" />
-          <div className="relative z-10 w-full space-y-4">
-            <h3 className="text-sm font-bold text-[#fdf6e3] uppercase tracking-wider border-b border-[#c9a84c]/20 pb-3">
-              30 Cüz Üzrə Tamamlanma Vəziyyəti
-            </h3>
-            
-            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-10 gap-3 pt-2">
-              {juzStatus.map((j) => (
-                <div 
-                  key={j.juzNum} 
-                  className={`p-3 rounded-xl border text-center flex flex-col justify-between items-center transition-all ${
-                    j.isCompleted 
-                      ? "bg-[#c9a84c]/15 border-[#c9a84c] text-[#c9a84c]" 
-                      : j.isAssigned
-                        ? "bg-[#1a5c38]/20 border-[#1a5c38] text-[#fdf6e3]/95"
-                        : "bg-[#030e07]/45 border-[#c9a84c]/10 text-[#fdf6e3]/30"
-                  }`}
-                >
-                  <span className="text-[10px] font-bold uppercase block">Cüz</span>
-                  <span className="text-lg font-black font-mono my-0.5">{j.juzNum}</span>
-                  <span className="text-[8px] font-bold uppercase tracking-wider block">
-                    {j.isCompleted 
-                      ? "Bitib" 
-                      : j.isAssigned
-                        ? "Oxunur"
-                        : "Boşdur"
-                    }
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-4 items-center text-[10px] font-semibold text-[#fdf6e3]/70 pt-2 border-t border-[#c9a84c]/10">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 bg-[#c9a84c]/15 border border-[#c9a84c] rounded-sm" />
-                <span>Tamamlanmış Cüz</span>
+        <div className="card-premium flex flex-col gap-4">
+          <h3 className="text-sm font-bold text-[#0F3D2C] uppercase tracking-wider border-b border-[#0F3D2C]/5 pb-3">
+            30 Cüz Üzrə Tamamlanma Vəziyyəti
+          </h3>
+          
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-10 gap-3 pt-2">
+            {juzStatus.map((j) => (
+              <div 
+                key={j.juzNum} 
+                className={`p-3 rounded-2xl border text-center flex flex-col justify-between items-center transition-all ${
+                  j.isCompleted 
+                    ? "bg-[#E8F4EC] border-[#0F3D2C] text-[#0F3D2C]" 
+                    : j.isAssigned
+                      ? "bg-[#EFE9DF] border-[#0F3D2C]/30 text-[#0F3D2C]"
+                      : "bg-[#FFFFFF] border-[#0F3D2C]/10 text-[#0F3D2C]/30"
+                }`}
+              >
+                <span className="text-[10px] font-bold uppercase block">Cüz</span>
+                <span className="text-lg font-extrabold font-mono my-0.5">{j.juzNum}</span>
+                <span className="text-[8px] font-bold uppercase tracking-wider block">
+                  {j.isCompleted 
+                    ? "Bitib" 
+                    : j.isAssigned
+                      ? "Oxunur"
+                      : "Boşdur"
+                  }
+                </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 bg-[#1a5c38]/20 border border-[#1a5c38] rounded-sm" />
-                <span>Oxunmaqda Olan Cüz</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 bg-[#030e07]/45 border border-[#c9a84c]/10 rounded-sm" />
-                <span>Təyin edilməmiş Cüz</span>
-              </div>
-            </div>
-
+            ))}
           </div>
+
+          <div className="flex flex-wrap gap-4 items-center text-[10px] font-bold text-[#0F3D2C]/70 pt-2 border-t border-[#0F3D2C]/5">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3.5 h-3.5 bg-[#E8F4EC] border border-[#0F3D2C] rounded" />
+              <span>Tamamlanmış Cüz</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3.5 h-3.5 bg-[#EFE9DF] border border-[#0F3D2C]/30 rounded" />
+              <span>Oxunmaqda Olan Cüz</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3.5 h-3.5 bg-[#FFFFFF] border border-[#0F3D2C]/10 rounded" />
+              <span>Təyin edilməmiş Cüz</span>
+            </div>
+          </div>
+
         </div>
 
       </div>
