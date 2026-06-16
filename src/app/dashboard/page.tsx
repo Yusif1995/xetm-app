@@ -205,7 +205,7 @@ export default function DashboardPage() {
         .map(([page, time]) => ({ page: Number(page), time: new Date(time).getTime() }))
         .sort((a, b) => b.time - a.time);
 
-      sorted.slice(0, 2).forEach((item) => {
+      sorted.slice(0, 5).forEach((item) => {
         // Find surah corresponding to page
         let surahName = "Səhifə " + item.page;
         // Search Juz mapping
@@ -389,7 +389,7 @@ export default function DashboardPage() {
                     </button>
                   ) : (
                     <span className="text-[9px] font-bold text-[#D5A85A] uppercase bg-[#EFE9DF] px-2 py-0.5 rounded-full">
-                      Qalan vaxt: 18 Gün
+                      Tamamlanıb
                     </span>
                   )}
                 </div>
@@ -474,7 +474,7 @@ export default function DashboardPage() {
                 <div className="w-full flex flex-col items-center gap-1">
                   <span className="text-[9px] font-bold text-[#0F3D2C]/70">Əl-Bəqərə surəsi</span>
                   <span className="text-[9px] font-bold text-[#D5A85A] uppercase bg-[#EFE9DF] px-2 py-0.5 rounded-full">
-                    Qalan vaxt: 21 Gün
+                    Davam edir
                   </span>
                 </div>
               </div>
@@ -534,14 +534,6 @@ export default function DashboardPage() {
                     <span className="text-[10px] text-[#0F3D2C]/50 font-medium">{act.time}</span>
                   </div>
                 ))}
-
-                <div className="flex justify-between items-center text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#FAF7F2] border-2 border-[#0F3D2C]/30" />
-                    <span className="font-bold text-[#0F3D2C]/60">Əl-Bəqərə surəsi</span>
-                  </div>
-                  <span className="text-[10px] text-[#0F3D2C]/40 font-medium">indi yeniləndi</span>
-                </div>
               </div>
             </div>
 
