@@ -169,27 +169,13 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
         {/* Logo Section */}
         <div className="flex flex-col items-center justify-center gap-3 relative z-10 border-b border-white/10 pb-6">
-          {/* Mosque Dome & Quran SVG Logo */}
-          <div className="w-16 h-16 flex items-center justify-center relative">
-            <svg className="w-14 h-14 text-[#D5A85A] drop-shadow-md" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              {/* Outer Arch/Dome */}
-              <path d="M 50 10 C 43 16 23 26 23 52 L 23 72 L 77 72 L 77 52 C 77 26 57 16 50 10 Z" strokeWidth="3" />
-              {/* Inner Arch/Dome */}
-              <path d="M 50 18 C 45 23 30 32 30 52 L 30 67 L 70 67 L 70 52 C 70 32 55 23 50 18 Z" strokeWidth="1.5" opacity="0.8" />
-              
-              {/* Calligraphy Ornament inside Dome */}
-              <path d="M 50 28 L 50 48" strokeWidth="3" />
-              <path d="M 43 33 L 43 48" strokeWidth="2" />
-              <path d="M 57 33 L 57 48" strokeWidth="2" />
-              <path d="M 43 48 C 45 51 55 51 57 48" strokeWidth="2" />
-              <path d="M 50 23 C 50 23 48 25 50 27 C 52 25 50 23 50 23" fill="currentColor" />
-              
-              {/* Open Book (Quran) */}
-              <path d="M 50 72 C 38 64 22 67 12 75 L 12 82 C 22 74 38 71 50 77 C 62 71 78 74 88 82 L 88 75 C 78 67 62 64 50 72 Z" fill="currentColor" fillOpacity="0.15" strokeWidth="3" />
-              {/* Rehal / Book Stand */}
-              <path d="M 35 80 L 22 92 M 65 80 L 78 92" strokeWidth="3.5" />
-              <path d="M 45 81 L 55 90 M 55 81 L 45 90" strokeWidth="2.5" />
-            </svg>
+          {/* Mosque Dome & Quran Logo */}
+          <div className="w-20 h-20 flex items-center justify-center relative overflow-hidden rounded-2xl border border-[#D5A85A]/35 shadow-md">
+            <img 
+              src="/logo.png" 
+              alt="Xətm App" 
+              className="w-full h-full object-cover"
+            />
           </div>
           <span className="text-lg font-serif font-bold tracking-wider text-[#D5A85A]">
             Xətm App
@@ -404,10 +390,13 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         {/* Mobile Header */}
         <header className="md:hidden sticky top-0 z-30 bg-[#0F3D2C] text-white border-b border-[#D5A85A]/20 px-4 py-3 flex justify-between items-center shadow-md">
           <div className="flex items-center gap-2">
-            <svg className="w-7 h-7 text-[#D5A85A]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M 50 10 C 43 16 23 26 23 52 L 23 72 L 77 72 L 77 52 C 77 26 57 16 50 10 Z" />
-              <path d="M 50 72 C 38 64 22 67 12 75 L 12 82 C 22 74 38 71 50 77 C 62 71 78 74 88 82 L 88 75 C 78 67 62 64 50 72 Z" fill="currentColor" fillOpacity="0.15" />
-            </svg>
+            <div className="w-8 h-8 rounded-lg overflow-hidden border border-[#D5A85A]/25">
+              <img 
+                src="/logo.png" 
+                alt="Xətm App" 
+                className="w-full h-full object-cover"
+              />
+            </div>
             <span className="text-base font-serif font-bold tracking-wide">Xətm App</span>
           </div>
 
