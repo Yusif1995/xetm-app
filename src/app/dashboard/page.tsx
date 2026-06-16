@@ -161,24 +161,33 @@ export default function DashboardPage() {
   const getHijriDate = () => {
     try {
       const today = new Date();
-      // Azərbaycanca Hicri təqvim formatı
-      const hijriFormatter = new Intl.DateTimeFormat('az-AZ-u-ca-islamic', {
+      // en-US locale for Hijri date
+      const hijriFormatter = new Intl.DateTimeFormat('en-US-u-ca-islamic', {
         day: 'numeric',
         month: 'long',
         year: 'numeric'
       });
-      const hijriDate = hijriFormatter.format(today).replace(" AH", "").replace(" A.H.", "");
-      
-      // Azərbaycanca Miladi təqvim formatı
-      const gregorianFormatter = new Intl.DateTimeFormat('az-AZ', {
+      const hijriParts = hijriFormatter.format(today).replace(" AH", "").replace(" A.H.", "").split(" ");
+      const hDay = hijriParts[1]?.replace(",", "") || today.getDate();
+      const hMonth = hijriParts[0] || "Muharram";
+      const hYear = hijriParts[2] || "1448";
+      const hijriDate = `${hDay} ${hMonth} ${hYear}`;
+
+      // en-US locale for Gregorian date formatted as: day Month year (e.g. 16 Jun 2026)
+      const gregorianFormatter = new Intl.DateTimeFormat('en-US', {
         day: 'numeric',
         month: 'short',
         year: 'numeric'
       });
-      const gregorianDate = gregorianFormatter.format(today);
+      const gParts = gregorianFormatter.formatToParts(today);
+      const gDay = gParts.find(p => p.type === 'day')?.value || today.getDate();
+      const gMonth = gParts.find(p => p.type === 'month')?.value || "Jun";
+      const gYear = gParts.find(p => p.type === 'year')?.value || today.getFullYear();
+      const gregorianDate = `${gDay} ${gMonth} ${gYear}`;
+
       return `${hijriDate} | ${gregorianDate}`;
     } catch {
-      return "1 Məhərrəm 1448 | 16 İyun 2026";
+      return "1 Muharram 1448 | 16 Jun 2026";
     }
   };
 
