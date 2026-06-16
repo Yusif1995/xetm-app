@@ -37,6 +37,7 @@ export interface UserDoc {
   previousStartDate?: string;
   previousEndDate?: string;
   pushSubscriptions?: string[];
+  totalCompletedPages?: number;
 }
 
 export interface AppSettings {
@@ -60,7 +61,11 @@ export async function getUserDoc(uid: string): Promise<UserDoc | null> {
     const docRef = doc(db, "users", uid);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      return { uid, ...docSnap.data() } as UserDoc;
+      const data = docSnap.data();
+      const totalCompletedPages = data.totalCompletedPages !== undefined
+        ? data.totalCompletedPages
+        : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+      return { uid, ...data, totalCompletedPages } as UserDoc;
     }
     return null;
   } catch (error) {
@@ -95,6 +100,7 @@ export async function createUserDoc(
     completedPages: [],
     createdAt: serverTimestamp(),
     approved: true,
+    totalCompletedPages: 0,
   };
 
   await setDoc(docRef, newUser);
@@ -118,6 +124,21 @@ export async function assignPagesToUser(
     updates.assignedPages = arrayRemove(...pagesToRemove);
     // Also remove them from completed pages if they are being unassigned
     updates.completedPages = arrayRemove(...pagesToRemove);
+
+    // Adjust totalCompletedPages
+    const userSnap = await getDoc(docRef);
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      const currentTotal = data.totalCompletedPages !== undefined
+        ? data.totalCompletedPages
+        : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+        
+      const completed = data.completedPages || [];
+      const removedCompletions = pagesToRemove.filter(p => completed.includes(p));
+      if (removedCompletions.length > 0) {
+        updates.totalCompletedPages = Math.max(0, currentTotal - removedCompletions.length);
+      }
+    }
   }
 
   if (Object.keys(updates).length > 0) {
@@ -139,15 +160,35 @@ export async function toggleCompletedPage(
 ): Promise<void> {
   const docRef = doc(db, "users", uid);
   const timestamp = new Date().toISOString();
+  
+  const userSnap = await getDoc(docRef);
+  let currentTotal = 0;
+  if (userSnap.exists()) {
+    const data = userSnap.data();
+    currentTotal = data.totalCompletedPages !== undefined
+      ? data.totalCompletedPages
+      : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+  }
+
   if (isCompleted) {
+    const data = userSnap.exists() ? userSnap.data() : {};
+    const alreadyCompleted = data.completedPages || [];
+    const isNew = !alreadyCompleted.includes(pageNumber);
+
     await updateDoc(docRef, {
       completedPages: arrayUnion(pageNumber),
-      [`completedAt.${pageNumber}`]: timestamp
+      [`completedAt.${pageNumber}`]: timestamp,
+      totalCompletedPages: currentTotal + (isNew ? 1 : 0)
     });
   } else {
+    const data = userSnap.exists() ? userSnap.data() : {};
+    const alreadyCompleted = data.completedPages || [];
+    const isCompletedBefore = alreadyCompleted.includes(pageNumber);
+
     await updateDoc(docRef, {
       completedPages: arrayRemove(pageNumber),
-      [`completedAt.${pageNumber}`]: deleteField()
+      [`completedAt.${pageNumber}`]: deleteField(),
+      totalCompletedPages: Math.max(0, currentTotal - (isCompletedBefore ? 1 : 0))
     });
   }
   await checkAndUpdateKhatmCompletion();
@@ -164,16 +205,35 @@ export async function toggleCompletedPages(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updates: Record<string, any> = {};
 
+  const userSnap = await getDoc(docRef);
+  let currentTotal = 0;
+  if (userSnap.exists()) {
+    const data = userSnap.data();
+    currentTotal = data.totalCompletedPages !== undefined
+      ? data.totalCompletedPages
+      : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+  }
+
   if (isCompleted) {
+    const data = userSnap.exists() ? userSnap.data() : {};
+    const alreadyCompleted = data.completedPages || [];
+    const newPages = pageNumbers.filter(p => !alreadyCompleted.includes(p));
+
     updates.completedPages = arrayUnion(...pageNumbers);
     pageNumbers.forEach((p) => {
       updates[`completedAt.${p}`] = timestamp;
     });
+    updates.totalCompletedPages = currentTotal + newPages.length;
   } else {
+    const data = userSnap.exists() ? userSnap.data() : {};
+    const alreadyCompleted = data.completedPages || [];
+    const removedPages = pageNumbers.filter(p => alreadyCompleted.includes(p));
+
     updates.completedPages = arrayRemove(...pageNumbers);
     pageNumbers.forEach((p) => {
       updates[`completedAt.${p}`] = deleteField();
     });
+    updates.totalCompletedPages = Math.max(0, currentTotal - removedPages.length);
   }
 
   await updateDoc(docRef, updates);
@@ -386,7 +446,11 @@ export async function getAllUsers(): Promise<UserDoc[]> {
     const querySnapshot = await getDocs(q);
     const users: UserDoc[] = [];
     querySnapshot.forEach((doc) => {
-      users.push({ uid: doc.id, ...doc.data() } as UserDoc);
+      const data = doc.data();
+      const totalCompletedPages = data.totalCompletedPages !== undefined
+        ? data.totalCompletedPages
+        : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+      users.push({ uid: doc.id, ...data, totalCompletedPages } as UserDoc);
     });
     return users;
   } catch (error) {
@@ -448,16 +512,35 @@ export async function togglePreviousCompletedPages(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updates: Record<string, any> = {};
 
+  const userSnap = await getDoc(docRef);
+  let currentTotal = 0;
+  if (userSnap.exists()) {
+    const data = userSnap.data();
+    currentTotal = data.totalCompletedPages !== undefined
+      ? data.totalCompletedPages
+      : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+  }
+
   if (isCompleted) {
+    const data = userSnap.exists() ? userSnap.data() : {};
+    const alreadyCompleted = data.previousCompletedPages || [];
+    const newPages = pageNumbers.filter(p => !alreadyCompleted.includes(p));
+
     updates.previousCompletedPages = arrayUnion(...pageNumbers);
     pageNumbers.forEach((p) => {
       updates[`completedAt.${p}`] = timestamp;
     });
+    updates.totalCompletedPages = currentTotal + newPages.length;
   } else {
+    const data = userSnap.exists() ? userSnap.data() : {};
+    const alreadyCompleted = data.previousCompletedPages || [];
+    const removedPages = pageNumbers.filter(p => alreadyCompleted.includes(p));
+
     updates.previousCompletedPages = arrayRemove(...pageNumbers);
     pageNumbers.forEach((p) => {
       updates[`completedAt.${p}`] = deleteField();
     });
+    updates.totalCompletedPages = Math.max(0, currentTotal - removedPages.length);
   }
 
   await updateDoc(docRef, updates);
@@ -488,7 +571,8 @@ export async function clearAllAssignments(): Promise<void> {
       previousAssignedPages: [],
       previousCompletedPages: [],
       previousStartDate: "",
-      previousEndDate: ""
+      previousEndDate: "",
+      totalCompletedPages: 0
     });
   }
   

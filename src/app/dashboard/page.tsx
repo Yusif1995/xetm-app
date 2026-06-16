@@ -58,7 +58,11 @@ export default function DashboardPage() {
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       const list: UserDoc[] = [];
       snapshot.forEach((docSnap) => {
-        list.push({ uid: docSnap.id, ...docSnap.data() } as UserDoc);
+        const data = docSnap.data();
+        const totalCompletedPages = data.totalCompletedPages !== undefined
+          ? data.totalCompletedPages
+          : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+        list.push({ uid: docSnap.id, ...data, totalCompletedPages } as UserDoc);
       });
       setAllUsers(list);
     }, (err) => {
@@ -191,39 +195,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Bar Chart Stats
-  const getMonthlyStats = () => {
-    const months = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
-    const pageCounts = Array(12).fill(0);
-    
-    allUsers.forEach((u) => {
-      if (u.completedAt) {
-        Object.values(u.completedAt).forEach((timeStr) => {
-          try {
-            const date = new Date(timeStr);
-            const monthIdx = date.getMonth();
-            pageCounts[monthIdx]++;
-          } catch {}
-        });
-      }
-    });
 
-    const maxVal = Math.max(...pageCounts, 10);
-    return months.map((month, idx) => {
-      const count = pageCounts[idx];
-      const greenPercent = Math.max(10, Math.round((count / maxVal) * 80));
-      return {
-        month,
-        count,
-        greenPercent,
-        goldPercent: count > 0 ? 12 : 0
-      };
-    });
-  };
-
-  const monthlyStats = getMonthlyStats();
-  const totalReadOverall = completedPagesState.length;
-  const avgPagesPerDay = (totalReadOverall / 30).toFixed(1);
 
   // Son fəaliyyət
   const getRecentActivities = () => {
@@ -290,8 +262,48 @@ export default function DashboardPage() {
     }
   }
 
-  const currentMonthName = new Date().toLocaleDateString('az-AZ', { month: 'long' });
-  const capitalizedMonth = currentMonthName ? currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1) : "";
+
+  
+  // Tamamlanmış ümumi səhifələrin sayı
+  const totalPagesCompleted = user.totalCompletedPages !== undefined
+    ? user.totalCompletedPages
+    : (completedPagesState.length + (user.previousCompletedPages?.length || 0));
+
+  // Dinamik ardıcıllıq (streak) hesabı
+  const getStreak = () => {
+    if (!user.completedAt || Object.keys(user.completedAt).length === 0) return 0;
+    const dates = Object.values(user.completedAt)
+      .map(timeStr => new Date(timeStr).toDateString())
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .map(d => new Date(d).getTime())
+      .sort((a, b) => b - a);
+
+    let streak = 0;
+    const oneDay = 24 * 60 * 60 * 1000;
+    const today = new Date(new Date().toDateString()).getTime();
+    
+    if (dates[0] < today - oneDay) {
+      return 0;
+    }
+
+    let expected = today;
+    if (dates[0] === today - oneDay) {
+      expected = today - oneDay;
+    }
+
+    for (let i = 0; i < dates.length; i++) {
+      if (dates[i] === expected) {
+        streak++;
+        expected -= oneDay;
+      } else if (dates[i] > expected) {
+        continue;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+  const userStreak = getStreak();
 
   return (
     <AppLayout activeTab="dashboard">
@@ -330,7 +342,7 @@ export default function DashboardPage() {
         {/* Main Content Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Left Columns (Progress & Graph) */}
+          {/* Left Columns (Progress Cards) */}
           <div className="lg:col-span-2 flex flex-col gap-6">
             
             {/* Three Circular Progress Cards */}
@@ -469,70 +481,13 @@ export default function DashboardPage() {
 
             </div>
 
-            {/* Reading Statistics Chart Card */}
-            <div className="card-premium flex flex-col gap-5">
-              <div className="flex justify-between items-center border-b border-[#0F3D2C]/5 pb-3">
-                <span className="text-sm font-bold text-[#0F3D2C]">Mütaliə Statistikası ({capitalizedMonth})</span>
-                
-                <div className="flex items-center gap-4 text-xs font-semibold">
-                  <div>
-                    <span className="text-lg font-bold text-[#0F3D2C] mr-1">{avgPagesPerDay}</span>
-                    <span className="text-[#0F3D2C]/60 text-[10px]">Ort. Səhifə/Gün</span>
-                  </div>
-                  <div className="h-6 w-[1px] bg-[#0F3D2C]/10" />
-                  <div>
-                    <span className="text-lg font-bold text-[#0F3D2C] mr-1">{totalReadOverall}</span>
-                    <span className="text-[#0F3D2C]/60 text-[10px]">Toplam Səhifə</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bar Chart Visualization */}
-              <div className="w-full h-44 flex items-end justify-between px-2 pt-4 border-b border-[#0F3D2C]/10 pb-1">
-                {monthlyStats.map((stat) => (
-                  <div key={stat.month} className="flex-1 flex flex-col items-center group h-full justify-end relative">
-                    {/* Tooltip on Hover */}
-                    <span className="absolute -top-6 text-[9px] font-bold text-[#0F3D2C] bg-[#EFE9DF] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      {stat.count} səh.
-                    </span>
-                    
-                    {/* Bar Container */}
-                    <div className="w-4 sm:w-6 rounded-t-sm flex flex-col justify-end overflow-hidden h-full relative">
-                      {/* Main Green Bar Segment */}
-                      <div 
-                        className="w-full bg-[#0F3D2C] transition-all duration-700" 
-                        style={{ height: `${stat.greenPercent}%` }}
-                      />
-                      {/* Gold Tip Segment */}
-                      {stat.count > 0 && (
-                        <div 
-                          className="w-full bg-[#D5A85A] transition-all duration-700 absolute top-0" 
-                          style={{ height: `${stat.goldPercent}%`, bottom: `${stat.greenPercent}%` }}
-                        />
-                      )}
-                    </div>
-
-                    {/* Month Label */}
-                    <span className="text-[10px] font-bold text-[#0F3D2C]/50 mt-2">
-                      {stat.month}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
           </div>
 
           {/* Right Column widgets */}
           <div className="flex flex-col gap-6">
             
-            {/* Your Profile Card */}
+            {/* Profile Card */}
             <div className="card-premium flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#0F3D2C]">Profiliniz</span>
-                <span className="text-xs text-[#0F3D2C]/60">❯</span>
-              </div>
-              
               <div className="flex items-center gap-3">
                 {user.photoURL ? (
                   <img 
@@ -548,19 +503,17 @@ export default function DashboardPage() {
                 
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-[#0F3D2C]">{user.name}</span>
-                  <span className="text-[10px] text-[#0F3D2C]/60 font-semibold">7-ci Səviyyə Oxucu</span>
-                  <span className="text-[10px] text-[#0F3D2C]/40 font-medium leading-none">7-ci Səviyyə Oxucu</span>
                 </div>
               </div>
 
               <div className="border-t border-[#0F3D2C]/5 pt-3 mt-1 flex flex-col gap-1.5 text-xs text-[#0F3D2C]/85 font-semibold">
                 <div className="flex justify-between">
-                  <span>Tamamlanmış Xətmlər</span>
-                  <span className="font-bold text-[#0F3D2C]">3 Xətm</span>
+                  <span>Tamamlanmış Səhifələr</span>
+                  <span className="font-bold text-[#0F3D2C]">{totalPagesCompleted} Səhifə</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Ardıcıllıq (Gün)</span>
-                  <span className="font-bold text-[#0F3D2C]">12 gün</span>
+                  <span className="font-bold text-[#0F3D2C]">{userStreak} gün</span>
                 </div>
               </div>
             </div>
@@ -588,35 +541,6 @@ export default function DashboardPage() {
                     <span className="font-bold text-[#0F3D2C]/60">Əl-Bəqərə surəsi</span>
                   </div>
                   <span className="text-[10px] text-[#0F3D2C]/40 font-medium">indi yeniləndi</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Upcoming Goals Card */}
-            <div className="card-premium flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#0F3D2C]">Növbəti Hədəflər</span>
-                <span className="text-xs text-[#0F3D2C]/60">❯</span>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#EFE9DF] flex items-center justify-center text-sm">
-                    📅
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-[#0F3D2C]">15 Oktyabradək Əl-Kəhf surəsini bitir</span>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full mt-2">
-                  <div className="w-full h-2 bg-[#EFE9DF] rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-[#0F3D2C] rounded-full" 
-                      style={{ width: `${personalPercentage}%` }}
-                    />
-                  </div>
                 </div>
               </div>
             </div>

@@ -80,11 +80,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           Cookies.set("khatm_uid", firebaseUser.uid, { expires: 30, path: "/" });
           Cookies.set("khatm_role", userDoc.role, { expires: 30, path: "/" });
 
-          // Start listening to the document in real-time
           const userDocRef = doc(db, "users", firebaseUser.uid);
           unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
-              const updatedDoc = { uid: firebaseUser.uid, ...docSnap.data() } as UserDoc;
+              const data = docSnap.data();
+              const totalCompletedPages = data.totalCompletedPages !== undefined
+                ? data.totalCompletedPages
+                : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+              const updatedDoc = { uid: firebaseUser.uid, ...data, totalCompletedPages } as UserDoc;
               setUser(updatedDoc);
               Cookies.set("khatm_uid", firebaseUser.uid, { expires: 30, path: "/" });
               Cookies.set("khatm_role", updatedDoc.role, { expires: 30, path: "/" });
