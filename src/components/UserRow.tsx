@@ -10,6 +10,7 @@ interface UserRowProps {
   onAssignPagesClick?: (user: UserDoc) => void;
   onRoleToggle?: (user: UserDoc) => void;
   onNotifyClick?: (user: UserDoc) => void;
+  onRemoveUserClick?: (user: UserDoc) => void;
 }
 
 export default function UserRow({ 
@@ -17,7 +18,8 @@ export default function UserRow({
   isAdminView, 
   onAssignPagesClick, 
   onRoleToggle,
-  onNotifyClick
+  onNotifyClick,
+  onRemoveUserClick
 }: UserRowProps) {
   const { user: currentUser } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -111,9 +113,6 @@ export default function UserRow({
             )}
             <div className="flex flex-col">
               <span className="text-xs md:text-sm font-bold text-[#0F3D2C]">{user.name}</span>
-              {isAdminView && (
-                <span className="text-[9px] text-[#0F3D2C]/50 truncate max-w-[120px]">{user.email}</span>
-              )}
             </div>
           </div>
         </td>
@@ -175,6 +174,16 @@ export default function UserRow({
                   } disabled:opacity-40`}
                 >
                   {user.role === "admin" ? "Admin" : "Üzv"}
+                </button>
+              )}
+
+              {onRemoveUserClick && (
+                <button
+                  onClick={() => onRemoveUserClick(user)}
+                  disabled={isSelf}
+                  className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-md text-[9px] font-bold transition-all disabled:opacity-40"
+                >
+                  Çıxar
                 </button>
               )}
             </div>
