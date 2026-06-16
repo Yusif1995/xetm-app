@@ -169,16 +169,30 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
         {/* Logo Section */}
         <div className="flex flex-col items-center justify-center gap-3 relative z-10 border-b border-white/10 pb-6">
-          {/* Rosette SVG */}
-          <div className="w-14 h-14 flex items-center justify-center relative">
-            <svg className="w-12 h-12 text-[#D5A85A] drop-shadow-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" fill="currentColor" fillOpacity="0.15" />
-              <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" />
-              <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+          {/* Mosque Dome & Quran SVG Logo */}
+          <div className="w-16 h-16 flex items-center justify-center relative">
+            <svg className="w-14 h-14 text-[#D5A85A] drop-shadow-md" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              {/* Outer Arch/Dome */}
+              <path d="M 50 10 C 43 16 23 26 23 52 L 23 72 L 77 72 L 77 52 C 77 26 57 16 50 10 Z" strokeWidth="3" />
+              {/* Inner Arch/Dome */}
+              <path d="M 50 18 C 45 23 30 32 30 52 L 30 67 L 70 67 L 70 52 C 70 32 55 23 50 18 Z" strokeWidth="1.5" opacity="0.8" />
+              
+              {/* Calligraphy Ornament inside Dome */}
+              <path d="M 50 28 L 50 48" strokeWidth="3" />
+              <path d="M 43 33 L 43 48" strokeWidth="2" />
+              <path d="M 57 33 L 57 48" strokeWidth="2" />
+              <path d="M 43 48 C 45 51 55 51 57 48" strokeWidth="2" />
+              <path d="M 50 23 C 50 23 48 25 50 27 C 52 25 50 23 50 23" fill="currentColor" />
+              
+              {/* Open Book (Quran) */}
+              <path d="M 50 72 C 38 64 22 67 12 75 L 12 82 C 22 74 38 71 50 77 C 62 71 78 74 88 82 L 88 75 C 78 67 62 64 50 72 Z" fill="currentColor" fillOpacity="0.15" strokeWidth="3" />
+              {/* Rehal / Book Stand */}
+              <path d="M 35 80 L 22 92 M 65 80 L 78 92" strokeWidth="3.5" />
+              <path d="M 45 81 L 55 90 M 55 81 L 45 90" strokeWidth="2.5" />
             </svg>
           </div>
           <span className="text-lg font-serif font-bold tracking-wider text-[#D5A85A]">
-            XETM APP
+            Xətm App
           </span>
         </div>
 
@@ -199,7 +213,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <rect x="14" y="14" width="7" height="7" rx="1.5" />
               <rect x="3" y="14" width="7" height="7" rx="1.5" />
             </svg>
-            <span>Dashboard</span>
+            <span>Panel</span>
           </Link>
 
           {/* My Readings */}
@@ -215,19 +229,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
               <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
             </svg>
-            <span>My Readings</span>
-          </Link>
-
-          {/* History */}
-          <Link
-            href="/readings"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all font-semibold text-sm text-white/70 hover:text-white hover:bg-white/5`}
-          >
-            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            <span>History</span>
+            <span>Mənim Oxularım</span>
           </Link>
 
           {/* Groups */}
@@ -245,7 +247,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            <span>Groups</span>
+            <span>Qruplar</span>
           </Link>
 
           {/* Statistics */}
@@ -262,20 +264,8 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <line x1="12" y1="20" x2="12" y2="4" />
               <line x1="6" y1="20" x2="6" y2="14" />
             </svg>
-            <span>Statistics</span>
+            <span>Statistika</span>
           </Link>
-
-          {/* Profile Shortcut */}
-          <button
-            onClick={toggleDropdown}
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all font-semibold text-sm text-left w-full text-white/70 hover:text-white hover:bg-white/5`}
-          >
-            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            <span>Profile</span>
-          </button>
 
           {/* Settings Shortcut */}
           <button
@@ -286,7 +276,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
-            <span>Settings</span>
+            <span>Ayarlar</span>
           </button>
 
           {/* Admin panel routes if user is admin */}
@@ -302,7 +292,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                 }`}
               >
                 <span>🔧</span>
-                <span>Admin Panel</span>
+                <span>İnzibatçı Paneli</span>
               </Link>
               <Link
                 href="/admin/ai"
@@ -403,7 +393,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                     onClick={logout}
                     className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors mt-1"
                   >
-                    Çıxış (Logout)
+                    Sistemdən Çıxış
                   </button>
                 </div>
               </div>
@@ -414,10 +404,11 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         {/* Mobile Header */}
         <header className="md:hidden sticky top-0 z-30 bg-[#0F3D2C] text-white border-b border-[#D5A85A]/20 px-4 py-3 flex justify-between items-center shadow-md">
           <div className="flex items-center gap-2">
-            <svg className="w-7 h-7 text-[#D5A85A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" fill="currentColor" fillOpacity="0.15" />
+            <svg className="w-7 h-7 text-[#D5A85A]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M 50 10 C 43 16 23 26 23 52 L 23 72 L 77 72 L 77 52 C 77 26 57 16 50 10 Z" />
+              <path d="M 50 72 C 38 64 22 67 12 75 L 12 82 C 22 74 38 71 50 77 C 62 71 78 74 88 82 L 88 75 C 78 67 62 64 50 72 Z" fill="currentColor" fillOpacity="0.15" />
             </svg>
-            <span className="text-base font-serif font-bold tracking-wide">Quran Xətm</span>
+            <span className="text-base font-serif font-bold tracking-wide">Xətm App</span>
           </div>
 
           <div className="flex items-center gap-2 relative">
@@ -439,19 +430,19 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                       setIsProfileOpen(false);
                       if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
                         try {
-                          const permission = await Notification.requestPermission();
-                          if (permission === "granted") {
-                            const registration = await navigator.serviceWorker.ready;
-                            const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-                            const subscription = await registration.pushManager.subscribe({
-                              userVisibleOnly: true,
-                              applicationServerKey: urlBase64ToUint8Array(publicKey)
-                            });
-                            await addPushSubscription(user.uid, JSON.stringify(subscription));
-                            alert("Bildirişlər uğurla aktiv edildi!");
-                          } else {
-                            alert("Bildiriş icazəsi rədd edildi: " + permission);
-                          }
+                           const permission = await Notification.requestPermission();
+                           if (permission === "granted") {
+                             const registration = await navigator.serviceWorker.ready;
+                             const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
+                             const subscription = await registration.pushManager.subscribe({
+                               userVisibleOnly: true,
+                               applicationServerKey: urlBase64ToUint8Array(publicKey)
+                             });
+                             await addPushSubscription(user.uid, JSON.stringify(subscription));
+                             alert("Bildirişlər uğurla aktiv edildi!");
+                           } else {
+                             alert("Bildiriş icazəsi rədd edildi: " + permission);
+                           }
                         } catch (err) {
                           console.error("Subscription error:", err);
                         }
@@ -465,7 +456,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                     onClick={logout}
                     className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-950/20 rounded-lg transition-colors mt-1"
                   >
-                    Çıxış (Logout)
+                    Sistemdən Çıxış
                   </button>
                 </div>
               </div>

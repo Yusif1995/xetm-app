@@ -161,31 +161,30 @@ export default function DashboardPage() {
   const getHijriDate = () => {
     try {
       const today = new Date();
-      const formatter = new Intl.DateTimeFormat('en-US-u-ca-islamic', {
+      // Azərbaycanca Hicri təqvim formatı
+      const hijriFormatter = new Intl.DateTimeFormat('az-AZ-u-ca-islamic', {
         day: 'numeric',
         month: 'long',
         year: 'numeric'
       });
-      const hijriParts = formatter.format(today).split(" ");
-      // E.g. "Shawwal 15, 1445 AH" -> "15 Shawwal 1445"
-      const day = hijriParts[1]?.replace(",", "") || today.getDate();
-      const month = hijriParts[0] || "Shawwal";
-      const year = hijriParts[2] || "1445";
+      const hijriDate = hijriFormatter.format(today).replace(" AH", "").replace(" A.H.", "");
       
-      const gregorianParts = today.toLocaleDateString("en-US", {
+      // Azərbaycanca Miladi təqvim formatı
+      const gregorianFormatter = new Intl.DateTimeFormat('az-AZ', {
         day: 'numeric',
         month: 'short',
         year: 'numeric'
       });
-      return `${day} ${month} ${year} | ${gregorianParts}`;
+      const gregorianDate = gregorianFormatter.format(today);
+      return `${hijriDate} | ${gregorianDate}`;
     } catch {
-      return "15 Shawwal 1445 | 13 Oct 2024";
+      return "1 Məhərrəm 1448 | 16 İyun 2026";
     }
   };
 
   // Bar Chart Stats
   const getMonthlyStats = () => {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const months = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
     const pageCounts = Array(12).fill(0);
     
     allUsers.forEach((u) => {
@@ -254,6 +253,37 @@ export default function DashboardPage() {
 
   const recentActivities = getRecentActivities();
 
+  // Card 2 üçün dinamik hesablamalar
+  const prevAssigned = user.previousAssignedPages || [];
+  const prevCompleted = user.previousCompletedPages || [];
+  const hasPrev = prevAssigned.length > 0;
+  
+  const activePrevCompleted = prevCompleted.filter(p => prevAssigned.includes(p));
+  const prevPercentage = hasPrev 
+    ? Math.round((activePrevCompleted.length / prevAssigned.length) * 100)
+    : 0;
+
+  const personalTotalCompleted = completedPagesState.length;
+  const personalContributionPercentage = Math.round((personalTotalCompleted / 604) * 100);
+
+  let displayPrevSurah = "Əvvəlki Xətm";
+  if (prevAssigned.length > 0) {
+    const firstPage = Math.min(...prevAssigned);
+    const lastPage = Math.max(...prevAssigned);
+    const firstJuz = Math.floor((firstPage - 1) / 20) + 1;
+    const lastJuz = Math.floor((lastPage - 1) / 20) + 1;
+    const firstSurah = JUZ_MAP[firstJuz]?.surah.split(" - ")[0] || "";
+    const lastSurah = JUZ_MAP[lastJuz]?.surah.split(" - ").pop() || "";
+    if (firstJuz === lastJuz) {
+      displayPrevSurah = JUZ_MAP[firstJuz]?.surah || "";
+    } else {
+      displayPrevSurah = `${firstSurah} - ${lastSurah}`;
+    }
+  }
+
+  const currentMonthName = new Date().toLocaleDateString('az-AZ', { month: 'long' });
+  const capitalizedMonth = currentMonthName ? currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1) : "";
+
   return (
     <AppLayout activeTab="dashboard">
       <div className="max-w-6xl mx-auto flex flex-col gap-6 font-sans">
@@ -262,18 +292,12 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#0F3D2C]/5 pb-4">
           <div className="flex flex-col">
             <h1 className="text-3xl font-bold tracking-tight text-[#0F3D2C]">
-              Welcome back, {user.name.split(" ")[0]}!
+              Xoş gördük, {user.name.split(" ")[0]}!
             </h1>
             <p className="text-xs font-semibold text-[#0F3D2C]/60 mt-1 uppercase tracking-wider">
               {getHijriDate()}
             </p>
           </div>
-        </div>
-
-        {/* Prayer Notification Banner */}
-        <div className="w-full flex items-center gap-3 px-4 py-3 bg-[#EFE9DF] border border-[#0F3D2C]/10 rounded-2xl text-xs font-semibold text-[#0F3D2C] shadow-sm">
-          <span className="text-base">🔔</span>
-          <span>Prayer time notification to Tuesday 13 3:30 AM.</span>
         </div>
 
         {/* Günün Hədisi / Ayəsi */}
@@ -303,10 +327,10 @@ export default function DashboardPage() {
             {/* Three Circular Progress Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               
-              {/* Card 1: Current Khatam (Daily) */}
+              {/* Card 1: Aktiv Xətm (Günlük) */}
               <div className="card-premium flex flex-col items-center justify-between text-center relative overflow-hidden min-h-[220px]">
                 <span className="text-xs font-bold text-[#0F3D2C] uppercase tracking-wide">
-                  Current Khatam (Daily)
+                  Aktiv Xətm (Günlük)
                 </span>
                 
                 {/* SVG Circular Indicator */}
@@ -328,7 +352,7 @@ export default function DashboardPage() {
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center">
                     <span className="text-xl font-bold text-[#0F3D2C]">{personalPercentage}%</span>
-                    <span className="text-[8px] text-[#0F3D2C]/60 font-semibold">{activeCompleted.length}/{assignedPages.length} Pages</span>
+                    <span className="text-[8px] text-[#0F3D2C]/60 font-semibold">{activeCompleted.length}/{assignedPages.length} Səhifə</span>
                   </div>
                 </div>
 
@@ -344,16 +368,16 @@ export default function DashboardPage() {
                     </button>
                   ) : (
                     <span className="text-[9px] font-bold text-[#D5A85A] uppercase bg-[#EFE9DF] px-2 py-0.5 rounded-full">
-                      Remaining: 18 Days
+                      Qalan vaxt: 18 Gün
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Card 2: Ramadan Prep Khatam */}
+              {/* Card 2: Previous Assignment / Personal Contribution */}
               <div className="card-premium flex flex-col items-center justify-between text-center relative min-h-[220px]">
                 <span className="text-xs font-bold text-[#0F3D2C] uppercase tracking-wide">
-                  Ramadan Prep Khatam
+                  {hasPrev ? "Əvvəlki Tapşırıq" : "Şəxsi Töhfə"}
                 </span>
 
                 <div className="relative w-28 h-28 my-3 flex items-center justify-center">
@@ -367,28 +391,41 @@ export default function DashboardPage() {
                       strokeWidth="8" 
                       fill="none" 
                       strokeDasharray={2 * Math.PI * 42} 
-                      strokeDashoffset={(2 * Math.PI * 42) - (71 / 100) * (2 * Math.PI * 42)} 
+                      strokeDashoffset={(2 * Math.PI * 42) - ((hasPrev ? prevPercentage : personalContributionPercentage) / 100) * (2 * Math.PI * 42)} 
                       strokeLinecap="round" 
+                      className="transition-all duration-700"
                     />
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center">
-                    <span className="text-xl font-bold text-[#0F3D2C]">71%</span>
-                    <span className="text-[8px] text-[#0F3D2C]/60 font-semibold">429/804 Pages</span>
+                    <span className="text-xl font-bold text-[#0F3D2C]">
+                      {hasPrev ? prevPercentage : personalContributionPercentage}%
+                    </span>
+                    <span className="text-[8px] text-[#0F3D2C]/60 font-semibold">
+                      {hasPrev 
+                        ? `${activePrevCompleted.length}/${prevAssigned.length} Səhifə` 
+                        : `${personalTotalCompleted}/604 Səhifə`
+                      }
+                    </span>
                   </div>
                 </div>
 
                 <div className="w-full flex flex-col items-center gap-1">
-                  <span className="text-[9px] font-bold text-[#0F3D2C]/70">Surah An-Nur</span>
+                  <span className="text-[9px] font-bold text-[#0F3D2C]/70">
+                    {hasPrev ? displayPrevSurah : "Ümumi Mütaliə"}
+                  </span>
                   <span className="text-[9px] font-bold text-[#D5A85A] uppercase bg-[#EFE9DF] px-2 py-0.5 rounded-full">
-                    Remaining: 7 Days
+                    {hasPrev 
+                      ? (prevPercentage === 100 ? "Tamamlanıb" : "Davam edir") 
+                      : "Xətm Töhfəsi"
+                    }
                   </span>
                 </div>
               </div>
 
-              {/* Card 3: Group Khatam (Team Nur) */}
+              {/* Card 3: Qrup Xətmi (Ümumi Gedişat) */}
               <div className="card-premium flex flex-col items-center justify-between text-center relative min-h-[220px]">
                 <span className="text-xs font-bold text-[#0F3D2C] uppercase tracking-wide">
-                  Group Khatam (Team Nur)
+                  Qrup Xətmi (Ümumi Gedişat)
                 </span>
 
                 <div className="relative w-28 h-28 my-3 flex items-center justify-center">
@@ -409,14 +446,14 @@ export default function DashboardPage() {
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center">
                     <span className="text-xl font-bold text-[#0F3D2C]">{groupPercentage}%</span>
-                    <span className="text-[8px] text-[#0F3D2C]/60 font-semibold">{totalUniqueCompleted}/604 Pages</span>
+                    <span className="text-[8px] text-[#0F3D2C]/60 font-semibold">{totalUniqueCompleted}/604 Səhifə</span>
                   </div>
                 </div>
 
                 <div className="w-full flex flex-col items-center gap-1">
-                  <span className="text-[9px] font-bold text-[#0F3D2C]/70">Surah Al-Baqarah</span>
+                  <span className="text-[9px] font-bold text-[#0F3D2C]/70">Əl-Bəqərə surəsi</span>
                   <span className="text-[9px] font-bold text-[#D5A85A] uppercase bg-[#EFE9DF] px-2 py-0.5 rounded-full">
-                    Remaining: 21 Days
+                    Qalan vaxt: 21 Gün
                   </span>
                 </div>
               </div>
@@ -426,17 +463,17 @@ export default function DashboardPage() {
             {/* Reading Statistics Chart Card */}
             <div className="card-premium flex flex-col gap-5">
               <div className="flex justify-between items-center border-b border-[#0F3D2C]/5 pb-3">
-                <span className="text-sm font-bold text-[#0F3D2C]">Reading Statistics (October)</span>
+                <span className="text-sm font-bold text-[#0F3D2C]">Mütaliə Statistikası ({capitalizedMonth})</span>
                 
                 <div className="flex items-center gap-4 text-xs font-semibold">
                   <div>
                     <span className="text-lg font-bold text-[#0F3D2C] mr-1">{avgPagesPerDay}</span>
-                    <span className="text-[#0F3D2C]/60 text-[10px]">Avg Pgs/Day</span>
+                    <span className="text-[#0F3D2C]/60 text-[10px]">Ort. Səhifə/Gün</span>
                   </div>
                   <div className="h-6 w-[1px] bg-[#0F3D2C]/10" />
                   <div>
                     <span className="text-lg font-bold text-[#0F3D2C] mr-1">{totalReadOverall}</span>
-                    <span className="text-[#0F3D2C]/60 text-[10px]">Pages Total</span>
+                    <span className="text-[#0F3D2C]/60 text-[10px]">Toplam Səhifə</span>
                   </div>
                 </div>
               </div>
@@ -447,7 +484,7 @@ export default function DashboardPage() {
                   <div key={stat.month} className="flex-1 flex flex-col items-center group h-full justify-end relative">
                     {/* Tooltip on Hover */}
                     <span className="absolute -top-6 text-[9px] font-bold text-[#0F3D2C] bg-[#EFE9DF] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      {stat.count} pgs
+                      {stat.count} səh.
                     </span>
                     
                     {/* Bar Container */}
@@ -483,7 +520,7 @@ export default function DashboardPage() {
             {/* Your Profile Card */}
             <div className="card-premium flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#0F3D2C]">Your Profile</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0F3D2C]">Profiliniz</span>
                 <span className="text-xs text-[#0F3D2C]/60">❯</span>
               </div>
               
@@ -502,19 +539,19 @@ export default function DashboardPage() {
                 
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-[#0F3D2C]">{user.name}</span>
-                  <span className="text-[10px] text-[#0F3D2C]/60 font-semibold">Level 7 Reader</span>
-                  <span className="text-[10px] text-[#0F3D2C]/40 font-medium leading-none">Level 7 Reader</span>
+                  <span className="text-[10px] text-[#0F3D2C]/60 font-semibold">7-ci Səviyyə Oxucu</span>
+                  <span className="text-[10px] text-[#0F3D2C]/40 font-medium leading-none">7-ci Səviyyə Oxucu</span>
                 </div>
               </div>
 
               <div className="border-t border-[#0F3D2C]/5 pt-3 mt-1 flex flex-col gap-1.5 text-xs text-[#0F3D2C]/85 font-semibold">
                 <div className="flex justify-between">
-                  <span>Completed Khatams</span>
-                  <span className="font-bold text-[#0F3D2C]">3 Khatams</span>
+                  <span>Tamamlanmış Xətmlər</span>
+                  <span className="font-bold text-[#0F3D2C]">3 Xətm</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Streak counter</span>
-                  <span className="font-bold text-[#0F3D2C]">12 days</span>
+                  <span>Ardıcıllıq (Gün)</span>
+                  <span className="font-bold text-[#0F3D2C]">12 gün</span>
                 </div>
               </div>
             </div>
@@ -522,7 +559,7 @@ export default function DashboardPage() {
             {/* Recent Activity Card */}
             <div className="card-premium flex flex-col gap-3.5">
               <span className="text-xs font-bold uppercase tracking-wider text-[#0F3D2C] border-b border-[#0F3D2C]/5 pb-2">
-                Recent Activity
+                Son Fəaliyyət
               </span>
               
               <div className="flex flex-col gap-3">
@@ -539,9 +576,9 @@ export default function DashboardPage() {
                 <div className="flex justify-between items-center text-xs">
                   <div className="flex items-center gap-2.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#FAF7F2] border-2 border-[#0F3D2C]/30" />
-                    <span className="font-bold text-[#0F3D2C]/60">Al-Baqarah</span>
+                    <span className="font-bold text-[#0F3D2C]/60">Əl-Bəqərə surəsi</span>
                   </div>
-                  <span className="text-[10px] text-[#0F3D2C]/40 font-medium">updated mm ago</span>
+                  <span className="text-[10px] text-[#0F3D2C]/40 font-medium">indi yeniləndi</span>
                 </div>
               </div>
             </div>
@@ -549,7 +586,7 @@ export default function DashboardPage() {
             {/* Upcoming Goals Card */}
             <div className="card-premium flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#0F3D2C]">Upcoming Goals</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0F3D2C]">Növbəti Hədəflər</span>
                 <span className="text-xs text-[#0F3D2C]/60">❯</span>
               </div>
 
@@ -559,7 +596,7 @@ export default function DashboardPage() {
                     📅
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-[#0F3D2C]">Finish Al-Kahf by 15 Oct</span>
+                    <span className="text-xs font-bold text-[#0F3D2C]">15 Oktyabradək Əl-Kəhf surəsini bitir</span>
                   </div>
                 </div>
 
