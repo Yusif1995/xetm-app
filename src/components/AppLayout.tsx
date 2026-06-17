@@ -395,6 +395,24 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                   <div className="px-3 py-2 border-b border-white/10 text-[10px] text-white/60">
                     Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
                   </div>
+                  {user.role === "admin" && (
+                    <>
+                      <Link
+                        href="/admin"
+                        onClick={() => setIsProfileOpen(false)}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-lg transition-colors border-b border-white/10 flex items-center gap-1.5"
+                      >
+                        <span>🔧</span> İnzibatçı Paneli
+                      </Link>
+                      <Link
+                        href="/admin/ai"
+                        onClick={() => setIsProfileOpen(false)}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-lg transition-colors border-b border-white/10 flex items-center gap-1.5"
+                      >
+                        <span>🤖</span> AI Köməkçi
+                      </Link>
+                    </>
+                  )}
                   <button
                     onClick={async () => {
                       setIsProfileOpen(false);
@@ -493,6 +511,28 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </svg>
           <span className="text-[9px] font-semibold mt-0.5">Statistika</span>
         </Link>
+        {user.role === "admin" && (
+          <>
+            <Link
+              href="/admin"
+              className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+                activeTab === "admin" ? "text-[#D5A85A]" : "text-white/50"
+              }`}
+            >
+              <span className="text-lg leading-none">🔧</span>
+              <span className="text-[9px] font-semibold mt-0.5">Admin</span>
+            </Link>
+            <Link
+              href="/admin/ai"
+              className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+                activeTab === "ai" ? "text-[#D5A85A]" : "text-white/50"
+              }`}
+            >
+              <span className="text-lg leading-none">🤖</span>
+              <span className="text-[9px] font-semibold mt-0.5">AI</span>
+            </Link>
+          </>
+        )}
       </nav>
     </div>
   );
