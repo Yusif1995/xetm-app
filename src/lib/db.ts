@@ -44,6 +44,7 @@ export interface AppSettings {
   currentAyah?: string;
   currentHadith?: string;
   lastDistributedJuz?: number;
+  cycleStartJuz?: number;
   completedKhatms?: number;
   isCurrentKhatmCompleted?: boolean;
   currentDailyItem?: {
@@ -313,34 +314,41 @@ export async function setAssignmentForUser(
   });
 }
 
-// Automatically distribute Quran Juz to active users randomly shuffled
+// Automatically distribute Quran Juz to active users sequentially with rotation and shifts
 export async function distributeJuzToUsers(
   startDate: string,
   endDate: string
 ): Promise<void> {
   const users = await getAllUsers();
-  const activeUsers = [...users].sort((a, b) => a.name.localeCompare(b.name));
-  
-  // Fisher-Yates Shuffle user order
-  for (let i = activeUsers.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [activeUsers[i], activeUsers[j]] = [activeUsers[j], activeUsers[i]];
-  }
+  // Sort users stably by name, with UID as fallback to be deterministic
+  const activeUsers = [...users].sort((a, b) => a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid));
 
   if (activeUsers.length === 0) return;
 
   const settings = await getGlobalSettings();
-  let lastJuz = settings.lastDistributedJuz || 0;
+  
+  let cycleStartJuz = settings.cycleStartJuz || 1;
+  let startJuz = settings.lastDistributedJuz ? (settings.lastDistributedJuz % 30) + 1 : 1;
+
+  // Prevent repetition of the exact same user-juz assignments in subsequent cycles.
+  if (settings.lastDistributedJuz !== undefined && settings.lastDistributedJuz !== 0) {
+    if (startJuz === cycleStartJuz) {
+      startJuz = (startJuz % 30) + 1;
+      cycleStartJuz = startJuz;
+    }
+  }
 
   const { writeBatch } = await import("firebase/firestore");
   const batch = writeBatch(db);
 
-  for (const user of activeUsers) {
-    const nextJuz = (lastJuz % 30) + 1;
+  let currentJuz = startJuz;
+  for (let i = 0; i < activeUsers.length; i++) {
+    const user = activeUsers[i];
+    const assignedJuz = ((startJuz + i - 1) % 30) + 1;
     
     // Page ranges for Juz
-    const startPage = (nextJuz - 1) * 20 + 1;
-    const endPage = nextJuz === 30 ? 604 : nextJuz * 20;
+    const startPage = (assignedJuz - 1) * 20 + 1;
+    const endPage = assignedJuz === 30 ? 604 : assignedJuz * 20;
 
     const pages: number[] = [];
     for (let p = startPage; p <= endPage; p++) {
@@ -355,8 +363,8 @@ export async function distributeJuzToUsers(
       completedAt: {},
       assignmentStartDate: startDate,
       assignmentEndDate: endDate,
-      assignedJuz: nextJuz,
-      assignedJuzs: [nextJuz]
+      assignedJuz: assignedJuz,
+      assignedJuzs: [assignedJuz]
     };
 
     // Save current assignment to previous before assigning new one, so history and dates are preserved
@@ -368,13 +376,13 @@ export async function distributeJuzToUsers(
     }
 
     batch.update(userRef, updates);
-
-    lastJuz = nextJuz;
+    currentJuz = assignedJuz;
   }
 
   const settingsRef = doc(db, "settings", "config");
   batch.set(settingsRef, {
-    lastDistributedJuz: lastJuz,
+    lastDistributedJuz: currentJuz,
+    cycleStartJuz: cycleStartJuz,
     isCurrentKhatmCompleted: false
   }, { merge: true });
 
@@ -579,6 +587,7 @@ export async function clearAllAssignments(): Promise<void> {
   const settingsRef = doc(db, "settings", "config");
   batch.set(settingsRef, {
     lastDistributedJuz: 0,
+    cycleStartJuz: 1,
     isCurrentKhatmCompleted: false
   }, { merge: true });
   
