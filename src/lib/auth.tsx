@@ -29,16 +29,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  const getInviteGroupId = (): string => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("invite") || "";
+    }
+    return "";
+  };
+
   const handleUserChange = async (firebaseUser: FirebaseUser | null) => {
     if (firebaseUser) {
       // Get or create user document in Firestore
       let userDoc = await getUserDoc(firebaseUser.uid);
       if (!userDoc) {
+        const inviteGroupId = getInviteGroupId();
         userDoc = await createUserDoc(
           firebaseUser.uid,
           firebaseUser.displayName || "",
           firebaseUser.email || "",
-          firebaseUser.photoURL || ""
+          firebaseUser.photoURL || "",
+          inviteGroupId
         );
       }
       
@@ -67,11 +77,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Get or create user document in Firestore first (one-off check on login)
           let userDoc = await getUserDoc(firebaseUser.uid);
           if (!userDoc) {
+            const inviteGroupId = getInviteGroupId();
             userDoc = await createUserDoc(
               firebaseUser.uid,
               firebaseUser.displayName || "",
               firebaseUser.email || "",
-              firebaseUser.photoURL || ""
+              firebaseUser.photoURL || "",
+              inviteGroupId
             );
           }
 

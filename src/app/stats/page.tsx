@@ -7,15 +7,19 @@ import AppLayout from "@/components/AppLayout";
 import ProgressBar from "@/components/ProgressBar";
 
 export default function StatsPage() {
-  const { loading } = useAuth();
+  const { user, loading } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return;
+    const userGroup = user.groupId || "default";
+
     async function loadData() {
       try {
         const usersList = await getAllUsers();
-        setUsers(usersList);
+        const filtered = usersList.filter((u) => (u.groupId || "default") === userGroup && u.approved !== false);
+        setUsers(filtered);
       } catch (err) {
         console.error("Error loading stats data:", err);
       } finally {
@@ -23,7 +27,7 @@ export default function StatsPage() {
       }
     }
     loadData();
-  }, []);
+  }, [user]);
 
   if (loading || dataLoading) {
     return (

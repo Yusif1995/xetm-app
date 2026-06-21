@@ -1,11 +1,12 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { toggleCompletedPages, type UserDoc, type AppSettings } from "@/lib/db";
-import { useEffect, useState } from "react";
+import { toggleCompletedPages, type UserDoc, type AppSettings, getGroupDoc, updateUserGroup, type GroupDoc } from "@/lib/db";
+import { useEffect, useState, Suspense } from "react";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot } from "firebase/firestore";
+import { useSearchParams } from "next/navigation";
 
 // 1-30 Cüz üzrə Surə aralıqları
 const JUZ_MAP: Record<number, { surah: string }> = {
@@ -41,12 +42,45 @@ const JUZ_MAP: Record<number, { surah: string }> = {
   30: { surah: "Ən-Nəbə - Ən-Nas" }
 };
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { user, loading, refreshUser } = useAuth();
   const [allUsers, setAllUsers] = useState<UserDoc[]>([]);
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [isMarking, setIsMarking] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  const searchParams = useSearchParams();
+  const [inviteGroup, setInviteGroup] = useState<GroupDoc | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+
+  const inviteGroupId = searchParams.get("invite");
+  useEffect(() => {
+    if (user && inviteGroupId && inviteGroupId !== (user.groupId || "default")) {
+      getGroupDoc(inviteGroupId).then((group) => {
+        if (group) {
+          setInviteGroup(group);
+          setShowInviteModal(true);
+        }
+      });
+    }
+  }, [user, inviteGroupId]);
+
+  const handleJoinGroup = async () => {
+    if (!user || !inviteGroup) return;
+    try {
+      await updateUserGroup(user.uid, inviteGroup.id, false);
+      setShowInviteModal(false);
+      window.history.replaceState({}, "", "/dashboard");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error joining group:", err);
+    }
+  };
+
+  const handleCancelInvite = () => {
+    setShowInviteModal(false);
+    window.history.replaceState({}, "", "/dashboard");
+  };
 
   useEffect(() => {
     if (user) {
@@ -55,6 +89,10 @@ export default function DashboardPage() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+    
+    const userGroup = user.groupId || "default";
+
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       const list: UserDoc[] = [];
       snapshot.forEach((docSnap) => {
@@ -64,14 +102,30 @@ export default function DashboardPage() {
           : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
         list.push({ uid: docSnap.id, ...data, totalCompletedPages } as UserDoc);
       });
-      setAllUsers(list);
+      // Filter list by same group and only approved ones
+      const filtered = list.filter((u) => (u.groupId || "default") === userGroup && u.approved !== false);
+      setAllUsers(filtered);
     }, (err) => {
       console.error("Error in real-time users listener:", err);
     });
 
-    const unsubSettings = onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+    const settingsRef = userGroup === "default"
+      ? doc(db, "settings", "config")
+      : doc(db, "groups", userGroup);
+
+    const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        setSettings(docSnap.data() as AppSettings);
+        const data = docSnap.data() as AppSettings;
+        setSettings({
+          currentAyah: data.currentAyah || "İnna lilləhi və inna ileyhi raciun",
+          currentHadith: data.currentHadith || "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir.",
+          lastDistributedJuz: data.lastDistributedJuz || 0,
+          cycleStartJuz: data.cycleStartJuz || 1,
+          completedKhatms: data.completedKhatms || 0,
+          isCurrentKhatmCompleted: data.isCurrentKhatmCompleted || false,
+          currentDailyItem: data.currentDailyItem,
+          lastDailyUpdate: data.lastDailyUpdate
+        });
       }
     }, (err) => {
       console.error("Error in real-time settings listener:", err);
@@ -81,7 +135,7 @@ export default function DashboardPage() {
       unsubUsers();
       unsubSettings();
     };
-  }, []);
+  }, [user]);
 
   if (loading || !user) {
     return (
@@ -542,6 +596,61 @@ export default function DashboardPage() {
         </div>
 
       </div>
+
+      {/* Group Invite Confirmation Modal */}
+      {showInviteModal && inviteGroup && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in animate-[fadeIn_0.2s_ease-out]">
+          <div className="card-premium w-full max-w-md p-6 relative border border-[#D5A85A]/30 shadow-2xl bg-[#F7F4EB] text-center flex flex-col items-center">
+            {/* Ornament */}
+            <div className="w-12 h-12 bg-[#0F3D2C] rounded-2xl flex items-center justify-center border border-[#D5A85A]/35 mb-4 shadow-md">
+              <span className="text-2xl">👥</span>
+            </div>
+            
+            <h3 className="text-xl font-bold text-[#0F3D2C] mb-2">Qrup Dəvəti</h3>
+            
+            <p className="text-sm text-[#0F3D2C]/75 leading-relaxed mb-6 font-sans">
+              Siz yeni <strong>“{inviteGroup.name}”</strong> qrupuna dəvət aldınız. Bu qrupa qoşulmaq istəyirsiniz?
+              <br /><br />
+              <span className="text-xs font-semibold text-amber-700 bg-amber-500/10 p-3 rounded-lg block border border-amber-500/20">
+                ⚠️ Diqqət: Qoşulduqdan sonra köhnə qrupunuzdakı cüz/səhifə təyinatlarınız silinəcək və bu qrupda fəaliyyətə başlamaq üçün admin təsdiqini gözləməli olacaqsınız.
+              </span>
+            </p>
+            
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={handleJoinGroup}
+                className="flex-1 py-2.5 bg-[#0F3D2C] hover:bg-[#16503c] text-white rounded-xl font-bold text-xs transition-colors shadow-sm"
+              >
+                Qoşul
+              </button>
+              <button
+                onClick={handleCancelInvite}
+                className="flex-1 py-2.5 bg-[#EFE9DF] hover:bg-[#E5DDCB] text-[#0F3D2C] rounded-xl font-bold text-xs transition-colors"
+              >
+                İmtina et
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex flex-col justify-center items-center bg-[#FAF7F2] text-[#0F3D2C] min-h-screen">
+        <div className="animate-spin h-10 w-10 text-[#0F3D2C] mb-4">
+          <svg className="w-full h-full" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+        </div>
+        <p className="text-sm font-semibold tracking-wide text-[#0F3D2C]/80">Yüklənir...</p>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }

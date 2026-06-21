@@ -21,6 +21,7 @@ export interface UserDoc {
   email: string;
   photoURL: string;
   role: "admin" | "user";
+  groupId?: string;
   assignedPages: number[];   // pages 1-604
   completedPages: number[];  // subset of assignedPages
   completedAt?: Record<string, string>; // pageNumber -> ISO timestamp string
@@ -38,6 +39,17 @@ export interface UserDoc {
   previousEndDate?: string;
   pushSubscriptions?: string[];
   totalCompletedPages?: number;
+}
+
+export interface GroupDoc {
+  id: string;
+  name: string;
+  createdBy: string;
+  createdAt: string;
+  lastDistributedJuz?: number;
+  cycleStartJuz?: number;
+  isCurrentKhatmCompleted?: boolean;
+  completedKhatms?: number;
 }
 
 export interface AppSettings {
@@ -80,7 +92,8 @@ export async function createUserDoc(
   uid: string, 
   name: string, 
   email: string, 
-  photoURL: string
+  photoURL: string,
+  inviteGroupId?: string
 ): Promise<UserDoc> {
   const docRef = doc(db, "users", uid);
   const existingDoc = await getUserDoc(uid);
@@ -97,10 +110,11 @@ export async function createUserDoc(
     email: email || "",
     photoURL: photoURL || "",
     role: (isFirstUser ? "admin" : "user") as "admin" | "user",
+    groupId: inviteGroupId || "default",
     assignedPages: [],
     completedPages: [],
     createdAt: serverTimestamp(),
-    approved: true,
+    approved: isFirstUser, // First user (admin) is approved, others require approval
     totalCompletedPages: 0,
   };
 
@@ -164,8 +178,10 @@ export async function toggleCompletedPage(
   
   const userSnap = await getDoc(docRef);
   let currentTotal = 0;
+  let groupId = "default";
   if (userSnap.exists()) {
     const data = userSnap.data();
+    groupId = data.groupId || "default";
     currentTotal = data.totalCompletedPages !== undefined
       ? data.totalCompletedPages
       : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
@@ -192,7 +208,7 @@ export async function toggleCompletedPage(
       totalCompletedPages: Math.max(0, currentTotal - (isCompletedBefore ? 1 : 0))
     });
   }
-  await checkAndUpdateKhatmCompletion();
+  await checkAndUpdateKhatmCompletion(groupId);
 }
 
 // Toggle multiple pages completion at once
@@ -208,8 +224,10 @@ export async function toggleCompletedPages(
 
   const userSnap = await getDoc(docRef);
   let currentTotal = 0;
+  let groupId = "default";
   if (userSnap.exists()) {
     const data = userSnap.data();
+    groupId = data.groupId || "default";
     currentTotal = data.totalCompletedPages !== undefined
       ? data.totalCompletedPages
       : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
@@ -238,7 +256,7 @@ export async function toggleCompletedPages(
   }
 
   await updateDoc(docRef, updates);
-  await checkAndUpdateKhatmCompletion();
+  await checkAndUpdateKhatmCompletion(groupId);
 
   if (isCompleted) {
     sendPushNotificationForCompletedPages(uid, pageNumbers).catch((err) =>
@@ -256,14 +274,16 @@ export async function updateUserRole(
   await updateDoc(docRef, { role });
 }
 
-// Check if the current Khatm (all 604 pages) is completed and update global settings
-export async function checkAndUpdateKhatmCompletion(): Promise<void> {
+// Check if the current Khatm (all 604 pages) is completed and update settings
+export async function checkAndUpdateKhatmCompletion(groupId?: string | null): Promise<void> {
   try {
+    const effectiveGroupId = groupId || "default";
     const users = await getAllUsers();
+    const groupUsers = users.filter((u) => (u.groupId || "default") === effectiveGroupId && u.approved !== false);
     
     // Calculate unique completed pages
     const completedPagesSet = new Set<number>();
-    users.forEach((u) => {
+    groupUsers.forEach((u) => {
       const assigned = u.assignedPages || [];
       const completed = u.completedPages || [];
       completed.forEach((page) => {
@@ -274,21 +294,35 @@ export async function checkAndUpdateKhatmCompletion(): Promise<void> {
     });
 
     const totalUniqueCompleted = completedPagesSet.size;
-    const settings = await getGlobalSettings();
+    const settings = await getGroupSettings(effectiveGroupId);
     const isCompleted = totalUniqueCompleted === 604;
 
-    const docRef = doc(db, "settings", "config");
-
-    if (isCompleted && !settings.isCurrentKhatmCompleted) {
-      const currentCount = settings.completedKhatms || 0;
-      await updateDoc(docRef, {
-        completedKhatms: currentCount + 1,
-        isCurrentKhatmCompleted: true
-      });
-    } else if (!isCompleted && settings.isCurrentKhatmCompleted) {
-      await updateDoc(docRef, {
-        isCurrentKhatmCompleted: false
-      });
+    if (effectiveGroupId === "default") {
+      const docRef = doc(db, "settings", "config");
+      if (isCompleted && !settings.isCurrentKhatmCompleted) {
+        const currentCount = settings.completedKhatms || 0;
+        await updateDoc(docRef, {
+          completedKhatms: currentCount + 1,
+          isCurrentKhatmCompleted: true
+        });
+      } else if (!isCompleted && settings.isCurrentKhatmCompleted) {
+        await updateDoc(docRef, {
+          isCurrentKhatmCompleted: false
+        });
+      }
+    } else {
+      const docRef = doc(db, "groups", effectiveGroupId);
+      if (isCompleted && !settings.isCurrentKhatmCompleted) {
+        const currentCount = settings.completedKhatms || 0;
+        await updateDoc(docRef, {
+          completedKhatms: currentCount + 1,
+          isCurrentKhatmCompleted: true
+        });
+      } else if (!isCompleted && settings.isCurrentKhatmCompleted) {
+        await updateDoc(docRef, {
+          isCurrentKhatmCompleted: false
+        });
+      }
     }
   } catch (err) {
     console.error("Error in checkAndUpdateKhatmCompletion:", err);
@@ -317,15 +351,19 @@ export async function setAssignmentForUser(
 // Automatically distribute Quran Juz to active users sequentially with rotation and shifts
 export async function distributeJuzToUsers(
   startDate: string,
-  endDate: string
+  endDate: string,
+  groupId?: string | null
 ): Promise<void> {
+  const effectiveGroupId = groupId || "default";
   const users = await getAllUsers();
-  // Sort users stably by name, with UID as fallback to be deterministic
-  const activeUsers = [...users].sort((a, b) => a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid));
+  // Sort users stably by name, with UID as fallback to be deterministic, filtered by group and approved
+  const activeUsers = users
+    .filter((u) => (u.groupId || "default") === effectiveGroupId && u.approved !== false)
+    .sort((a, b) => a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid));
 
   if (activeUsers.length === 0) return;
 
-  const settings = await getGlobalSettings();
+  const settings = await getGroupSettings(effectiveGroupId);
   
   let cycleStartJuz = settings.cycleStartJuz || 1;
   let startJuz = settings.lastDistributedJuz ? (settings.lastDistributedJuz % 30) + 1 : 1;
@@ -379,12 +417,21 @@ export async function distributeJuzToUsers(
     currentJuz = assignedJuz;
   }
 
-  const settingsRef = doc(db, "settings", "config");
-  batch.set(settingsRef, {
-    lastDistributedJuz: currentJuz,
-    cycleStartJuz: cycleStartJuz,
-    isCurrentKhatmCompleted: false
-  }, { merge: true });
+  if (effectiveGroupId === "default") {
+    const settingsRef = doc(db, "settings", "config");
+    batch.set(settingsRef, {
+      lastDistributedJuz: currentJuz,
+      cycleStartJuz: cycleStartJuz,
+      isCurrentKhatmCompleted: false
+    }, { merge: true });
+  } else {
+    const groupRef = doc(db, "groups", effectiveGroupId);
+    batch.set(groupRef, {
+      lastDistributedJuz: currentJuz,
+      cycleStartJuz: cycleStartJuz,
+      isCurrentKhatmCompleted: false
+    }, { merge: true });
+  }
 
   await batch.commit();
 }
@@ -560,13 +607,15 @@ export async function togglePreviousCompletedPages(
   }
 }
 
-// Clear all page assignments and resets everything
-export async function clearAllAssignments(): Promise<void> {
+// Clear all page assignments and resets everything for a specific group
+export async function clearAllAssignments(groupId?: string | null): Promise<void> {
+  const effectiveGroupId = groupId || "default";
   const users = await getAllUsers();
+  const groupUsers = users.filter((u) => (u.groupId || "default") === effectiveGroupId);
   const { writeBatch } = await import("firebase/firestore");
   const batch = writeBatch(db);
   
-  for (const user of users) {
+  for (const user of groupUsers) {
     const userRef = doc(db, "users", user.uid);
     batch.update(userRef, {
       assignedPages: [],
@@ -584,12 +633,21 @@ export async function clearAllAssignments(): Promise<void> {
     });
   }
   
-  const settingsRef = doc(db, "settings", "config");
-  batch.set(settingsRef, {
-    lastDistributedJuz: 0,
-    cycleStartJuz: 1,
-    isCurrentKhatmCompleted: false
-  }, { merge: true });
+  if (effectiveGroupId === "default") {
+    const settingsRef = doc(db, "settings", "config");
+    batch.set(settingsRef, {
+      lastDistributedJuz: 0,
+      cycleStartJuz: 1,
+      isCurrentKhatmCompleted: false
+    }, { merge: true });
+  } else {
+    const groupRef = doc(db, "groups", effectiveGroupId);
+    batch.set(groupRef, {
+      lastDistributedJuz: 0,
+      cycleStartJuz: 1,
+      isCurrentKhatmCompleted: false
+    }, { merge: true });
+  }
   
   await batch.commit();
 }
@@ -638,5 +696,129 @@ export async function sendPushNotificationForCompletedPages(senderUid: string, p
   } catch (err) {
     console.error("Error in sendPushNotificationForCompletedPages:", err);
   }
+}
+
+// Get group settings (backwards compatible with default settings/config)
+export async function getGroupSettings(groupId?: string | null): Promise<AppSettings> {
+  try {
+    const effectiveGroupId = groupId || "default";
+    if (effectiveGroupId === "default") {
+      const docRef = doc(db, "settings", "config");
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data() as AppSettings;
+      }
+      return {
+        currentAyah: "İnna lilləhi və inna ileyhi raciun",
+        currentHadith: "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir."
+      };
+    } else {
+      const docRef = doc(db, "groups", effectiveGroupId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+          currentAyah: data.currentAyah || "İnna lilləhi və inna ileyhi raciun",
+          currentHadith: data.currentHadith || "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir.",
+          lastDistributedJuz: data.lastDistributedJuz || 0,
+          cycleStartJuz: data.cycleStartJuz || 1,
+          completedKhatms: data.completedKhatms || 0,
+          isCurrentKhatmCompleted: data.isCurrentKhatmCompleted || false,
+          currentDailyItem: data.currentDailyItem,
+          lastDailyUpdate: data.lastDailyUpdate
+        } as AppSettings;
+      }
+      return {
+        currentAyah: "İnna lilləhi və inna ileyhi raciun",
+        currentHadith: "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir.",
+        lastDistributedJuz: 0,
+        cycleStartJuz: 1,
+        completedKhatms: 0,
+        isCurrentKhatmCompleted: false
+      };
+    }
+  } catch (error) {
+    console.error("Error in getGroupSettings:", error);
+    return {};
+  }
+}
+
+// Set group settings
+export async function setGroupSettings(settings: AppSettings, groupId?: string | null): Promise<void> {
+  const effectiveGroupId = groupId || "default";
+  if (effectiveGroupId === "default") {
+    const docRef = doc(db, "settings", "config");
+    await setDoc(docRef, settings, { merge: true });
+  } else {
+    const docRef = doc(db, "groups", effectiveGroupId);
+    await setDoc(docRef, settings, { merge: true });
+  }
+}
+
+// Fetch a single group document by ID
+export async function getGroupDoc(groupId: string): Promise<GroupDoc | null> {
+  try {
+    const docRef = doc(db, "groups", groupId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as GroupDoc;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error in getGroupDoc:", error);
+    return null;
+  }
+}
+
+// Create a new group
+export async function createGroup(name: string, createdBy: string): Promise<string> {
+  const { addDoc, collection } = await import("firebase/firestore");
+  const docRef = await addDoc(collection(db, "groups"), {
+    name,
+    createdBy,
+    createdAt: new Date().toISOString(),
+    lastDistributedJuz: 0,
+    cycleStartJuz: 1,
+    isCurrentKhatmCompleted: false,
+    completedKhatms: 0
+  });
+  return docRef.id;
+}
+
+// Fetch all groups created by an admin
+export async function getGroupsCreatedBy(adminUid: string): Promise<GroupDoc[]> {
+  try {
+    const q = query(collection(db, "groups"));
+    const querySnapshot = await getDocs(q);
+    const groups: GroupDoc[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.createdBy === adminUid) {
+        groups.push({ id: doc.id, ...data } as GroupDoc);
+      }
+    });
+    return groups;
+  } catch (error) {
+    console.error("Error in getGroupsCreatedBy:", error);
+    return [];
+  }
+}
+
+// Update a user's group and clear their assignments
+export async function updateUserGroup(uid: string, groupId: string, approved: boolean): Promise<void> {
+  const docRef = doc(db, "users", uid);
+  await updateDoc(docRef, {
+    groupId,
+    approved,
+    assignedPages: [],
+    completedPages: [],
+    completedAt: {},
+    assignedJuz: null,
+    assignedJuzs: [],
+    previousAssignedPages: [],
+    previousCompletedPages: [],
+    previousStartDate: "",
+    previousEndDate: ""
+  });
 }
 

@@ -7,28 +7,42 @@ import UserRow from "@/components/UserRow";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot } from "firebase/firestore";
+import { useAuth } from "@/lib/auth";
 
 export default function ProgressPage() {
+  const { user } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return;
+    const userGroup = user.groupId || "default";
+
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       const list: UserDoc[] = [];
       snapshot.forEach((docSnap) => {
         list.push({ uid: docSnap.id, ...docSnap.data() } as UserDoc);
       });
-      setUsers(list);
+      // Filter list by same group and only approved ones
+      const filtered = list.filter((u) => (u.groupId || "default") === userGroup && u.approved !== false);
+      setUsers(filtered);
       setLoading(false);
     }, (err) => {
       console.error("Error in real-time users listener:", err);
       setLoading(false);
     });
 
-    const unsubSettings = onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+    const settingsRef = userGroup === "default"
+      ? doc(db, "settings", "config")
+      : doc(db, "groups", userGroup);
+
+    const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        setSettings(docSnap.data() as AppSettings);
+        const data = docSnap.data() as AppSettings;
+        setSettings({
+          completedKhatms: data.completedKhatms || 0
+        });
       }
     }, (err) => {
       console.error("Error in real-time settings listener:", err);
@@ -38,7 +52,7 @@ export default function ProgressPage() {
       unsubUsers();
       unsubSettings();
     };
-  }, []);
+  }, [user]);
 
   // Calculate unique pages completed by the group out of 604
   const completedPagesSet = new Set<number>();

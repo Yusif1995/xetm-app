@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
-import { addPushSubscription } from "@/lib/db";
+import { addPushSubscription, getGroupDoc, type UserDoc } from "@/lib/db";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -77,10 +77,13 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const currentCompletions: Record<string, number[]> = {};
+      const userGroup = user.groupId || "default";
       
       snapshot.forEach((doc) => {
         const data = doc.data();
-        currentCompletions[doc.id] = data.completedPages || [];
+        if ((data.groupId || "default") === userGroup) {
+          currentCompletions[doc.id] = data.completedPages || [];
+        }
       });
 
       if (isFirstLoadRef.current) {
@@ -93,6 +96,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       snapshot.forEach((doc) => {
         const uid = doc.id;
         if (uid === user.uid) return; // Do not notify about self
+        if ((doc.data().groupId || "default") !== userGroup) return; // Only notify if in same group
 
         const oldPages = prevCompletionsRef.current[uid] || [];
         const newPages = doc.data().completedPages || [];
@@ -154,6 +158,11 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
   if (!user) {
     return null;
+  }
+
+  // Approval Pending Wall
+  if (user.approved !== true && user.role !== "admin") {
+    return <ApprovalPendingScreen user={user} logout={logout} />;
   }
 
   const toggleDropdown = () => setIsProfileOpen(!isProfileOpen);
@@ -534,6 +543,61 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </>
         )}
       </nav>
+    </div>
+  );
+}
+
+function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => Promise<void> }) {
+  const [groupName, setGroupName] = useState<string>("");
+  
+  useEffect(() => {
+    const loadGroup = async () => {
+      if (user.groupId && user.groupId !== "default") {
+        const gDoc = await getGroupDoc(user.groupId);
+        if (gDoc) {
+          setGroupName(gDoc.name);
+        }
+      }
+    };
+    loadGroup();
+  }, [user.groupId]);
+
+  return (
+    <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 md:p-8 bg-[#F7F4EB] relative overflow-hidden">
+      {/* Background Star Patterns */}
+      <IslamicBorders />
+
+      <div className="card-premium w-full max-w-md p-8 flex flex-col items-center text-center relative z-10 shadow-2xl border border-[#D5A85A]/20">
+        {/* Mosque Dome & Quran Icon */}
+        <div className="w-16 h-16 bg-[#0F3D2C] rounded-2xl flex items-center justify-center border border-[#D5A85A]/30 mb-6 shadow-md">
+          <span className="text-3xl">🕌</span>
+        </div>
+
+        <h1 className="text-2xl font-bold text-[#0F3D2C] mb-3">
+          Giriş Təsdiqi Gözlənilir
+        </h1>
+
+        <p className="text-sm text-[#0F3D2C]/70 leading-relaxed mb-6 font-sans">
+          {groupName ? (
+            <>
+              Sizin <strong>“{groupName}”</strong> qrupuna qoşulmaq istəyiniz qeydə alınıb. Hesabınızın aktivləşdirilməsi və qrupa daxil edilməyiniz üçün qrup inzibatçısının təsdiqi lazımdır.
+            </>
+          ) : (
+            "Sizin sistem qrupuna qoşulmaq istəyiniz qeydə alınıb. Hesabınızın aktivləşdirilməsi üçün inzibatçının təsdiqi lazımdır."
+          )}
+          <br />
+          <span className="block mt-4 text-xs font-semibold text-[#D5A85A]">
+            Zəhmət olmasa, adminin təsdiq etməsini gözləyin.
+          </span>
+        </p>
+
+        <button
+          onClick={logout}
+          className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500/50"
+        >
+          Çıxış (Sistemdən ayrıl)
+        </button>
+      </div>
     </div>
   );
 }

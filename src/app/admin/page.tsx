@@ -4,16 +4,19 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { 
   getAllUsers, 
-  getGlobalSettings, 
-  setGlobalSettings, 
+  getGroupSettings, 
+  setGroupSettings, 
   setAssignmentForUser,
   distributeJuzToUsers,
   updateUserRole,
   clearAllAssignments,
   updateUserAdminNotification,
   deleteUserDoc,
+  createGroup,
+  updateUserApproval,
   type UserDoc, 
-  type AppSettings 
+  type AppSettings,
+  type GroupDoc
 } from "@/lib/db";
 import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
@@ -88,11 +91,19 @@ export default function AdminPage() {
   const [groupStartDate, setGroupStartDate] = useState("");
   const [groupEndDate, setGroupEndDate] = useState("");
 
-  async function loadData() {
+  // Group-specific state variables
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("default");
+  const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [createGroupLoading, setCreateGroupLoading] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  async function loadData(groupId = selectedGroupId) {
     try {
       const allUsers = await getAllUsers();
       setUsers(allUsers);
-      const appSettings = await getGlobalSettings();
+      const appSettings = await getGroupSettings(groupId);
       setSettings(appSettings);
     } catch (err) {
       console.error("Error loading admin data:", err);
@@ -101,6 +112,7 @@ export default function AdminPage() {
     }
   }
 
+  // Real-time listener for users
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       const list: UserDoc[] = [];
@@ -118,28 +130,64 @@ export default function AdminPage() {
       setLoading(false);
     });
 
-    const unsubSettings = onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+    return () => unsubUsers();
+  }, []);
+
+  // Real-time listener for settings based on selectedGroupId
+  useEffect(() => {
+    const settingsRef = selectedGroupId === "default"
+      ? doc(db, "settings", "config")
+      : doc(db, "groups", selectedGroupId);
+
+    const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        setSettings(docSnap.data() as AppSettings);
+        const data = docSnap.data() as AppSettings;
+        setSettings({
+          currentAyah: data.currentAyah || "İnna lilləhi və inna ileyhi raciun",
+          currentHadith: data.currentHadith || "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir.",
+          lastDistributedJuz: data.lastDistributedJuz || 0,
+          cycleStartJuz: data.cycleStartJuz || 1,
+          completedKhatms: data.completedKhatms || 0,
+          isCurrentKhatmCompleted: data.isCurrentKhatmCompleted || false,
+          currentDailyItem: data.currentDailyItem,
+          lastDailyUpdate: data.lastDailyUpdate
+        });
       }
     }, (err) => {
       console.error("Error in real-time settings listener:", err);
     });
 
-    return () => {
-      unsubUsers();
-      unsubSettings();
-    };
-  }, []);
+    return () => unsubSettings();
+  }, [selectedGroupId]);
+
+  // Real-time listener for groups created by this admin
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
+      const list: GroupDoc[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.createdBy === currentUser.uid) {
+          list.push({ id: docSnap.id, ...data } as GroupDoc);
+        }
+      });
+      setCreatedGroups(list);
+    }, (err) => {
+      console.error("Error in real-time groups listener:", err);
+    });
+
+    return () => unsubGroups();
+  }, [currentUser]);
 
   // Set default group dates based on current assignments if available
   useEffect(() => {
-    const assignedUser = users.find(u => u.assignmentStartDate);
+    const groupUsers = users.filter(u => (u.groupId || "default") === selectedGroupId);
+    const assignedUser = groupUsers.find(u => u.assignmentStartDate);
     if (assignedUser) {
       if (!groupStartDate) setGroupStartDate(assignedUser.assignmentStartDate || "");
       if (!groupEndDate) setGroupEndDate(assignedUser.assignmentEndDate || "");
     }
-  }, [users, groupStartDate, groupEndDate]);
+  }, [users, selectedGroupId, groupStartDate, groupEndDate]);
 
   if (authLoading || loading) {
     return (
@@ -159,9 +207,13 @@ export default function AdminPage() {
     return null; // Guarded by middleware
   }
 
-  // Calculate unique pages completed by the group out of 604
+  // Calculate unique pages completed by the selected group out of 604
+  const groupUsers = users.filter((u) => (u.groupId || "default") === selectedGroupId);
+  const activeGroupUsers = groupUsers.filter((u) => u.approved !== false);
+  const pendingGroupUsers = groupUsers.filter((u) => u.approved === false);
+
   const completedPagesSet = new Set<number>();
-  users.forEach((u) => {
+  activeGroupUsers.forEach((u) => {
     const assigned = u.assignedPages || [];
     const completed = u.completedPages || [];
     completed.forEach((page) => {
@@ -171,6 +223,65 @@ export default function AdminPage() {
     });
   });
   const totalUniqueCompleted = completedPagesSet.size;
+
+  const handleApproveUser = async (uid: string) => {
+    try {
+      setLoading(true);
+      await updateUserApproval(uid, true);
+      await loadData();
+      alert("İştirakçı uğurla təsdiqləndi.");
+    } catch (err) {
+      console.error("Error approving user:", err);
+      alert("Təsdiqləmə zamanı xəta baş verdi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectUser = async (user: UserDoc) => {
+    if (window.confirm(`${user.name} adlı iştirakçının qoşulmaq istəyini rədd etmək istəyirsiniz?`)) {
+      try {
+        setLoading(true);
+        await deleteUserDoc(user.uid);
+        await loadData();
+        alert("İstək rədd edildi və silindi.");
+      } catch (err) {
+        console.error("Error rejecting user:", err);
+        alert("Rədd edərkən xəta baş verdi.");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleCopyInviteLink = () => {
+    if (selectedGroupId === "default") return;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const inviteLink = `${origin}/?invite=${selectedGroupId}`;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 3000);
+    });
+  };
+
+  const handleCreateGroupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim() || !currentUser) return;
+    setCreateGroupLoading(true);
+    try {
+      const newId = await createGroup(newGroupName, currentUser.uid);
+      setSelectedGroupId(newId);
+      setShowCreateGroupModal(false);
+      setNewGroupName("");
+      alert("Yeni qrup uğurla yaradıldı!");
+      await loadData(newId);
+    } catch (err) {
+      console.error("Error creating group:", err);
+      alert("Qrup yaradılarkən xəta baş verdi.");
+    } finally {
+      setCreateGroupLoading(false);
+    }
+  };
 
   const handleRoleToggle = async (user: UserDoc) => {
     try {
@@ -281,7 +392,7 @@ export default function AdminPage() {
   };
 
   // Filter users by name or email (though email is not displayed)
-  const filteredUsers = users.filter(
+  const filteredUsers = activeGroupUsers.filter(
     (u) =>
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -385,7 +496,7 @@ export default function AdminPage() {
     setAutoSuccess(false);
 
     try {
-      await distributeJuzToUsers(autoStartDate, autoEndDate);
+      await distributeJuzToUsers(autoStartDate, autoEndDate, selectedGroupId);
       setAutoSuccess(true);
       setShowAutoModal(false);
       setAutoStartDate("");
@@ -406,7 +517,7 @@ export default function AdminPage() {
     setSettingsSuccess(false);
 
     try {
-      await setGlobalSettings(settings);
+      await setGroupSettings(settings, selectedGroupId);
       setSettingsSuccess(true);
       setTimeout(() => setSettingsSuccess(false), 3000);
     } catch (err) {
@@ -426,6 +537,97 @@ export default function AdminPage() {
             İnzibatçı Paneli
           </h1>
         </div>
+
+        {/* Group Selector and Creation Section */}
+        <div className="card-premium flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex flex-col gap-1 w-full md:w-auto">
+            <label className="text-[10px] uppercase font-bold text-[#D5A85A] tracking-wider">İdarə Olunan Qrup</label>
+            <select
+              value={selectedGroupId}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "__new__") {
+                  setShowCreateGroupModal(true);
+                } else {
+                  setSelectedGroupId(val);
+                  loadData(val);
+                }
+              }}
+              className="px-4 py-2.5 bg-[#FAF7F2] border border-[#0F3D2C]/20 rounded-xl text-[#0F3D2C] font-bold text-sm outline-none focus:border-[#0F3D2C]/40 transition-colors w-full md:w-64"
+            >
+              <option value="default">Sistem Qrupu (Default)</option>
+              {createdGroups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+              <option value="__new__" className="text-[#D5A85A] font-bold">+ Yeni Qrup Yarat...</option>
+            </select>
+          </div>
+
+          {selectedGroupId !== "default" && (
+            <button
+              onClick={handleCopyInviteLink}
+              className="w-full md:w-auto px-5 py-3 bg-[#0F3D2C] hover:bg-[#16503c] text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
+            >
+              <span>🔗</span>
+              <span>{inviteCopied ? "Link Kopyalandı!" : "Dəvət Linkini Paylaş"}</span>
+            </button>
+          )}
+        </div>
+
+        {/* Pending Membership Requests */}
+        {pendingGroupUsers.length > 0 && (
+          <div className="card-premium border border-amber-500/35 bg-amber-500/5 flex flex-col gap-4">
+            <h3 className="text-sm font-bold text-amber-800 flex items-center gap-2">
+              <span>⚠️ Qrupa Qoşulmaq İstəyənlər (Təsdiq Gözləyənlər)</span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                {pendingGroupUsers.length} istək
+              </span>
+            </h3>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-amber-500/10 text-[10px] text-amber-800/70 uppercase font-bold tracking-wider">
+                    <th className="px-4 py-2">İştirakçı</th>
+                    <th className="px-4 py-2 text-right">Qərar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingGroupUsers.map((u) => (
+                    <tr key={u.uid} className="border-b border-amber-500/5 text-xs text-amber-900">
+                      <td className="px-4 py-3 flex items-center gap-3">
+                        {u.photoURL ? (
+                          <img src={u.photoURL} alt={u.name} className="w-8 h-8 rounded-full border border-amber-500/20" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center font-bold text-amber-800">
+                            {u.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="font-bold">{u.name}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleApproveUser(u.uid)}
+                            className="px-3 py-1.5 bg-[#0F3D2C] hover:bg-[#16503c] text-white font-bold rounded-lg transition-colors text-[10px]"
+                          >
+                            Təsdiq et
+                          </button>
+                          <button
+                            onClick={() => handleRejectUser(u)}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors text-[10px]"
+                          >
+                            Rədd et
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Global Progress overview */}
         <div className="card-premium">
@@ -493,7 +695,7 @@ export default function AdminPage() {
             {Array.from({ length: 30 }, (_, i) => {
               const juzNum = i + 1;
               const juzInfo = JUZ_MAP[juzNum];
-              const assignedUser = users.find(u => u.assignedJuz === juzNum);
+              const assignedUser = activeGroupUsers.find(u => u.assignedJuz === juzNum);
               
               return (
                 <div key={juzNum} className="p-3 bg-[#FAF7F2] border border-[#0F3D2C]/5 rounded-xl flex flex-col justify-between gap-3 shadow-sm">
@@ -533,7 +735,7 @@ export default function AdminPage() {
                           defaultValue=""
                         >
                           <option value="" disabled>İştirakçı...</option>
-                          {users.map(u => (
+                          {activeGroupUsers.map(u => (
                             <option key={u.uid} value={u.uid}>{u.name}</option>
                           ))}
                         </select>
@@ -876,6 +1078,57 @@ export default function AdminPage() {
                   className="px-4 py-2 bg-[#0F3D2C] hover:bg-[#1C2E24] text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95"
                 >
                   {autoLoading ? "Paylanılır..." : "Paylanmanı Başlat"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      {showCreateGroupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="card-premium max-w-md w-full p-6 shadow-2xl relative z-10 flex flex-col gap-4 text-[#0F3D2C]">
+            <h3 className="text-base font-bold text-[#0F3D2C] flex items-center gap-2 border-b border-[#0F3D2C]/5 pb-2">
+              <span>👥</span>
+              <span>Yeni Qrup Yarat</span>
+            </h3>
+            <p className="text-xs text-[#0F3D2C]/70 leading-relaxed font-medium">
+              Yeni bir xətm qrupu yaradın. Bu qrupa daxil olacaq iştirakçılar yalnız bu qrupun cüzlərini və fəaliyyətini görəcəkdir.
+            </p>
+            
+            <form onSubmit={handleCreateGroupSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#0F3D2C]/80 mb-1.5 uppercase tracking-wide">
+                  Qrup Adı
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="Məsələn: Cümə Xətmi, Ailə Qrupu"
+                  className="w-full px-4 py-2 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-lg text-[#0F3D2C] focus:outline-none text-sm font-semibold"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateGroupModal(false);
+                    setNewGroupName("");
+                  }}
+                  className="px-4 py-2 bg-white border border-[#0F3D2C]/20 text-[#0F3D2C] text-xs font-bold rounded-lg transition-all"
+                >
+                  Ləğv Et
+                </button>
+                <button
+                  type="submit"
+                  disabled={createGroupLoading}
+                  className="px-4 py-2 bg-[#0F3D2C] hover:bg-[#1C2E24] text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95"
+                >
+                  {createGroupLoading ? "Yaradılır..." : "Qrupu Yarat"}
                 </button>
               </div>
             </form>
