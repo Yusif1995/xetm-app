@@ -45,5 +45,17 @@ service cloud.firestore {
       // Only admins can write/update hadiths
       allow write: if isAdmin(); 
     }
+
+    // Rules for groups collection
+    match /groups/{groupId} {
+      // Authenticated users can read group details
+      allow read: if isAuthenticated();
+      
+      // Only admins can create or delete groups
+      allow create, delete: if isAdmin();
+      
+      // Authenticated users can update group documents (needed for marking pages and auto khatm completion updates)
+      allow update: if isAuthenticated();
+    }
   }
 }
