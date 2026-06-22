@@ -20,6 +20,8 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  activeGroupId: string;
+  setActiveGroupId: (id: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,7 +29,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeGroupId, setActiveGroupIdState] = useState<string>("default");
   const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      const stored = localStorage.getItem(`activeGroupId_${user.uid}`);
+      const fallback = user.groupId || "default";
+      setActiveGroupIdState(stored || fallback);
+    }
+  }, [user]);
+
+  const setActiveGroupId = (id: string) => {
+    if (user) {
+      localStorage.setItem(`activeGroupId_${user.uid}`, id);
+    }
+    setActiveGroupIdState(id);
+  };
 
   const getInviteGroupId = (): string => {
     if (typeof window !== "undefined") {
@@ -198,7 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, refreshUser, activeGroupId, setActiveGroupId }}>
       {children}
     </AuthContext.Provider>
   );

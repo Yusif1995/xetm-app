@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
-import { addPushSubscription, getGroupDoc, type UserDoc } from "@/lib/db";
+import { addPushSubscription, getGroupDoc, getUserGroupIds, getUserAssignment, type UserDoc, type GroupDoc } from "@/lib/db";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -28,10 +28,30 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, activeGroupId, setActiveGroupId } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [groups, setGroups] = useState<GroupDoc[]>([]);
   const prevCompletionsRef = useRef<Record<string, number[]>>({});
   const isFirstLoadRef = useRef(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
+      const list: GroupDoc[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.createdBy === user.uid || getUserGroupIds(user).includes(docSnap.id)) {
+          list.push({ id: docSnap.id, ...data } as GroupDoc);
+        }
+      });
+      setGroups(list);
+    }, (err) => {
+      console.error("Error in AppLayout groups listener:", err);
+    });
+
+    return () => unsubGroups();
+  }, [user]);
 
   // Request browser Notification permission and register push subscription on mount/login
   useEffect(() => {
@@ -77,12 +97,12 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const currentCompletions: Record<string, number[]> = {};
-      const userGroup = user.groupId || "default";
       
       snapshot.forEach((doc) => {
-        const data = doc.data();
-        if ((data.groupId || "default") === userGroup) {
-          currentCompletions[doc.id] = data.completedPages || [];
+        const data = doc.data() as UserDoc;
+        if (getUserGroupIds(data).includes(activeGroupId)) {
+          const assignment = getUserAssignment(data, activeGroupId);
+          currentCompletions[doc.id] = assignment.completedPages || [];
         }
       });
 
@@ -93,17 +113,19 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       }
 
       // Check for changes
-      snapshot.forEach((doc) => {
-        const uid = doc.id;
+      snapshot.forEach((docSnap) => {
+        const uid = docSnap.id;
         if (uid === user.uid) return; // Do not notify about self
-        if ((doc.data().groupId || "default") !== userGroup) return; // Only notify if in same group
+        const data = docSnap.data() as UserDoc;
+        if (!getUserGroupIds(data).includes(activeGroupId)) return; // Only notify if in same group
 
         const oldPages = prevCompletionsRef.current[uid] || [];
-        const newPages = doc.data().completedPages || [];
+        const assignment = getUserAssignment(data, activeGroupId);
+        const newPages = assignment.completedPages || [];
         const newlyCompleted = newPages.filter((p: number) => !oldPages.includes(p));
 
         if (newlyCompleted.length > 0) {
-          const name = doc.data().name || "Bir iştirakçı";
+          const name = data.name || "Bir iştirakçı";
           const title = "Quran Xətm - Yeni Tamamlama!";
           const options = {
             body: `${name} yeni səhifəni tamamladı: Səhifə ${newlyCompleted.sort((a: number, b: number) => a - b).join(", ")}`,
@@ -160,12 +182,16 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     return null;
   }
 
-  // Approval Pending Wall
-  if (user.approved !== true && user.role !== "admin") {
+  // Approval Pending Wall check
+  const isApproved = user.role === "admin" || (
+    activeGroupId === "default" 
+      ? user.approved === true 
+      : user.groupData?.[activeGroupId]?.approved === true
+  );
+
+  if (!isApproved) {
     return <ApprovalPendingScreen user={user} logout={logout} />;
   }
-
-  const toggleDropdown = () => setIsProfileOpen(!isProfileOpen);
 
   return (
     <div className="min-h-screen flex bg-[#F7F4EB] text-[#1c2e24] relative overflow-x-hidden pb-16 md:pb-0">
@@ -190,6 +216,23 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             Xətm App
           </span>
         </div>
+
+        {/* Group Selector for Desktop */}
+        {(user.role === "admin" || getUserGroupIds(user).length > 1) && (
+          <div className="flex flex-col gap-1.5 px-4 relative z-10">
+            <span className="text-[9px] uppercase tracking-wider text-[#D5A85A] font-bold">Aktiv Qrup</span>
+            <select
+              value={activeGroupId}
+              onChange={(e) => setActiveGroupId(e.target.value)}
+              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white font-bold text-xs outline-none focus:border-white/40 transition-colors cursor-pointer"
+            >
+              <option value="default" className="text-black font-semibold">Sistem Qrupu (Default)</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id} className="text-black font-semibold">{g.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Sidebar Nav Items */}
         <nav className="flex-1 flex flex-col gap-2 relative z-10 pt-2 font-sans">
@@ -237,10 +280,12 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             }`}
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              <path d="M4 18v-1a3 3 0 0 1 3-3h1" />
+              <circle cx="7" cy="10" r="2" />
+              <path d="M16 14h1a3 3 0 0 1 3 3v1" />
+              <circle cx="17" cy="10" r="2" />
+              <path d="M8 21v-1.5a3.5 3.5 0 0 1 7 0V21" />
+              <circle cx="11.5" cy="7" r="2.5" />
             </svg>
             <span>Qrup</span>
           </Link>
@@ -274,20 +319,32 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                     : "text-white/70 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <span>🔧</span>
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
                 <span>İnzibatçı Paneli</span>
               </Link>
-              <Link
-                href="/admin/ai"
-                className={`flex items-center gap-3.5 px-4 py-2.5 rounded-xl transition-all font-semibold text-xs ${
-                  activeTab === "ai"
-                    ? "bg-[#F7F4EB] text-[#0F3D2C]"
-                    : "text-white/70 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <span>🤖</span>
-                <span>AI Köməkçi</span>
-              </Link>
+              {(activeTab === "admin" || activeTab === "ai") && (
+                <Link
+                  href="/admin/ai"
+                  className={`flex items-center gap-3.5 px-4 py-2.5 rounded-xl transition-all font-semibold text-xs ${
+                    activeTab === "ai"
+                      ? "bg-[#F7F4EB] text-[#0F3D2C]"
+                      : "text-white/70 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="10" rx="2" />
+                    <circle cx="12" cy="5" r="2" />
+                    <path d="M12 7v4" />
+                    <line x1="8" y1="16" x2="8.01" y2="16" />
+                    <line x1="16" y1="16" x2="16.01" y2="16" />
+                    <path d="M9 11V9a3 3 0 0 1 6 0v2" />
+                  </svg>
+                  <span>AI Köməkçi</span>
+                </Link>
+              )}
             </div>
           )}
         </nav>
@@ -313,9 +370,30 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         <header className="hidden md:flex justify-end items-center px-8 py-5 border-b border-[#0F3D2C]/5 bg-transparent">
           <div className="flex items-center gap-4 relative">
             
+            {/* AI Icon (Desktop) - ONLY visible on Admin page */}
+            {user.role === "admin" && activeTab === "admin" && (
+              <Link
+                href="/admin/ai"
+                className="w-10 h-10 rounded-full bg-[#FAF7F2] border border-[#0F3D2C]/10 flex items-center justify-center text-[#0F3D2C] hover:bg-white hover:shadow-sm transition-all focus:outline-none"
+                title="AI Köməkçi"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="10" rx="2" />
+                  <circle cx="12" cy="5" r="2" />
+                  <path d="M12 7v4" />
+                  <line x1="8" y1="16" x2="8.01" y2="16" />
+                  <line x1="16" y1="16" x2="16.01" y2="16" />
+                  <path d="M9 11V9a3 3 0 0 1 6 0v2" />
+                </svg>
+              </Link>
+            )}
+
             {/* Notification Bell */}
             <button 
-              onClick={toggleDropdown}
+              onClick={() => {
+                setIsNotificationsOpen(!isNotificationsOpen);
+                setIsProfileOpen(false);
+              }}
               className="w-10 h-10 rounded-full bg-[#FAF7F2] border border-[#0F3D2C]/10 flex items-center justify-center text-[#0F3D2C] hover:bg-white hover:shadow-sm transition-all focus:outline-none relative"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -324,56 +402,82 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-[#D5A85A] rounded-full border-2 border-[#FAF7F2]" />
             </button>
 
-            {/* Profile Dropdown Menu (toggled by notification bell) */}
-            {isProfileOpen && (
+            {/* Notifications Dropdown */}
+            {isNotificationsOpen && (
               <div className="absolute right-0 mt-12 top-0 w-52 bg-white border border-[#0F3D2C]/10 rounded-xl shadow-xl z-50 p-2 animate-fadeIn">
-                <div className="flex flex-col text-sm text-[#0F3D2C]">
-                  <div className="px-3 py-2 border-b border-[#0F3D2C]/5 text-[11px] text-[#0F3D2C]/60 font-medium">
-                    Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
-                  </div>
-                  <button
-                    onClick={async () => {
-                      setIsProfileOpen(false);
-                      if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
-                        try {
-                          const permission = await Notification.requestPermission();
-                          if (permission === "granted") {
-                            const registration = await navigator.serviceWorker.ready;
-                            const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-                            const subscription = await registration.pushManager.subscribe({
-                              userVisibleOnly: true,
-                              applicationServerKey: urlBase64ToUint8Array(publicKey)
-                            });
-                            await addPushSubscription(user.uid, JSON.stringify(subscription));
-                            alert("Bildirişlər uğurla aktiv edildi!");
-                          } else {
-                            alert("Bildiriş icazəsi rədd edildi: " + permission);
-                          }
-                        } catch (err) {
-                          console.error("Subscription error:", err);
-                          alert("Bildirişləri aktiv edərkən xəta baş verdi: " + (err instanceof Error ? err.message : String(err)));
+                <button
+                  onClick={async () => {
+                    setIsNotificationsOpen(false);
+                    if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+                      try {
+                        const permission = await Notification.requestPermission();
+                        if (permission === "granted") {
+                          const registration = await navigator.serviceWorker.ready;
+                          const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
+                          const subscription = await registration.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: urlBase64ToUint8Array(publicKey)
+                          });
+                          await addPushSubscription(user.uid, JSON.stringify(subscription));
+                          alert("Bildirişlər uğurla aktiv edildi!");
+                        } else {
+                          alert("Bildiriş icazəsi rədd edildi: " + permission);
                         }
-                      } else {
-                        alert("Cihazınız və ya brauzeriniz Web Push bildirişləri dəstəkləmir.");
+                      } catch (err) {
+                        console.error("Subscription error:", err);
+                        alert("Bildirişləri aktiv edərkən xəta baş verdi: " + (err instanceof Error ? err.message : String(err)));
                       }
-                    }}
-                    className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#FAF7F2] rounded-lg transition-colors mt-1 border-b border-[#0F3D2C]/5 flex items-center gap-1.5"
-                  >
-                    <span>🔔</span> Bildirişləri Aktiv Et
-                  </button>
-                  <button
-                    onClick={logout}
-                    className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors mt-1"
-                  >
-                    Sistemdən Çıxış
-                  </button>
-                </div>
+                    } else {
+                      alert("Cihazınız və ya brauzeriniz Web Push bildirişləri dəstəkləmir.");
+                    }
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#FAF7F2] rounded-lg transition-colors text-[#0F3D2C] flex items-center gap-1.5"
+                >
+                  <span>🔔</span> Bildirişləri Aktiv Et
+                </button>
               </div>
+            )}
+
+            {/* Profile Avatar Icon - ONLY visible on Dashboard, to the right of the Bell */}
+            {activeTab === "dashboard" && (
+              <>
+                <button
+                  onClick={() => {
+                    setIsProfileOpen(!isProfileOpen);
+                    setIsNotificationsOpen(false);
+                  }}
+                  className="w-10 h-10 rounded-full overflow-hidden border border-[#0F3D2C]/20 shadow-sm flex items-center justify-center bg-[#EAE3D5] text-[#0F3D2C] font-bold text-sm hover:border-[#0F3D2C]/40 transition-colors"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    user.name.charAt(0).toUpperCase()
+                  )}
+                </button>
+
+                {/* Profile Dropdown */}
+                {isProfileOpen && (
+                  <div className="absolute right-0 mt-12 top-0 w-52 bg-white border border-[#0F3D2C]/10 rounded-xl shadow-xl z-50 p-3 animate-fadeIn text-[#0F3D2C]">
+                    <div className="flex flex-col gap-1.5 pb-2 border-b border-[#0F3D2C]/5 mb-1.5">
+                      <span className="text-xs font-bold">{user.name}</span>
+                      <span className="text-[10px] text-[#0F3D2C]/60 truncate">{user.email}</span>
+                      <span className="text-[10px] uppercase font-bold text-[#D5A85A] tracking-wider mt-0.5">
+                        Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors mt-1"
+                    >
+                      Sistemdən Çıxış
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </header>
 
-        {/* Mobile Header */}
         <header className="md:hidden sticky top-0 z-30 bg-[#0F3D2C] text-white border-b border-[#D5A85A]/20 px-4 py-3 flex justify-between items-center shadow-md">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg overflow-hidden border border-[#D5A85A]/25">
@@ -386,10 +490,44 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             <span className="text-base font-serif font-bold tracking-wide">Xətm App</span>
           </div>
 
+          {/* Group Selector for Mobile */}
+          {(user.role === "admin" || getUserGroupIds(user).length > 1) && (
+            <select
+              value={activeGroupId}
+              onChange={(e) => setActiveGroupId(e.target.value)}
+              className="mx-2 px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white font-bold text-[10px] outline-none focus:border-white/40 transition-colors max-w-[120px] truncate"
+            >
+              <option value="default" className="text-black font-semibold">Default</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id} className="text-black font-semibold">{g.name}</option>
+              ))}
+            </select>
+          )}
+
           <div className="flex items-center gap-2 relative">
+            {/* AI Icon (Mobile Header) - ONLY visible on Admin page */}
+            {user.role === "admin" && activeTab === "admin" && (
+              <Link
+                href="/admin/ai"
+                className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 transition-all"
+              >
+                <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="10" rx="2" />
+                  <circle cx="12" cy="5" r="2" />
+                  <path d="M12 7v4" />
+                  <line x1="8" y1="16" x2="8.01" y2="16" />
+                  <line x1="16" y1="16" x2="16.01" y2="16" />
+                  <path d="M9 11V9a3 3 0 0 1 6 0v2" />
+                </svg>
+              </Link>
+            )}
+
             {/* Mobile Notification Bell */}
             <button
-              onClick={toggleDropdown}
+              onClick={() => {
+                setIsNotificationsOpen(!isNotificationsOpen);
+                setIsProfileOpen(false);
+              }}
               className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 transition-all relative"
             >
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
@@ -398,65 +536,75 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#D5A85A] rounded-full border border-[#0F3D2C]" />
             </button>
 
-            {isProfileOpen && (
-              <div className="absolute right-0 mt-10 top-0 w-44 bg-[#0F3D2C] border border-white/10 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn text-white">
-                <div className="flex flex-col text-xs">
-                  <div className="px-3 py-2 border-b border-white/10 text-[10px] text-white/60">
-                    Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
-                  </div>
-                  {user.role === "admin" && (
-                    <>
-                      <Link
-                        href="/admin"
-                        onClick={() => setIsProfileOpen(false)}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-lg transition-colors border-b border-white/10 flex items-center gap-1.5"
-                      >
-                        <span>🔧</span> İnzibatçı Paneli
-                      </Link>
-                      <Link
-                        href="/admin/ai"
-                        onClick={() => setIsProfileOpen(false)}
-                        className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-lg transition-colors border-b border-white/10 flex items-center gap-1.5"
-                      >
-                        <span>🤖</span> AI Köməkçi
-                      </Link>
-                    </>
-                  )}
-                  <button
-                    onClick={async () => {
-                      setIsProfileOpen(false);
-                      if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
-                        try {
-                           const permission = await Notification.requestPermission();
-                           if (permission === "granted") {
-                             const registration = await navigator.serviceWorker.ready;
-                             const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-                             const subscription = await registration.pushManager.subscribe({
-                               userVisibleOnly: true,
-                               applicationServerKey: urlBase64ToUint8Array(publicKey)
-                             });
-                             await addPushSubscription(user.uid, JSON.stringify(subscription));
-                             alert("Bildirişlər uğurla aktiv edildi!");
-                           } else {
-                             alert("Bildiriş icazəsi rədd edildi: " + permission);
-                           }
-                        } catch (err) {
-                          console.error("Subscription error:", err);
+            {/* Mobile Notifications Dropdown - ONLY has Bildirişləri Aktiv Et */}
+            {isNotificationsOpen && (
+              <div className="absolute right-8 mt-10 top-0 w-44 bg-[#0F3D2C] border border-white/10 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn text-white">
+                <button
+                  onClick={async () => {
+                    setIsNotificationsOpen(false);
+                    if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+                      try {
+                        const permission = await Notification.requestPermission();
+                        if (permission === "granted") {
+                          const registration = await navigator.serviceWorker.ready;
+                          const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
+                          const subscription = await registration.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: urlBase64ToUint8Array(publicKey)
+                          });
+                          await addPushSubscription(user.uid, JSON.stringify(subscription));
+                          alert("Bildirişlər uğurla aktiv edildi!");
+                        } else {
+                          alert("Bildiriş icazəsi rədd edildi: " + permission);
                         }
+                      } catch (err) {
+                        console.error("Subscription error:", err);
                       }
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-lg transition-colors mt-1 border-b border-white/10"
-                  >
-                    🔔 Bildirişləri Aktiv Et
-                  </button>
-                  <button
-                    onClick={logout}
-                    className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-950/20 rounded-lg transition-colors mt-1"
-                  >
-                    Sistemdən Çıxış
-                  </button>
-                </div>
+                    }
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-white/10 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <span>🔔</span> Bildirişləri Aktiv Et
+                </button>
               </div>
+            )}
+
+            {/* Mobile Profile Avatar - ONLY visible on Dashboard, to the right of the Bell */}
+            {activeTab === "dashboard" && (
+              <>
+                <button
+                  onClick={() => {
+                    setIsProfileOpen(!isProfileOpen);
+                    setIsNotificationsOpen(false);
+                  }}
+                  className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-sm flex items-center justify-center bg-white/10 text-white font-bold text-xs hover:bg-white/25 transition-all"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    user.name.charAt(0).toUpperCase()
+                  )}
+                </button>
+
+                {/* Mobile Profile Dropdown */}
+                {isProfileOpen && (
+                  <div className="absolute right-0 mt-10 top-0 w-44 bg-[#0F3D2C] border border-white/10 rounded-xl shadow-2xl z-50 p-3 animate-fadeIn text-white text-xs">
+                    <div className="flex flex-col gap-1 pb-2 border-b border-white/10 mb-1.5">
+                      <span className="font-bold">{user.name}</span>
+                      <span className="text-[10px] text-white/60 truncate">{user.email}</span>
+                      <span className="text-[9px] uppercase font-bold text-[#D5A85A] tracking-wider mt-0.5">
+                        Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="w-full text-left px-3 py-2 font-semibold text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    >
+                      Sistemdən Çıxış
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </header>
@@ -502,8 +650,12 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           }`}
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
+            <path d="M4 18v-1a3 3 0 0 1 3-3h1" />
+            <circle cx="7" cy="10" r="2" />
+            <path d="M16 14h1a3 3 0 0 1 3 3v1" />
+            <circle cx="17" cy="10" r="2" />
+            <path d="M8 21v-1.5a3.5 3.5 0 0 1 7 0V21" />
+            <circle cx="11.5" cy="7" r="2.5" />
           </svg>
           <span className="text-[9px] font-semibold mt-0.5">Qrup</span>
         </Link>
@@ -521,26 +673,18 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           <span className="text-[9px] font-semibold mt-0.5">Statistika</span>
         </Link>
         {user.role === "admin" && (
-          <>
-            <Link
-              href="/admin"
-              className={`flex flex-col items-center py-1 px-3 rounded-lg ${
-                activeTab === "admin" ? "text-[#D5A85A]" : "text-white/50"
-              }`}
-            >
-              <span className="text-lg leading-none">🔧</span>
-              <span className="text-[9px] font-semibold mt-0.5">Admin</span>
-            </Link>
-            <Link
-              href="/admin/ai"
-              className={`flex flex-col items-center py-1 px-3 rounded-lg ${
-                activeTab === "ai" ? "text-[#D5A85A]" : "text-white/50"
-              }`}
-            >
-              <span className="text-lg leading-none">🤖</span>
-              <span className="text-[9px] font-semibold mt-0.5">AI</span>
-            </Link>
-          </>
+          <Link
+            href="/admin"
+            className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+              activeTab === "admin" ? "text-[#D5A85A]" : "text-white/50"
+            }`}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <span className="text-[9px] font-semibold mt-0.5">Admin</span>
+          </Link>
         )}
       </nav>
     </div>
@@ -549,18 +693,20 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
 function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => Promise<void> }) {
   const [groupName, setGroupName] = useState<string>("");
+  const { activeGroupId, setActiveGroupId } = useAuth();
   
   useEffect(() => {
     const loadGroup = async () => {
-      if (user.groupId && user.groupId !== "default") {
-        const gDoc = await getGroupDoc(user.groupId);
+      const gId = activeGroupId && activeGroupId !== "default" ? activeGroupId : (user.groupId !== "default" ? user.groupId : "");
+      if (gId) {
+        const gDoc = await getGroupDoc(gId);
         if (gDoc) {
           setGroupName(gDoc.name);
         }
       }
     };
     loadGroup();
-  }, [user.groupId]);
+  }, [user.groupId, activeGroupId]);
 
   return (
     <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 md:p-8 bg-[#F7F4EB] relative overflow-hidden">
@@ -597,6 +743,15 @@ function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => 
         >
           Çıxış (Sistemdən ayrıl)
         </button>
+
+        {user.approved === true && (
+          <button
+            onClick={() => setActiveGroupId("default")}
+            className="w-full mt-3 py-3 bg-[#0F3D2C] hover:bg-[#16503c] text-white rounded-xl font-bold text-sm transition-colors shadow-sm focus:outline-none"
+          >
+            Sistem Qrupuna qayıt
+          </button>
+        )}
       </div>
     </div>
   );

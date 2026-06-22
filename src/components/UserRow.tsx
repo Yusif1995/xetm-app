@@ -1,6 +1,6 @@
 "use client";
 
-import { UserDoc } from "../lib/db";
+import { UserDoc, getUserAssignment } from "../lib/db";
 import { useAuth } from "../lib/auth";
 import { useState } from "react";
 
@@ -21,18 +21,19 @@ export default function UserRow({
   onNotifyClick,
   onRemoveUserClick
 }: UserRowProps) {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, activeGroupId } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
   
   const isSelf = currentUser?.uid === user.uid;
-  const totalAssigned = user.assignedPages?.length || 0;
-  const totalCompleted = user.completedPages?.filter(p => user.assignedPages.includes(p)).length || 0;
+  const assignment = getUserAssignment(user, activeGroupId);
+  const totalAssigned = assignment.assignedPages?.length || 0;
+  const totalCompleted = assignment.completedPages?.filter(p => assignment.assignedPages.includes(p)).length || 0;
   const percentage = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 0;
   const remainingPages = totalAssigned - totalCompleted;
 
   // Gecikmə yoxlanışı
   const today = new Date().toISOString().split("T")[0];
-  const isLate = user.assignmentEndDate && user.assignmentEndDate < today && totalCompleted < totalAssigned;
+  const isLate = assignment.assignmentEndDate && assignment.assignmentEndDate < today && totalCompleted < totalAssigned;
   
   // Status vizualı
   let statusColor = "bg-gray-100 text-gray-600 border-gray-200";
@@ -117,12 +118,12 @@ export default function UserRow({
           </div>
         </td>
         <td className="px-4 py-3 md:px-6 md:py-4 text-[11px] md:text-xs text-[#0F3D2C]/80 font-mono">
-          <div className="max-w-[120px] md:max-w-[200px] truncate font-bold" title={formatPages(user.assignedPages)}>
-            {formatPages(user.assignedPages)}
+          <div className="max-w-[120px] md:max-w-[200px] truncate font-bold" title={formatPages(assignment.assignedPages)}>
+            {formatPages(assignment.assignedPages)}
           </div>
-          {user.assignmentStartDate && user.assignmentEndDate && (
+          {assignment.assignmentStartDate && assignment.assignmentEndDate && (
             <div className="text-[9px] text-[#D5A85A] mt-0.5 font-sans">
-              📅 {formatDateDisplay(user.assignmentStartDate)} — {formatDateDisplay(user.assignmentEndDate)}
+              📅 {formatDateDisplay(assignment.assignmentStartDate)} — {formatDateDisplay(assignment.assignmentEndDate)}
             </div>
           )}
         </td>
@@ -216,8 +217,8 @@ export default function UserRow({
                 <p className="text-xs italic text-[#0F3D2C]/40 py-2">İştirakçıya hələ heç bir səhifə təyin edilməyib.</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5 py-1">
-                  {[...user.assignedPages].sort((a,b)=>a-b).map((page) => {
-                    const completed = (user.completedPages || []).includes(page);
+                  {[...assignment.assignedPages].sort((a,b)=>a-b).map((page) => {
+                    const completed = (assignment.completedPages || []).includes(page);
                     return (
                       <span 
                         key={page}
@@ -236,14 +237,14 @@ export default function UserRow({
               )}
               
               {/* Previous unfinished pages display if exists */}
-              {user.previousAssignedPages && user.previousAssignedPages.length > 0 && (
+              {assignment.previousAssignedPages && assignment.previousAssignedPages.length > 0 && (
                 <div className="pt-2 border-t border-[#0F3D2C]/10">
                   <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider block mb-2">
-                    Əvvəlki yarımçıq qalmış səhifələr (Tarix: {formatDateDisplay(user.previousStartDate)} — {formatDateDisplay(user.previousEndDate)}):
+                    Əvvəlki yarımçıq qalmış səhifələr (Tarix: {formatDateDisplay(assignment.previousStartDate)} — {formatDateDisplay(assignment.previousEndDate)}):
                   </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {[...user.previousAssignedPages].sort((a,b)=>a-b).map((page) => {
-                      const completed = (user.previousCompletedPages || []).includes(page);
+                    {[...assignment.previousAssignedPages].sort((a,b)=>a-b).map((page) => {
+                      const completed = (assignment.previousCompletedPages || []).includes(page);
                       return (
                         <span 
                           key={`prev-${page}`}

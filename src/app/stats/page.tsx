@@ -1,24 +1,23 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { getAllUsers, type UserDoc } from "@/lib/db";
+import { getAllUsers, type UserDoc, getUserGroupIds, getUserAssignment } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import ProgressBar from "@/components/ProgressBar";
 
 export default function StatsPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, activeGroupId } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
-    const userGroup = user.groupId || "default";
 
     async function loadData() {
       try {
         const usersList = await getAllUsers();
-        const filtered = usersList.filter((u) => (u.groupId || "default") === userGroup && u.approved !== false);
+        const filtered = usersList.filter((u) => getUserGroupIds(u).includes(activeGroupId) && u.approved !== false);
         setUsers(filtered);
       } catch (err) {
         console.error("Error loading stats data:", err);
@@ -27,7 +26,7 @@ export default function StatsPage() {
       }
     }
     loadData();
-  }, [user]);
+  }, [user, activeGroupId]);
 
   if (loading || dataLoading) {
     return (
@@ -44,21 +43,23 @@ export default function StatsPage() {
   }
 
   // Calculate unique completed pages (out of 604)
-  const allCompletedPages = users.flatMap((u) => u.completedPages || []);
+  const allCompletedPages = users.flatMap((u) => getUserAssignment(u, activeGroupId).completedPages || []);
   const uniqueCompleted = Array.from(new Set(allCompletedPages)).length;
 
   // Calculate how many users are assigned to each Juz (1-30) and their completion status
   const juzStatus = Array.from({ length: 30 }, (_, idx) => {
     const juzNum = idx + 1;
-    const juzUsers = users.filter((u) => 
-      (u.assignedJuzs && u.assignedJuzs.includes(juzNum)) || u.assignedJuz === juzNum
-    );
+    const juzUsers = users.filter((u) => {
+      const assignment = getUserAssignment(u, activeGroupId);
+      return (assignment.assignedJuzs && assignment.assignedJuzs.includes(juzNum)) || assignment.assignedJuz === juzNum;
+    });
     const isAssigned = juzUsers.length > 0;
     const isCompleted = isAssigned && juzUsers.every((u) => {
+      const assignment = getUserAssignment(u, activeGroupId);
       const startPage = (juzNum - 1) * 20 + 1;
       const endPage = juzNum === 30 ? 604 : juzNum * 20;
       for (let p = startPage; p <= endPage; p++) {
-        if (!(u.completedPages || []).includes(p)) return false;
+        if (!(assignment.completedPages || []).includes(p)) return false;
       }
       return true;
     });

@@ -14,6 +14,8 @@ import {
   deleteUserDoc,
   createGroup,
   updateUserApproval,
+  getUserGroupIds,
+  getUserAssignment,
   type UserDoc, 
   type AppSettings,
   type GroupDoc
@@ -59,7 +61,7 @@ const JUZ_MAP: Record<number, { surah: string }> = {
 };
 
 export default function AdminPage() {
-  const { user: currentUser, loading: authLoading } = useAuth();
+  const { user: currentUser, loading: authLoading, activeGroupId, setActiveGroupId } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -92,14 +94,13 @@ export default function AdminPage() {
   const [groupEndDate, setGroupEndDate] = useState("");
 
   // Group-specific state variables
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("default");
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [createGroupLoading, setCreateGroupLoading] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
 
-  async function loadData(groupId = selectedGroupId) {
+  async function loadData(groupId = activeGroupId) {
     try {
       const allUsers = await getAllUsers();
       setUsers(allUsers);
@@ -133,11 +134,11 @@ export default function AdminPage() {
     return () => unsubUsers();
   }, []);
 
-  // Real-time listener for settings based on selectedGroupId
+  // Real-time listener for settings based on activeGroupId
   useEffect(() => {
-    const settingsRef = selectedGroupId === "default"
+    const settingsRef = activeGroupId === "default"
       ? doc(db, "settings", "config")
-      : doc(db, "groups", selectedGroupId);
+      : doc(db, "groups", activeGroupId);
 
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -158,7 +159,7 @@ export default function AdminPage() {
     });
 
     return () => unsubSettings();
-  }, [selectedGroupId]);
+  }, [activeGroupId]);
 
   // Real-time listener for groups created by this admin
   useEffect(() => {
@@ -181,13 +182,14 @@ export default function AdminPage() {
 
   // Set default group dates based on current assignments if available
   useEffect(() => {
-    const groupUsers = users.filter(u => (u.groupId || "default") === selectedGroupId);
-    const assignedUser = groupUsers.find(u => u.assignmentStartDate);
+    const groupUsers = users.filter(u => getUserGroupIds(u).includes(activeGroupId));
+    const assignedUser = groupUsers.find(u => getUserAssignment(u, activeGroupId).assignmentStartDate);
     if (assignedUser) {
-      if (!groupStartDate) setGroupStartDate(assignedUser.assignmentStartDate || "");
-      if (!groupEndDate) setGroupEndDate(assignedUser.assignmentEndDate || "");
+      const assignment = getUserAssignment(assignedUser, activeGroupId);
+      if (!groupStartDate) setGroupStartDate(assignment.assignmentStartDate || "");
+      if (!groupEndDate) setGroupEndDate(assignment.assignmentEndDate || "");
     }
-  }, [users, selectedGroupId, groupStartDate, groupEndDate]);
+  }, [users, activeGroupId, groupStartDate, groupEndDate]);
 
   if (authLoading || loading) {
     return (
@@ -208,14 +210,25 @@ export default function AdminPage() {
   }
 
   // Calculate unique pages completed by the selected group out of 604
-  const groupUsers = users.filter((u) => (u.groupId || "default") === selectedGroupId);
-  const activeGroupUsers = groupUsers.filter((u) => u.approved !== false);
-  const pendingGroupUsers = groupUsers.filter((u) => u.approved === false);
+  const groupUsers = users.filter((u) => getUserGroupIds(u).includes(activeGroupId));
+  const activeGroupUsers = groupUsers.filter((u) => {
+    if (activeGroupId === "default") {
+      return u.approved !== false;
+    }
+    return u.groupData?.[activeGroupId]?.approved === true || u.role === "admin";
+  });
+  const pendingGroupUsers = groupUsers.filter((u) => {
+    if (activeGroupId === "default") {
+      return u.approved === false;
+    }
+    return u.groupData?.[activeGroupId]?.approved !== true && u.role !== "admin";
+  });
 
   const completedPagesSet = new Set<number>();
   activeGroupUsers.forEach((u) => {
-    const assigned = u.assignedPages || [];
-    const completed = u.completedPages || [];
+    const assignment = getUserAssignment(u, activeGroupId);
+    const assigned = assignment.assignedPages || [];
+    const completed = assignment.completedPages || [];
     completed.forEach((page) => {
       if (page >= 1 && page <= 604 && assigned.includes(page)) {
         completedPagesSet.add(page);
@@ -227,7 +240,7 @@ export default function AdminPage() {
   const handleApproveUser = async (uid: string) => {
     try {
       setLoading(true);
-      await updateUserApproval(uid, true);
+      await updateUserApproval(uid, true, activeGroupId);
       await loadData();
       alert("İştirakçı uğurla təsdiqləndi.");
     } catch (err) {
@@ -255,9 +268,9 @@ export default function AdminPage() {
   };
 
   const handleCopyInviteLink = () => {
-    if (selectedGroupId === "default") return;
+    if (activeGroupId === "default") return;
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const inviteLink = `${origin}/?invite=${selectedGroupId}`;
+    const inviteLink = `${origin}/?invite=${activeGroupId}`;
     navigator.clipboard.writeText(inviteLink).then(() => {
       setInviteCopied(true);
       setTimeout(() => setInviteCopied(false), 3000);
@@ -270,7 +283,7 @@ export default function AdminPage() {
     setCreateGroupLoading(true);
     try {
       const newId = await createGroup(newGroupName, currentUser.uid);
-      setSelectedGroupId(newId);
+      setActiveGroupId(newId);
       setShowCreateGroupModal(false);
       setNewGroupName("");
       alert("Yeni qrup uğurla yaradıldı!");
@@ -298,7 +311,7 @@ export default function AdminPage() {
     if (window.confirm("Bütün iştirakçıların səhifə təyinatlarını və arxiv tarixçələrini tamamilə sıfırlamaq (təmizləmək) istəyirsiniz?")) {
       try {
         setLoading(true);
-        await clearAllAssignments();
+        await clearAllAssignments(activeGroupId);
         alert("Bütün səhifə təyinatları uğurla təmizləndi.");
         await loadData();
       } catch (err) {
@@ -349,7 +362,8 @@ export default function AdminPage() {
     }
     
     const userToAssign = users.find(u => u.uid === uid);
-    if (userToAssign && userToAssign.assignedPages && userToAssign.assignedPages.length > 0) {
+    const assignment = userToAssign ? getUserAssignment(userToAssign, activeGroupId) : null;
+    if (userToAssign && assignment && assignment.assignedPages && assignment.assignedPages.length > 0) {
       if (!window.confirm(`${userToAssign.name} adlı iştirakçının artıq mövcud təyinatı var. Onu silib bu Cüzlə əvəz etmək istəyirsiniz?`)) {
         return;
       }
@@ -364,7 +378,7 @@ export default function AdminPage() {
         pages.push(p);
       }
       
-      await setAssignmentForUser(uid, pages, groupStartDate, groupEndDate, juzNum);
+      await setAssignmentForUser(uid, pages, groupStartDate, groupEndDate, juzNum, activeGroupId);
       alert(`Cüz ${juzNum} uğurla ${userToAssign?.name || "iştirakçıya"} təyin edildi.`);
       await loadData();
     } catch (err) {
@@ -376,10 +390,11 @@ export default function AdminPage() {
   };
 
   const handleRemoveJuzAssignment = async (user: UserDoc) => {
-    if (window.confirm(`${user.name} adlı iştirakçının Cüz ${user.assignedJuz} təyinatını ləğv etmək istəyirsiniz?`)) {
+    const assignment = getUserAssignment(user, activeGroupId);
+    if (window.confirm(`${user.name} adlı iştirakçının Cüz ${assignment.assignedJuz} təyinatını ləğv etmək istəyirsiniz?`)) {
       try {
         setLoading(true);
-        await setAssignmentForUser(user.uid, [], "", "", undefined);
+        await setAssignmentForUser(user.uid, [], "", "", undefined, activeGroupId);
         alert("Cüz təyinatı ləğv edildi.");
         await loadData();
       } catch (err) {
@@ -431,11 +446,12 @@ export default function AdminPage() {
     setSelectedUser(user);
     setAssignSuccess(false);
     setAssignError(null);
-    setStartDateInput(user.assignmentStartDate || "");
-    setEndDateInput(user.assignmentEndDate || "");
+    const assignment = getUserAssignment(user, activeGroupId);
+    setStartDateInput(assignment.assignmentStartDate || "");
+    setEndDateInput(assignment.assignmentEndDate || "");
     
-    if (user.assignedPages && user.assignedPages.length > 0) {
-      const sorted = [...user.assignedPages].sort((a, b) => a - b);
+    if (assignment.assignedPages && assignment.assignedPages.length > 0) {
+      const sorted = [...assignment.assignedPages].sort((a, b) => a - b);
       const ranges: string[] = [];
       let start = sorted[0];
       let end = sorted[0];
@@ -471,7 +487,9 @@ export default function AdminPage() {
         selectedUser.uid, 
         newPages, 
         startDateInput, 
-        endDateInput
+        endDateInput,
+        undefined, // juzNumber
+        activeGroupId
       );
       
       setAssignSuccess(true);
@@ -496,7 +514,7 @@ export default function AdminPage() {
     setAutoSuccess(false);
 
     try {
-      await distributeJuzToUsers(autoStartDate, autoEndDate, selectedGroupId);
+      await distributeJuzToUsers(autoStartDate, autoEndDate, activeGroupId);
       setAutoSuccess(true);
       setShowAutoModal(false);
       setAutoStartDate("");
@@ -517,7 +535,7 @@ export default function AdminPage() {
     setSettingsSuccess(false);
 
     try {
-      await setGroupSettings(settings, selectedGroupId);
+      await setGroupSettings(settings, activeGroupId);
       setSettingsSuccess(true);
       setTimeout(() => setSettingsSuccess(false), 3000);
     } catch (err) {
@@ -543,13 +561,13 @@ export default function AdminPage() {
           <div className="flex flex-col gap-1 w-full md:w-auto">
             <label className="text-[10px] uppercase font-bold text-[#D5A85A] tracking-wider">İdarə Olunan Qrup</label>
             <select
-              value={selectedGroupId}
+              value={activeGroupId}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === "__new__") {
                   setShowCreateGroupModal(true);
                 } else {
-                  setSelectedGroupId(val);
+                  setActiveGroupId(val);
                   loadData(val);
                 }
               }}
@@ -563,7 +581,7 @@ export default function AdminPage() {
             </select>
           </div>
 
-          {selectedGroupId !== "default" && (
+          {activeGroupId !== "default" && (
             <button
               onClick={handleCopyInviteLink}
               className="w-full md:w-auto px-5 py-3 bg-[#0F3D2C] hover:bg-[#16503c] text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
@@ -695,7 +713,10 @@ export default function AdminPage() {
             {Array.from({ length: 30 }, (_, i) => {
               const juzNum = i + 1;
               const juzInfo = JUZ_MAP[juzNum];
-              const assignedUser = activeGroupUsers.find(u => u.assignedJuz === juzNum);
+              const assignedUser = activeGroupUsers.find(u => {
+                const assignment = getUserAssignment(u, activeGroupId);
+                return assignment.assignedJuz === juzNum || (assignment.assignedJuzs && assignment.assignedJuzs.includes(juzNum));
+              });
               
               return (
                 <div key={juzNum} className="p-3 bg-[#FAF7F2] border border-[#0F3D2C]/5 rounded-xl flex flex-col justify-between gap-3 shadow-sm">
@@ -956,7 +977,7 @@ export default function AdminPage() {
             <h3 className="text-base font-bold text-[#0F3D2C] flex items-center gap-2">
               <span>Qeydiyyatlı İştirakçılar</span>
               <span className="text-xs bg-[#D5A85A]/15 text-[#D5A85A] px-2.5 py-0.5 rounded-full border border-[#D5A85A]/30 font-mono">
-                {users.length} iştirakçı
+                {activeGroupUsers.length} iştirakçı
               </span>
               <span className="text-xs text-[#0F3D2C] ml-1 font-mono">
                 {showParticipantsList ? "▲" : "▼"}

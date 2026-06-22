@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { toggleCompletedPages, type UserDoc, type AppSettings, getGroupDoc, updateUserGroup, type GroupDoc } from "@/lib/db";
+import { toggleCompletedPages, type UserDoc, type AppSettings, getGroupDoc, updateUserGroup, type GroupDoc, getUserGroupIds, getUserAssignment } from "@/lib/db";
 import { useEffect, useState, Suspense } from "react";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
@@ -43,7 +43,7 @@ const JUZ_MAP: Record<number, { surah: string }> = {
 };
 
 function DashboardContent() {
-  const { user, loading, refreshUser } = useAuth();
+  const { user, loading, refreshUser, activeGroupId } = useAuth();
   const [allUsers, setAllUsers] = useState<UserDoc[]>([]);
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [isMarking, setIsMarking] = useState(false);
@@ -82,16 +82,16 @@ function DashboardContent() {
     window.history.replaceState({}, "", "/dashboard");
   };
 
+  const activeAssignment = user ? getUserAssignment(user, activeGroupId) : null;
+
   useEffect(() => {
-    if (user) {
-      setCompletedPagesState(user.completedPages || []);
+    if (activeAssignment) {
+      setCompletedPagesState(activeAssignment.completedPages || []);
     }
-  }, [user]);
+  }, [activeAssignment]);
 
   useEffect(() => {
     if (!user) return;
-    
-    const userGroup = user.groupId || "default";
 
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       const list: UserDoc[] = [];
@@ -103,15 +103,15 @@ function DashboardContent() {
         list.push({ uid: docSnap.id, ...data, totalCompletedPages } as UserDoc);
       });
       // Filter list by same group and only approved ones
-      const filtered = list.filter((u) => (u.groupId || "default") === userGroup && u.approved !== false);
+      const filtered = list.filter((u) => getUserGroupIds(u).includes(activeGroupId) && u.approved !== false);
       setAllUsers(filtered);
     }, (err) => {
       console.error("Error in real-time users listener:", err);
     });
 
-    const settingsRef = userGroup === "default"
+    const settingsRef = activeGroupId === "default"
       ? doc(db, "settings", "config")
-      : doc(db, "groups", userGroup);
+      : doc(db, "groups", activeGroupId);
 
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -135,7 +135,7 @@ function DashboardContent() {
       unsubUsers();
       unsubSettings();
     };
-  }, [user]);
+  }, [user, activeGroupId]);
 
   if (loading || !user) {
     return (
@@ -151,7 +151,7 @@ function DashboardContent() {
     );
   }
 
-  const assignedPages = user.assignedPages || [];
+  const assignedPages = activeAssignment?.assignedPages || [];
   const activeCompleted = completedPagesState.filter(p => assignedPages.includes(p));
 
   // 5-lik qruplar
@@ -168,10 +168,10 @@ function DashboardContent() {
     : 0;
 
   // Qrup statistikası
-  const totalAssignedPagesList = allUsers.flatMap(u => u.assignedPages || []);
+  const totalAssignedPagesList = allUsers.flatMap(u => getUserAssignment(u, activeGroupId).assignedPages || []);
   const totalUniqueAssigned = Array.from(new Set(totalAssignedPagesList)).length;
 
-  const totalCompletedPagesList = allUsers.flatMap(u => u.completedPages || []);
+  const totalCompletedPagesList = allUsers.flatMap(u => getUserAssignment(u, activeGroupId).completedPages || []);
   const totalUniqueCompleted = Array.from(new Set(totalCompletedPagesList)).length;
 
   const groupPercentage = totalUniqueAssigned > 0 
@@ -183,7 +183,7 @@ function DashboardContent() {
     if (activeChunk.length === 0 || isMarking) return;
     setIsMarking(true);
     try {
-      await toggleCompletedPages(user.uid, activeChunk, true);
+      await toggleCompletedPages(user.uid, activeChunk, true, activeGroupId);
       setCompletedPagesState(prev => {
         const next = [...prev];
         activeChunk.forEach(p => {
@@ -200,7 +200,7 @@ function DashboardContent() {
   };
 
   // Surə / Səhifə
-  const assignedJuzsList = user.assignedJuzs || (user.assignedJuz ? [user.assignedJuz] : []);
+  const assignedJuzsList = activeAssignment?.assignedJuzs || (activeAssignment?.assignedJuz ? [activeAssignment.assignedJuz] : []);
   let displaySurah = "Qrup Xətmi";
   if (assignedJuzsList.length > 0) {
     const firstJuz = assignedJuzsList[0];
@@ -254,8 +254,8 @@ function DashboardContent() {
   // Son fəaliyyət
   const getRecentActivities = () => {
     const list: { title: string; time: string }[] = [];
-    if (user.completedAt) {
-      const sorted = Object.entries(user.completedAt)
+    if (activeAssignment?.completedAt) {
+      const sorted = Object.entries(activeAssignment.completedAt)
         .map(([page, time]) => ({ page: Number(page), time: new Date(time).getTime() }))
         .sort((a, b) => b.time - a.time);
 
@@ -289,8 +289,8 @@ function DashboardContent() {
   const recentActivities = getRecentActivities();
 
   // Card 2 üçün dinamik hesablamalar
-  const prevAssigned = user.previousAssignedPages || [];
-  const prevCompleted = user.previousCompletedPages || [];
+  const prevAssigned = activeAssignment?.previousAssignedPages || [];
+  const prevCompleted = activeAssignment?.previousCompletedPages || [];
   const hasPrev = prevAssigned.length > 0;
   
   const activePrevCompleted = prevCompleted.filter(p => prevAssigned.includes(p));
@@ -319,14 +319,14 @@ function DashboardContent() {
 
   
   // Tamamlanmış ümumi səhifələrin sayı
-  const totalPagesCompleted = user.totalCompletedPages !== undefined
-    ? user.totalCompletedPages
-    : (completedPagesState.length + (user.previousCompletedPages?.length || 0));
+  const totalPagesCompleted = activeAssignment?.totalCompletedPages !== undefined
+    ? activeAssignment.totalCompletedPages
+    : (completedPagesState.length + (activeAssignment?.previousCompletedPages?.length || 0));
 
   // Dinamik ardıcıllıq (streak) hesabı
   const getStreak = () => {
-    if (!user.completedAt || Object.keys(user.completedAt).length === 0) return 0;
-    const dates = Object.values(user.completedAt)
+    if (!activeAssignment?.completedAt || Object.keys(activeAssignment.completedAt).length === 0) return 0;
+    const dates = Object.values(activeAssignment.completedAt)
       .map(timeStr => new Date(timeStr).toDateString())
       .filter((value, index, self) => self.indexOf(value) === index)
       .map(d => new Date(d).getTime())

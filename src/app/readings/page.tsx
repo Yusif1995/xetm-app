@@ -2,22 +2,24 @@
 
 import { useAuth } from "@/lib/auth";
 import PageCard from "@/components/PageCard";
-import { togglePreviousCompletedPages } from "@/lib/db";
+import { togglePreviousCompletedPages, toggleCompletedPages, getUserAssignment } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
 
 export default function ReadingsPage() {
-  const { user, loading, refreshUser } = useAuth();
+  const { user, loading, refreshUser, activeGroupId } = useAuth();
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [prevCompletedPagesState, setPrevCompletedPagesState] = useState<number[]>([]);
 
+  const activeAssignment = user ? getUserAssignment(user, activeGroupId) : null;
+
   useEffect(() => {
-    if (user) {
-      setCompletedPagesState(user.completedPages || []);
-      setPrevCompletedPagesState(user.previousCompletedPages || []);
+    if (activeAssignment) {
+      setCompletedPagesState(activeAssignment.completedPages || []);
+      setPrevCompletedPagesState(activeAssignment.previousCompletedPages || []);
     }
-  }, [user]);
+  }, [activeAssignment]);
 
   if (loading) {
     return (
@@ -37,8 +39,8 @@ export default function ReadingsPage() {
     return null; // Guarded by middleware
   }
 
-  const assignedPages = user.assignedPages || [];
-  const prevAssignedPages = user.previousAssignedPages || [];
+  const assignedPages = activeAssignment?.assignedPages || [];
+  const prevAssignedPages = activeAssignment?.previousAssignedPages || [];
 
   // Group pages into chunks of 5
   const sortPages = (arr: number[]) => [...arr].sort((a, b) => a - b);
@@ -149,9 +151,9 @@ export default function ReadingsPage() {
                       {prevAssignedPages.length} səhifə
                     </span>
                   </h3>
-                  {user.previousStartDate && user.previousEndDate && (
+                  {activeAssignment?.previousStartDate && activeAssignment?.previousEndDate && (
                     <span className="text-[10px] md:text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-lg border border-red-500/20 font-mono">
-                      Müddət: {formatDateDisplay(user.previousStartDate)} — {formatDateDisplay(user.previousEndDate)}
+                      Müddət: {formatDateDisplay(activeAssignment.previousStartDate)} — {formatDateDisplay(activeAssignment.previousEndDate)}
                     </span>
                   )}
                 </div>
@@ -170,7 +172,7 @@ export default function ReadingsPage() {
                       pageNumbers={chunk}
                       initialCompleted={chunk.every((page) => prevCompletedPagesState.includes(page))}
                       onStatusChange={handlePrevStatusChange}
-                      toggleFn={togglePreviousCompletedPages}
+                      toggleFn={(uid, pages, isCompleted) => togglePreviousCompletedPages(uid, pages, isCompleted, activeGroupId)}
                       disabled={false}
                     />
                   ))}
@@ -188,9 +190,9 @@ export default function ReadingsPage() {
                       {assignedPages.length} səhifə
                     </span>
                   </h3>
-                  {user.assignmentStartDate && user.assignmentEndDate && (
+                  {activeAssignment?.assignmentStartDate && activeAssignment?.assignmentEndDate && (
                     <span className="text-[10px] md:text-xs font-bold text-[#0F3D2C]/80 bg-[#FAF7F2] px-3 py-1 rounded-lg border border-[#0F3D2C]/10 font-mono">
-                      Müddət: {formatDateDisplay(user.assignmentStartDate)} — {formatDateDisplay(user.assignmentEndDate)}
+                      Müddət: {formatDateDisplay(activeAssignment.assignmentStartDate)} — {formatDateDisplay(activeAssignment.assignmentEndDate)}
                     </span>
                   )}
                 </div>
@@ -209,6 +211,7 @@ export default function ReadingsPage() {
                       pageNumbers={chunk}
                       initialCompleted={chunk.every((page) => completedPagesState.includes(page))}
                       onStatusChange={handleCurrentStatusChange}
+                      toggleFn={(uid, pages, isCompleted) => toggleCompletedPages(uid, pages, isCompleted, activeGroupId)}
                       disabled={hasUncompletedPrev}
                     />
                   ))}
