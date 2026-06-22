@@ -87,6 +87,15 @@ export function getUserGroupIds(user: UserDoc | null): string[] {
   return Array.from(list);
 }
 
+export function isUserApprovedInGroup(user: UserDoc, groupId: string): boolean {
+  if (user.role === "admin") return true; // Admins are always approved
+  const gId = groupId || "default";
+  if (gId === "default") {
+    return user.approved === true;
+  }
+  return user.groupData?.[gId]?.approved === true;
+}
+
 export function getUserAssignment(user: UserDoc, groupId: string): UserAssignment {
   const gId = groupId || "default";
   if (gId === "default") {
@@ -458,7 +467,7 @@ export async function distributeJuzToUsers(
   const users = await getAllUsers();
   // Sort users stably by name, with UID as fallback to be deterministic, filtered by group and approved
   const activeUsers = users
-    .filter((u) => getUserGroupIds(u).includes(effectiveGroupId) && u.approved !== false)
+    .filter((u) => getUserGroupIds(u).includes(effectiveGroupId) && isUserApprovedInGroup(u, effectiveGroupId))
     .sort((a, b) => a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid));
 
   if (activeUsers.length === 0) return;

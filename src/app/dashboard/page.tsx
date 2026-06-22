@@ -1,7 +1,17 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { toggleCompletedPages, type UserDoc, type AppSettings, getGroupDoc, updateUserGroup, type GroupDoc, getUserGroupIds, getUserAssignment } from "@/lib/db";
+import { 
+  toggleCompletedPages, 
+  type UserDoc, 
+  type AppSettings, 
+  getGroupDoc, 
+  updateUserGroup, 
+  type GroupDoc, 
+  getUserGroupIds, 
+  getUserAssignment,
+  isUserApprovedInGroup
+} from "@/lib/db";
 import { useEffect, useState, Suspense } from "react";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
@@ -103,16 +113,15 @@ function DashboardContent() {
           : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
         list.push({ uid: docSnap.id, ...data, totalCompletedPages } as UserDoc);
       });
-      // Filter list by same group and only approved ones (or the group creator)
-      const filtered = list.filter((u) => 
-        (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
-        && u.approved !== false
-      );
-      setAllUsers(filtered);
+      setAllUsers(list);
     }, (err) => {
       console.error("Error in real-time users listener:", err);
     });
 
+    return () => unsubUsers();
+  }, [user]);
+
+  useEffect(() => {
     const settingsRef = activeGroupId === "default"
       ? doc(db, "settings", "config")
       : doc(db, "groups", activeGroupId);
@@ -140,11 +149,8 @@ function DashboardContent() {
       console.error("Error in real-time settings listener:", err);
     });
 
-    return () => {
-      unsubUsers();
-      unsubSettings();
-    };
-  }, [user, activeGroupId, groupCreatedBy]);
+    return () => unsubSettings();
+  }, [activeGroupId]);
 
   if (loading || !user) {
     return (
@@ -159,6 +165,12 @@ function DashboardContent() {
       </div>
     );
   }
+
+  // Filter list by same group and only approved ones (or the group creator)
+  const filteredUsers = allUsers.filter((u) => 
+    (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
+    && isUserApprovedInGroup(u, activeGroupId)
+  );
 
   const assignedPages = activeAssignment?.assignedPages || [];
   const activeCompleted = completedPagesState.filter(p => assignedPages.includes(p));
@@ -177,10 +189,10 @@ function DashboardContent() {
     : 0;
 
   // Qrup statistikası
-  const totalAssignedPagesList = allUsers.flatMap(u => getUserAssignment(u, activeGroupId).assignedPages || []);
+  const totalAssignedPagesList = filteredUsers.flatMap(u => getUserAssignment(u, activeGroupId).assignedPages || []);
   const totalUniqueAssigned = Array.from(new Set(totalAssignedPagesList)).length;
 
-  const totalCompletedPagesList = allUsers.flatMap(u => getUserAssignment(u, activeGroupId).completedPages || []);
+  const totalCompletedPagesList = filteredUsers.flatMap(u => getUserAssignment(u, activeGroupId).completedPages || []);
   const totalUniqueCompleted = Array.from(new Set(totalCompletedPagesList)).length;
 
   const groupPercentage = totalUniqueAssigned > 0 

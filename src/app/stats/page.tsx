@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { getAllUsers, type UserDoc, getUserGroupIds, getUserAssignment, getGroupDoc } from "@/lib/db";
+import { getAllUsers, type UserDoc, getUserGroupIds, getUserAssignment, getGroupDoc, isUserApprovedInGroup } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import ProgressBar from "@/components/ProgressBar";
@@ -27,7 +27,7 @@ export default function StatsPage() {
         const usersList = await getAllUsers();
         const filtered = usersList.filter((u) => 
           (getUserGroupIds(u).includes(activeGroupId) || (createdBy && u.uid === createdBy))
-          && u.approved !== false
+          && isUserApprovedInGroup(u, activeGroupId)
         );
         setUsers(filtered);
       } catch (err) {

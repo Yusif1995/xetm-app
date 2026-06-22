@@ -17,6 +17,7 @@ import {
   getUserGroupIds,
   getUserAssignment,
   deleteGroup,
+  isUserApprovedInGroup,
   type UserDoc, 
   type AppSettings,
   type GroupDoc
@@ -220,18 +221,8 @@ export default function AdminPage() {
     getUserGroupIds(u).includes(activeGroupId) || 
     (groupCreatedBy && u.uid === groupCreatedBy)
   );
-  const activeGroupUsers = groupUsers.filter((u) => {
-    if (activeGroupId === "default") {
-      return u.approved !== false;
-    }
-    return u.groupData?.[activeGroupId]?.approved === true || u.role === "admin";
-  });
-  const pendingGroupUsers = groupUsers.filter((u) => {
-    if (activeGroupId === "default") {
-      return u.approved === false;
-    }
-    return u.groupData?.[activeGroupId]?.approved !== true && u.role !== "admin";
-  });
+  const activeGroupUsers = groupUsers.filter((u) => isUserApprovedInGroup(u, activeGroupId));
+  const pendingGroupUsers = groupUsers.filter((u) => !isUserApprovedInGroup(u, activeGroupId));
 
   const completedPagesSet = new Set<number>();
   activeGroupUsers.forEach((u) => {
@@ -368,15 +359,29 @@ export default function AdminPage() {
   };
 
   const handleRemoveUser = async (user: UserDoc) => {
-    if (window.confirm(`${user.name} adlı iştirakçını qrupdan silmək istədiyinizə əminsiniz?`)) {
+    const groupName = activeGroupId === "default" 
+      ? "Sistem Qrupu"
+      : createdGroups.find(g => g.id === activeGroupId)?.name || "fərdi qrup";
+
+    if (window.confirm(`${user.name} adlı iştirakçını “${groupName}” qrupundan kənarlaşdırmaq istədiyinizə əminsiniz?`)) {
       try {
         setLoading(true);
-        await deleteUserDoc(user.uid);
-        alert("İştirakçı qrupdan silindi.");
+        if (activeGroupId === "default") {
+          await deleteUserDoc(user.uid);
+          alert("İştirakçı Sistem Qrupundan (və tətbiqdən) silindi.");
+        } else {
+          const { doc, updateDoc, arrayRemove, deleteField } = await import("firebase/firestore");
+          const userRef = doc(db, "users", user.uid);
+          await updateDoc(userRef, {
+            groupIds: arrayRemove(activeGroupId),
+            [`groupData.${activeGroupId}`]: deleteField()
+          });
+          alert(`İştirakçı “${groupName}” qrupundan kənarlaşdırıldı.`);
+        }
         await loadData();
       } catch (err) {
         console.error("Error removing user:", err);
-        alert("Silinmə zamanı xəta baş verdi.");
+        alert("Kənarlaşdırma zamanı xəta baş verdi.");
       } finally {
         setLoading(false);
       }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type UserDoc, type AppSettings, getUserGroupIds, getUserAssignment } from "@/lib/db";
+import { type UserDoc, type AppSettings, getUserGroupIds, getUserAssignment, isUserApprovedInGroup } from "@/lib/db";
 import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
 import AppLayout from "@/components/AppLayout";
@@ -24,17 +24,17 @@ export default function ProgressPage() {
       snapshot.forEach((docSnap) => {
         list.push({ uid: docSnap.id, ...docSnap.data() } as UserDoc);
       });
-      const filtered = list.filter((u) => 
-        (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
-        && u.approved !== false
-      );
-      setUsers(filtered);
+      setUsers(list);
       setLoading(false);
     }, (err) => {
       console.error("Error in real-time users listener:", err);
       setLoading(false);
     });
 
+    return () => unsubUsers();
+  }, [user]);
+
+  useEffect(() => {
     const settingsRef = activeGroupId === "default"
       ? doc(db, "settings", "config")
       : doc(db, "groups", activeGroupId);
@@ -55,15 +55,18 @@ export default function ProgressPage() {
       console.error("Error in real-time settings listener:", err);
     });
 
-    return () => {
-      unsubUsers();
-      unsubSettings();
-    };
-  }, [user, activeGroupId, groupCreatedBy]);
+    return () => unsubSettings();
+  }, [activeGroupId]);
+
+  // Filter users by active group membership and approval
+  const filteredUsers = users.filter((u) => 
+    (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
+    && isUserApprovedInGroup(u, activeGroupId)
+  );
 
   // Calculate unique pages completed by the group out of 604
   const completedPagesSet = new Set<number>();
-  users.forEach((u) => {
+  filteredUsers.forEach((u) => {
     const assignment = getUserAssignment(u, activeGroupId);
     const assigned = assignment.assignedPages || [];
     const completed = assignment.completedPages || [];
@@ -145,12 +148,12 @@ export default function ProgressPage() {
             <h3 className="text-sm font-bold text-[#0F3D2C] flex items-center gap-2">
               <span>İştirakçıların Siyahısı</span>
               <span className="text-[10px] bg-[#0F3D2C]/5 text-[#0F3D2C] px-2.5 py-0.5 rounded-full border border-[#0F3D2C]/10 font-bold">
-                {users.length} nəfər
+                {filteredUsers.length} nəfər
               </span>
             </h3>
           </div>
 
-          {users.length === 0 ? (
+          {filteredUsers.length === 0 ? (
             <div className="text-center py-16 text-[#0F3D2C]/40">
               Siyahıda hələ heç bir iştirakçı yoxdur.
             </div>
@@ -167,7 +170,7 @@ export default function ProgressPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((u) => (
+                  {filteredUsers.map((u) => (
                     <UserRow key={u.uid} user={u} isAdminView={false} />
                   ))}
                 </tbody>
