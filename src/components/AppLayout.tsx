@@ -189,10 +189,6 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       : user.groupData?.[activeGroupId]?.approved === true
   );
 
-  if (!isApproved) {
-    return <ApprovalPendingScreen user={user} logout={logout} />;
-  }
-
   return (
     <div className="min-h-screen flex bg-[#F7F4EB] text-[#1c2e24] relative overflow-x-hidden pb-16 md:pb-0">
       {/* Background Star Patterns */}
@@ -389,53 +385,58 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             )}
 
             {/* Notification Bell */}
-            <button 
-              onClick={() => {
-                setIsNotificationsOpen(!isNotificationsOpen);
-                setIsProfileOpen(false);
-              }}
-              className="w-10 h-10 rounded-full bg-[#FAF7F2] border border-[#0F3D2C]/10 flex items-center justify-center text-[#0F3D2C] hover:bg-white hover:shadow-sm transition-all focus:outline-none relative"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-[#D5A85A] rounded-full border-2 border-[#FAF7F2]" />
-            </button>
-
-            {/* Notifications Dropdown */}
-            {isNotificationsOpen && (
-              <div className="absolute right-0 mt-12 top-0 w-52 bg-white border border-[#0F3D2C]/10 rounded-xl shadow-xl z-50 p-2 animate-fadeIn">
-                <button
-                  onClick={async () => {
-                    setIsNotificationsOpen(false);
-                    if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
-                      try {
-                        const permission = await Notification.requestPermission();
-                        if (permission === "granted") {
-                          const registration = await navigator.serviceWorker.ready;
-                          const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-                          const subscription = await registration.pushManager.subscribe({
-                            userVisibleOnly: true,
-                            applicationServerKey: urlBase64ToUint8Array(publicKey)
-                          });
-                          await addPushSubscription(user.uid, JSON.stringify(subscription));
-                          alert("Bildirişlər uğurla aktiv edildi!");
-                        } else {
-                          alert("Bildiriş icazəsi rədd edildi: " + permission);
-                        }
-                      } catch (err) {
-                        console.error("Subscription error:", err);
-                        alert("Bildirişləri aktiv edərkən xəta baş verdi: " + (err instanceof Error ? err.message : String(err)));
-                      }
-                    } else {
-                      alert("Cihazınız və ya brauzeriniz Web Push bildirişləri dəstəkləmir.");
-                    }
+            {/* Notification Bell */}
+            {activeTab === "dashboard" && (
+              <>
+                <button 
+                  onClick={() => {
+                    setIsNotificationsOpen(!isNotificationsOpen);
+                    setIsProfileOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#FAF7F2] rounded-lg transition-colors text-[#0F3D2C] flex items-center gap-1.5"
+                  className="w-10 h-10 rounded-full bg-[#FAF7F2] border border-[#0F3D2C]/10 flex items-center justify-center text-[#0F3D2C] hover:bg-white hover:shadow-sm transition-all focus:outline-none relative"
                 >
-                  <span>🔔</span> Bildirişləri Aktiv Et
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-[#D5A85A] rounded-full border-2 border-[#FAF7F2]" />
                 </button>
-              </div>
+
+                {/* Notifications Dropdown */}
+                {isNotificationsOpen && (
+                  <div className="absolute right-0 mt-12 top-0 w-52 bg-white border border-[#0F3D2C]/10 rounded-xl shadow-xl z-50 p-2 animate-fadeIn">
+                    <button
+                      onClick={async () => {
+                        setIsNotificationsOpen(false);
+                        if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+                          try {
+                            const permission = await Notification.requestPermission();
+                            if (permission === "granted") {
+                              const registration = await navigator.serviceWorker.ready;
+                              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
+                              const subscription = await registration.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: urlBase64ToUint8Array(publicKey)
+                              });
+                              await addPushSubscription(user.uid, JSON.stringify(subscription));
+                              alert("Bildirişlər uğurla aktiv edildi!");
+                            } else {
+                              alert("Bildiriş icazəsi rədd edildi: " + permission);
+                            }
+                          } catch (err) {
+                            console.error("Subscription error:", err);
+                            alert("Bildirişləri aktiv edərkən xəta baş verdi: " + (err instanceof Error ? err.message : String(err)));
+                          }
+                        } else {
+                          alert("Cihazınız və ya brauzeriniz Web Push bildirişləri dəstəkləmir.");
+                        }
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#FAF7F2] rounded-lg transition-colors text-[#0F3D2C] flex items-center gap-1.5"
+                    >
+                      <span>🔔</span> Bildirişləri Aktiv Et
+                    </button>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Profile Avatar Icon - ONLY visible on Dashboard, to the right of the Bell */}
@@ -523,50 +524,54 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             )}
 
             {/* Mobile Notification Bell */}
-            <button
-              onClick={() => {
-                setIsNotificationsOpen(!isNotificationsOpen);
-                setIsProfileOpen(false);
-              }}
-              className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 transition-all relative"
-            >
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#D5A85A] rounded-full border border-[#0F3D2C]" />
-            </button>
-
-            {/* Mobile Notifications Dropdown - ONLY has Bildirişləri Aktiv Et */}
-            {isNotificationsOpen && (
-              <div className="absolute right-8 mt-10 top-0 w-44 bg-[#0F3D2C] border border-white/10 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn text-white">
+            {activeTab === "dashboard" && (
+              <>
                 <button
-                  onClick={async () => {
-                    setIsNotificationsOpen(false);
-                    if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
-                      try {
-                        const permission = await Notification.requestPermission();
-                        if (permission === "granted") {
-                          const registration = await navigator.serviceWorker.ready;
-                          const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-                          const subscription = await registration.pushManager.subscribe({
-                            userVisibleOnly: true,
-                            applicationServerKey: urlBase64ToUint8Array(publicKey)
-                          });
-                          await addPushSubscription(user.uid, JSON.stringify(subscription));
-                          alert("Bildirişlər uğurla aktiv edildi!");
-                        } else {
-                          alert("Bildiriş icazəsi rədd edildi: " + permission);
-                        }
-                      } catch (err) {
-                        console.error("Subscription error:", err);
-                      }
-                    }
+                  onClick={() => {
+                    setIsNotificationsOpen(!isNotificationsOpen);
+                    setIsProfileOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-white/10 rounded-lg transition-colors flex items-center gap-1.5"
+                  className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 transition-all relative"
                 >
-                  <span>🔔</span> Bildirişləri Aktiv Et
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#D5A85A] rounded-full border border-[#0F3D2C]" />
                 </button>
-              </div>
+
+                {/* Mobile Notifications Dropdown - ONLY has Bildirişləri Aktiv Et */}
+                {isNotificationsOpen && (
+                  <div className="absolute right-8 mt-10 top-0 w-44 bg-[#0F3D2C] border border-white/10 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn text-white">
+                    <button
+                      onClick={async () => {
+                        setIsNotificationsOpen(false);
+                        if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+                          try {
+                            const permission = await Notification.requestPermission();
+                            if (permission === "granted") {
+                              const registration = await navigator.serviceWorker.ready;
+                              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
+                              const subscription = await registration.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: urlBase64ToUint8Array(publicKey)
+                              });
+                              await addPushSubscription(user.uid, JSON.stringify(subscription));
+                              alert("Bildirişlər uğurla aktiv edildi!");
+                            } else {
+                              alert("Bildiriş icazəsi rədd edildi: " + permission);
+                            }
+                          } catch (err) {
+                            console.error("Subscription error:", err);
+                          }
+                        }
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-white/10 rounded-lg transition-colors flex items-center gap-1.5"
+                    >
+                      <span>🔔</span> Bildirişləri Aktiv Et
+                    </button>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Mobile Profile Avatar - ONLY visible on Dashboard, to the right of the Bell */}
@@ -611,7 +616,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
         {/* Content Area */}
         <main className="flex-1 p-4 md:p-8 min-w-0 relative z-10 bg-[#F7F4EB]">
-          {children}
+          {isApproved ? children : <ApprovalPendingScreen user={user} logout={logout} />}
         </main>
       </div>
 
@@ -709,10 +714,7 @@ function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => 
   }, [user.groupId, activeGroupId]);
 
   return (
-    <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 md:p-8 bg-[#F7F4EB] relative overflow-hidden">
-      {/* Background Star Patterns */}
-      <IslamicBorders />
-
+    <div className="w-full flex flex-col justify-center items-center py-12 px-4 relative z-10">
       <div className="card-premium w-full max-w-md p-8 flex flex-col items-center text-center relative z-10 shadow-2xl border border-[#D5A85A]/20">
         {/* Mosque Dome & Quran Icon */}
         <div className="w-16 h-16 bg-[#0F3D2C] rounded-2xl flex items-center justify-center border border-[#D5A85A]/30 mb-6 shadow-md">

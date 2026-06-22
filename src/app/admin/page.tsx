@@ -16,6 +16,7 @@ import {
   updateUserApproval,
   getUserGroupIds,
   getUserAssignment,
+  deleteGroup,
   type UserDoc, 
   type AppSettings,
   type GroupDoc
@@ -93,12 +94,12 @@ export default function AdminPage() {
   const [groupStartDate, setGroupStartDate] = useState("");
   const [groupEndDate, setGroupEndDate] = useState("");
 
-  // Group-specific state variables
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [createGroupLoading, setCreateGroupLoading] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
 
   async function loadData(groupId = activeGroupId) {
     try {
@@ -142,7 +143,12 @@ export default function AdminPage() {
 
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data() as AppSettings;
+        const data = docSnap.data();
+        if (activeGroupId !== "default" && data) {
+          setGroupCreatedBy(data.createdBy || null);
+        } else {
+          setGroupCreatedBy(null);
+        }
         setSettings({
           currentAyah: data.currentAyah || "İnna lilləhi və inna ileyhi raciun",
           currentHadith: data.currentHadith || "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir.",
@@ -210,7 +216,10 @@ export default function AdminPage() {
   }
 
   // Calculate unique pages completed by the selected group out of 604
-  const groupUsers = users.filter((u) => getUserGroupIds(u).includes(activeGroupId));
+  const groupUsers = users.filter((u) => 
+    getUserGroupIds(u).includes(activeGroupId) || 
+    (groupCreatedBy && u.uid === groupCreatedBy)
+  );
   const activeGroupUsers = groupUsers.filter((u) => {
     if (activeGroupId === "default") {
       return u.approved !== false;
@@ -275,6 +284,25 @@ export default function AdminPage() {
       setInviteCopied(true);
       setTimeout(() => setInviteCopied(false), 3000);
     });
+  };
+
+  const handleDeleteGroup = async () => {
+    if (activeGroupId === "default") return;
+    const groupName = createdGroups.find(g => g.id === activeGroupId)?.name || "Bu qrupu";
+    if (window.confirm(`“${groupName}” qrupunu silmək istədiyinizdən əminsiniz? Qrupa aid bütün oxunma məlumatları və üzvlük qeydləri silinəcək.`)) {
+      try {
+        setLoading(true);
+        await deleteGroup(activeGroupId);
+        setActiveGroupId("default");
+        alert("Qrup uğurla silindi.");
+        await loadData("default");
+      } catch (err) {
+        console.error("Error deleting group:", err);
+        alert("Qrupu silərkən xəta baş verdi.");
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleCreateGroupSubmit = async (e: React.FormEvent) => {
@@ -582,13 +610,22 @@ export default function AdminPage() {
           </div>
 
           {activeGroupId !== "default" && (
-            <button
-              onClick={handleCopyInviteLink}
-              className="w-full md:w-auto px-5 py-3 bg-[#0F3D2C] hover:bg-[#16503c] text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
-            >
-              <span>🔗</span>
-              <span>{inviteCopied ? "Link Kopyalandı!" : "Dəvət Linkini Paylaş"}</span>
-            </button>
+            <div className="flex gap-2 w-full md:w-auto">
+              <button
+                onClick={handleCopyInviteLink}
+                className="w-full md:w-auto px-5 py-3 bg-[#0F3D2C] hover:bg-[#16503c] text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
+              >
+                <span>🔗</span>
+                <span>{inviteCopied ? "Link Kopyalandı!" : "Dəvət Linkini Paylaş"}</span>
+              </button>
+              <button
+                onClick={handleDeleteGroup}
+                className="w-full md:w-auto px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
+              >
+                <span>🗑️</span>
+                <span>Qrupu Sil</span>
+              </button>
+            </div>
           )}
         </div>
 

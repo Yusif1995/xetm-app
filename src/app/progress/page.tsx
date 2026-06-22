@@ -14,6 +14,7 @@ export default function ProgressPage() {
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
   const [loading, setLoading] = useState(true);
+  const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -23,7 +24,10 @@ export default function ProgressPage() {
       snapshot.forEach((docSnap) => {
         list.push({ uid: docSnap.id, ...docSnap.data() } as UserDoc);
       });
-      const filtered = list.filter((u) => getUserGroupIds(u).includes(activeGroupId) && u.approved !== false);
+      const filtered = list.filter((u) => 
+        (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
+        && u.approved !== false
+      );
       setUsers(filtered);
       setLoading(false);
     }, (err) => {
@@ -37,10 +41,15 @@ export default function ProgressPage() {
 
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data() as AppSettings;
+        const data = docSnap.data();
+        if (activeGroupId !== "default" && data) {
+          setGroupCreatedBy(data.createdBy || null);
+        } else {
+          setGroupCreatedBy(null);
+        }
         setSettings({
           completedKhatms: data.completedKhatms || 0
-        });
+        } as AppSettings);
       }
     }, (err) => {
       console.error("Error in real-time settings listener:", err);
@@ -50,7 +59,7 @@ export default function ProgressPage() {
       unsubUsers();
       unsubSettings();
     };
-  }, [user, activeGroupId]);
+  }, [user, activeGroupId, groupCreatedBy]);
 
   // Calculate unique pages completed by the group out of 604
   const completedPagesSet = new Set<number>();

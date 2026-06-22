@@ -169,6 +169,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (!user || user.role !== "admin") return;
+
+    const healGroupAssociations = async () => {
+      try {
+        const { collection, getDocs, query, where, doc: fsDoc, updateDoc, arrayUnion } = await import("firebase/firestore");
+        const q = query(collection(db, "groups"), where("createdBy", "==", user.uid));
+        const snap = await getDocs(q);
+        const missingGroupIds: string[] = [];
+
+        snap.forEach((docSnap) => {
+          const groupId = docSnap.id;
+          const currentGroupIds = user.groupIds || [];
+          if (!currentGroupIds.includes(groupId)) {
+            missingGroupIds.push(groupId);
+          }
+        });
+
+        if (missingGroupIds.length > 0) {
+          console.log("Self-healing missing groups for admin:", missingGroupIds);
+          const userRef = fsDoc(db, "users", user.uid);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updates: Record<string, any> = {
+            groupIds: arrayUnion(...missingGroupIds)
+          };
+          missingGroupIds.forEach(id => {
+            updates[`groupData.${id}.approved`] = true;
+          });
+          await updateDoc(userRef, updates);
+        }
+      } catch (err) {
+        console.error("Error in self-healing groups association:", err);
+      }
+    };
+
+    healGroupAssociations();
+  }, [user?.uid]);
+
   const loginWithGoogle = async () => {
     setLoading(true);
     const provider = new GoogleAuthProvider();

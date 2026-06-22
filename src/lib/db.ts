@@ -1002,3 +1002,44 @@ export async function updateUserGroup(uid: string, groupId: string, approved: bo
   });
 }
 
+// Delete a group and clean up user documents
+export async function deleteGroup(groupId: string): Promise<void> {
+  const { doc, deleteDoc, writeBatch, deleteField } = await import("firebase/firestore");
+  
+  // 1. Delete group document
+  const groupRef = doc(db, "groups", groupId);
+  await deleteDoc(groupRef);
+  
+  // 2. Clean up users' groupIds and groupData
+  const users = await getAllUsers();
+  const batch = writeBatch(db);
+  let updatedCount = 0;
+  
+  for (const u of users) {
+    const userGroupIds = u.groupIds || [];
+    const hasGroup = userGroupIds.includes(groupId) || u.groupId === groupId || (u.groupData && u.groupData[groupId]);
+    
+    if (hasGroup) {
+      const userRef = doc(db, "users", u.uid);
+      const newGroupIds = userGroupIds.filter(id => id !== groupId);
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updates: Record<string, any> = {
+        groupIds: newGroupIds,
+        [`groupData.${groupId}`]: deleteField()
+      };
+      
+      if (u.groupId === groupId) {
+        updates.groupId = "default";
+      }
+      
+      batch.update(userRef, updates);
+      updatedCount++;
+    }
+  }
+  
+  if (updatedCount > 0) {
+    await batch.commit();
+  }
+}
+

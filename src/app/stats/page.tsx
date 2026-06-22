@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { getAllUsers, type UserDoc, getUserGroupIds, getUserAssignment } from "@/lib/db";
+import { getAllUsers, type UserDoc, getUserGroupIds, getUserAssignment, getGroupDoc } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import ProgressBar from "@/components/ProgressBar";
@@ -16,8 +16,19 @@ export default function StatsPage() {
 
     async function loadData() {
       try {
+        let createdBy: string | null = null;
+        if (activeGroupId !== "default") {
+          const groupDoc = await getGroupDoc(activeGroupId);
+          if (groupDoc) {
+            createdBy = groupDoc.createdBy || null;
+          }
+        }
+
         const usersList = await getAllUsers();
-        const filtered = usersList.filter((u) => getUserGroupIds(u).includes(activeGroupId) && u.approved !== false);
+        const filtered = usersList.filter((u) => 
+          (getUserGroupIds(u).includes(activeGroupId) || (createdBy && u.uid === createdBy))
+          && u.approved !== false
+        );
         setUsers(filtered);
       } catch (err) {
         console.error("Error loading stats data:", err);

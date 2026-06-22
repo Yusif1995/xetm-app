@@ -48,6 +48,7 @@ function DashboardContent() {
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [isMarking, setIsMarking] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
   const [inviteGroup, setInviteGroup] = useState<GroupDoc | null>(null);
@@ -102,8 +103,11 @@ function DashboardContent() {
           : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
         list.push({ uid: docSnap.id, ...data, totalCompletedPages } as UserDoc);
       });
-      // Filter list by same group and only approved ones
-      const filtered = list.filter((u) => getUserGroupIds(u).includes(activeGroupId) && u.approved !== false);
+      // Filter list by same group and only approved ones (or the group creator)
+      const filtered = list.filter((u) => 
+        (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
+        && u.approved !== false
+      );
       setAllUsers(filtered);
     }, (err) => {
       console.error("Error in real-time users listener:", err);
@@ -115,7 +119,12 @@ function DashboardContent() {
 
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data() as AppSettings;
+        const data = docSnap.data();
+        if (activeGroupId !== "default" && data) {
+          setGroupCreatedBy(data.createdBy || null);
+        } else {
+          setGroupCreatedBy(null);
+        }
         setSettings({
           currentAyah: data.currentAyah || "İnna lilləhi və inna ileyhi raciun",
           currentHadith: data.currentHadith || "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir.",
@@ -125,7 +134,7 @@ function DashboardContent() {
           isCurrentKhatmCompleted: data.isCurrentKhatmCompleted || false,
           currentDailyItem: data.currentDailyItem,
           lastDailyUpdate: data.lastDailyUpdate
-        });
+        } as AppSettings);
       }
     }, (err) => {
       console.error("Error in real-time settings listener:", err);
@@ -135,7 +144,7 @@ function DashboardContent() {
       unsubUsers();
       unsubSettings();
     };
-  }, [user, activeGroupId]);
+  }, [user, activeGroupId, groupCreatedBy]);
 
   if (loading || !user) {
     return (
