@@ -96,10 +96,8 @@ function DashboardContent() {
   const activeAssignment = user ? getUserAssignment(user, activeGroupId) : null;
 
   useEffect(() => {
-    if (activeAssignment) {
-      setCompletedPagesState(activeAssignment.completedPages || []);
-    }
-  }, [activeAssignment]);
+    setCompletedPagesState(activeAssignment?.completedPages || []);
+  }, [activeAssignment?.completedPages]);
 
   useEffect(() => {
     if (!user) return;

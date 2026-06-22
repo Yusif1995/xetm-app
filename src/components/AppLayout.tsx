@@ -162,7 +162,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, activeGroupId]);
 
   if (loading) {
     return (

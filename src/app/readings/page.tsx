@@ -15,11 +15,9 @@ export default function ReadingsPage() {
   const activeAssignment = user ? getUserAssignment(user, activeGroupId) : null;
 
   useEffect(() => {
-    if (activeAssignment) {
-      setCompletedPagesState(activeAssignment.completedPages || []);
-      setPrevCompletedPagesState(activeAssignment.previousCompletedPages || []);
-    }
-  }, [activeAssignment]);
+    setCompletedPagesState(activeAssignment?.completedPages || []);
+    setPrevCompletedPagesState(activeAssignment?.previousCompletedPages || []);
+  }, [activeAssignment?.completedPages, activeAssignment?.previousCompletedPages]);
 
   if (loading) {
     return (
