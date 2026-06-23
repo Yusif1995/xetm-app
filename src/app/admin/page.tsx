@@ -138,6 +138,7 @@ export default function AdminPage() {
 
   // Real-time listener for settings based on activeGroupId
   useEffect(() => {
+    if (!activeGroupId) return;
     const settingsRef = activeGroupId === "default"
       ? doc(db, "settings", "config")
       : doc(db, "groups", activeGroupId);

@@ -12,7 +12,7 @@ export default function StatsPage() {
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeGroupId) return;
 
     async function loadData() {
       try {

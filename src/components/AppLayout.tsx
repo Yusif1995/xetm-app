@@ -134,7 +134,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
   // Listen to completedPages updates in real-time
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeGroupId) return;
 
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       const currentCompletions: Record<string, number[]> = {};

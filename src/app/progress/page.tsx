@@ -36,6 +36,7 @@ export default function ProgressPage() {
   }, [user?.uid]);
 
   useEffect(() => {
+    if (!activeGroupId) return;
     const settingsRef = activeGroupId === "default"
       ? doc(db, "settings", "config")
       : doc(db, "groups", activeGroupId);

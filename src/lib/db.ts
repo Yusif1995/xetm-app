@@ -941,6 +941,7 @@ export async function setGroupSettings(settings: AppSettings, groupId?: string |
 
 // Fetch a single group document by ID
 export async function getGroupDoc(groupId: string): Promise<GroupDoc | null> {
+  if (!groupId) return null;
   try {
     const docRef = doc(db, "groups", groupId);
     const docSnap = await getDoc(docRef);
@@ -1018,6 +1019,7 @@ export async function updateUserGroup(uid: string, groupId: string, approved: bo
 
 // Delete a group and clean up user documents
 export async function deleteGroup(groupId: string): Promise<void> {
+  if (!groupId) return;
   const { doc, deleteDoc, writeBatch, deleteField } = await import("firebase/firestore");
   
   // 1. Delete group document
@@ -1044,7 +1046,10 @@ export async function deleteGroup(groupId: string): Promise<void> {
       };
       
       if (u.groupId === groupId) {
-        updates.groupId = "default";
+        updates.groupId = newGroupIds.length > 0 ? newGroupIds[0] : "";
+        if (newGroupIds.length === 0) {
+          updates.isOnboarded = false;
+        }
       }
       
       batch.update(userRef, updates);
