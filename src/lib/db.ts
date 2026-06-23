@@ -21,6 +21,10 @@ export interface UserDoc {
   email: string;
   photoURL: string;
   role: "admin" | "user";
+  firstName?: string;
+  lastName?: string;
+  nickname?: string;
+  isOnboarded?: boolean;
   groupId?: string;
   groupIds?: string[];
   assignedPages: number[];   // pages 1-604
@@ -212,6 +216,7 @@ export async function createUserDoc(
     createdAt: serverTimestamp(),
     approved: isFirstUser, // First user (admin) is approved, others require approval
     totalCompletedPages: 0,
+    isOnboarded: false, // Onboarding completes on OnboardingScreen
   };
 
   if (inviteGroupId) {

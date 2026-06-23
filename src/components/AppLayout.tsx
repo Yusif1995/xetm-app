@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
-import { addPushSubscription, getGroupDoc, getUserGroupIds, getUserAssignment, type UserDoc, type GroupDoc } from "@/lib/db";
+import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { addPushSubscription, getGroupDoc, getUserGroupIds, getUserAssignment, createGroup, type UserDoc, type GroupDoc } from "@/lib/db";
+import OnboardingScreen from "./OnboardingScreen";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -34,6 +35,45 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const [groups, setGroups] = useState<GroupDoc[]>([]);
   const prevCompletionsRef = useRef<Record<string, number[]>>({});
   const isFirstLoadRef = useRef(true);
+
+  // Group creation modal state
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [createGroupLoading, setCreateGroupLoading] = useState(false);
+  const [createGroupError, setCreateGroupError] = useState<string | null>(null);
+
+  const handleCreateGroupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim()) return;
+
+    setCreateGroupLoading(true);
+    setCreateGroupError(null);
+
+    try {
+      if (!user) return;
+      
+      // Upgrade role to admin if not already, to satisfy Firestore write rules
+      if (user.role !== "admin") {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, { role: "admin" });
+      }
+
+      const newGroupId = await createGroup(newGroupName.trim(), user.uid);
+      
+      // Set active group and close modal
+      setActiveGroupId(newGroupId);
+      setShowCreateGroupModal(false);
+      setNewGroupName("");
+      
+      // Redirect to refresh all hooks
+      window.location.href = "/dashboard";
+    } catch (err) {
+      console.error("Error creating group in AppLayout:", err);
+      setCreateGroupError("Qrup yaradılarkən xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.");
+    } finally {
+      setCreateGroupLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -184,6 +224,11 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     return null;
   }
 
+  // Onboarding Screen Wall check
+  if (!user.isOnboarded) {
+    return <OnboardingScreen user={user} logout={logout} />;
+  }
+
   // Approval Pending Wall check
   const isApproved = user.role === "admin" || (
     activeGroupId === "default" 
@@ -216,18 +261,25 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         </div>
 
         {/* Group Selector for Desktop */}
-        {(user.role === "admin" || getUserGroupIds(user).length > 1) && (
+        {user && (
           <div className="flex flex-col gap-1.5 px-4 relative z-10">
             <span className="text-[9px] uppercase tracking-wider text-[#D5A85A] font-bold">Aktiv Qrup</span>
             <select
               value={activeGroupId}
-              onChange={(e) => setActiveGroupId(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value === "__new__") {
+                  setShowCreateGroupModal(true);
+                } else {
+                  setActiveGroupId(e.target.value);
+                }
+              }}
               className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white font-bold text-xs outline-none focus:border-white/40 transition-colors cursor-pointer"
             >
               <option value="default" className="text-black font-semibold">Sistem Qrupu (Default)</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id} className="text-black font-semibold">{g.name}</option>
               ))}
+              <option value="__new__" className="text-[#D5A85A] font-bold">+ Yeni Qrup Yarat...</option>
             </select>
           </div>
         )}
@@ -306,7 +358,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </Link>
 
           {/* Admin panel routes if user is admin */}
-          {user.role === "admin" && (
+          {user.role === "admin" && (activeGroupId === "default" || groups.find(g => g.id === activeGroupId)?.createdBy === user.uid) && (
             <div className="border-t border-white/10 mt-3 pt-3 flex flex-col gap-2">
               <span className="text-[10px] uppercase tracking-wider text-[#D5A85A] font-bold px-4">Admin</span>
               <Link
@@ -491,16 +543,23 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </div>
 
           {/* Group Selector for Mobile */}
-          {(user.role === "admin" || getUserGroupIds(user).length > 1) && (
+          {user && (
             <select
               value={activeGroupId}
-              onChange={(e) => setActiveGroupId(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value === "__new__") {
+                  setShowCreateGroupModal(true);
+                } else {
+                  setActiveGroupId(e.target.value);
+                }
+              }}
               className="mx-2 px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white font-bold text-[10px] outline-none focus:border-white/40 transition-colors max-w-[120px] truncate"
             >
               <option value="default" className="text-black font-semibold">Default</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id} className="text-black font-semibold">{g.name}</option>
               ))}
+              <option value="__new__" className="text-[#D5A85A] font-bold">+ Yeni...</option>
             </select>
           )}
 
@@ -673,7 +732,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </svg>
           <span className="text-[9px] font-semibold mt-0.5">Statistika</span>
         </Link>
-        {user.role === "admin" && (
+        {user.role === "admin" && (activeGroupId === "default" || groups.find(g => g.id === activeGroupId)?.createdBy === user.uid) && (
           <Link
             href="/admin"
             className={`flex flex-col items-center py-1 px-3 rounded-lg ${
@@ -688,6 +747,71 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </Link>
         )}
       </nav>
+
+      {/* Group Creation Modal */}
+      {showCreateGroupModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#FAF7F2] border border-[#0F3D2C]/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative text-[#0F3D2C]">
+            <h3 className="text-lg font-bold text-[#0F3D2C] mb-2 font-serif">Yeni Xətm Qrupu Yarat</h3>
+            <p className="text-xs text-[#0F3D2C]/70 mb-4 font-sans">
+              Yeni qrup yaradaraq Quranın 30 cüzünü iştirakçılar arasında bölüşdürün.
+            </p>
+
+            <form onSubmit={handleCreateGroupSubmit} className="space-y-4 font-sans">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-[#0F3D2C]/80">Qrup Adı</label>
+                <input
+                  type="text"
+                  required
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="Məs. Vəfa Qrupu"
+                  disabled={createGroupLoading}
+                  className="px-3.5 py-2.5 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-xl text-xs font-semibold text-[#0F3D2C] placeholder-[#0F3D2C]/30 focus:outline-none transition-colors"
+                />
+              </div>
+
+              {createGroupError && (
+                <div className="p-2.5 bg-red-50 border border-red-100 rounded-xl text-xs text-red-700">
+                  {createGroupError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateGroupModal(false);
+                    setNewGroupName("");
+                    setCreateGroupError(null);
+                  }}
+                  disabled={createGroupLoading}
+                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors"
+                >
+                  Ləğv et
+                </button>
+                <button
+                  type="submit"
+                  disabled={createGroupLoading}
+                  className="px-4 py-2.5 bg-[#0F3D2C] hover:bg-[#16503c] text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                >
+                  {createGroupLoading ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>Yaradılır...</span>
+                    </>
+                  ) : (
+                    <span>Yarat</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

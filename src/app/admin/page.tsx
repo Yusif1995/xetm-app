@@ -216,6 +216,8 @@ export default function AdminPage() {
     return null; // Guarded by middleware
   }
 
+  const isCreatorOfGroup = activeGroupId === "default" || !groupCreatedBy || groupCreatedBy === currentUser.uid;
+
   // Calculate unique pages completed by the selected group out of 604
   const groupUsers = users.filter((u) => 
     getUserGroupIds(u).includes(activeGroupId) || 
@@ -634,8 +636,20 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* Pending Membership Requests */}
-        {pendingGroupUsers.length > 0 && (
+        {!isCreatorOfGroup ? (
+          <div className="card-premium flex flex-col items-center justify-center py-16 text-center border border-red-200 bg-red-50/50">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-600 text-2xl mb-4">
+              🚫
+            </div>
+            <h2 className="text-lg font-bold text-red-800 mb-1 font-serif">Giriş Məhdudlaşdırılıb</h2>
+            <p className="text-xs text-red-700/80 max-w-md font-sans">
+              Siz bu xətm qrupunun yaradıcısı (inzibatçısı) deyilsiniz. Bu səbəbdən qrupu idarə etmək səlahiyyətiniz yoxdur.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Pending Membership Requests */}
+            {pendingGroupUsers.length > 0 && (
           <div className="card-premium border border-amber-500/35 bg-amber-500/5 flex flex-col gap-4">
             <h3 className="text-sm font-bold text-amber-800 flex items-center gap-2">
               <span>⚠️ Qrupa Qoşulmaq İstəyənlər (Təsdiq Gözləyənlər)</span>
@@ -1092,6 +1106,8 @@ export default function AdminPage() {
             )
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* Auto Distribution Modal */}
