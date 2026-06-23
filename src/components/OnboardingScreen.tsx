@@ -67,7 +67,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
         return;
       }
 
-      let newActiveGroupId = "default";
+      let newActiveGroupId = "";
 
       if (!isInvited) {
         if (!groupName.trim()) {
@@ -103,7 +103,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
           name: `${firstName.trim()} ${lastName.trim()}`,
           isOnboarded: true
         });
-        newActiveGroupId = user.groupId || "default";
+        newActiveGroupId = user.groupId || "";
       }
 
       // Set active group in local storage

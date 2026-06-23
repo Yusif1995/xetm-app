@@ -26,7 +26,7 @@ import ProgressBar from "@/components/ProgressBar";
 import UserRow from "@/components/UserRow";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
 
 // 1-30 Cüz üzrə Surə aralıqları
 const JUZ_MAP: Record<number, { surah: string }> = {
@@ -286,9 +286,19 @@ export default function AdminPage() {
       try {
         setLoading(true);
         await deleteGroup(activeGroupId);
-        setActiveGroupId("default");
         alert("Qrup uğurla silindi.");
-        await loadData("default");
+        
+        const remaining = createdGroups.filter(g => g.id !== activeGroupId);
+        if (remaining.length > 0) {
+          setActiveGroupId(remaining[0].id);
+          await loadData(remaining[0].id);
+        } else {
+          if (currentUser) {
+            const userRef = doc(db, "users", currentUser.uid);
+            await updateDoc(userRef, { isOnboarded: false, groupId: "" });
+          }
+          window.location.href = "/dashboard";
+        }
       } catch (err) {
         console.error("Error deleting group:", err);
         alert("Qrupu silərkən xəta baş verdi.");
@@ -608,7 +618,6 @@ export default function AdminPage() {
               }}
               className="px-4 py-2.5 bg-[#FAF7F2] border border-[#0F3D2C]/20 rounded-xl text-[#0F3D2C] font-bold text-sm outline-none focus:border-[#0F3D2C]/40 transition-colors w-full md:w-64"
             >
-              <option value="default">Sistem Qrupu (Default)</option>
               {createdGroups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}

@@ -275,7 +275,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               }}
               className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white font-bold text-xs outline-none focus:border-white/40 transition-colors cursor-pointer"
             >
-              <option value="default" className="text-black font-semibold">Sistem Qrupu (Default)</option>
+
               {groups.map((g) => (
                 <option key={g.id} value={g.id} className="text-black font-semibold">{g.name}</option>
               ))}
@@ -555,7 +555,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
               }}
               className="mx-2 px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-white font-bold text-[10px] outline-none focus:border-white/40 transition-colors max-w-[120px] truncate"
             >
-              <option value="default" className="text-black font-semibold">Default</option>
+
               {groups.map((g) => (
                 <option key={g.id} value={g.id} className="text-black font-semibold">{g.name}</option>
               ))}
@@ -818,7 +818,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
 function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => Promise<void> }) {
   const [groupName, setGroupName] = useState<string>("");
-  const { activeGroupId, setActiveGroupId } = useAuth();
+  const { activeGroupId } = useAuth();
   
   useEffect(() => {
     const loadGroup = async () => {
@@ -866,14 +866,7 @@ function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => 
           Çıxış (Sistemdən ayrıl)
         </button>
 
-        {user.approved === true && (
-          <button
-            onClick={() => setActiveGroupId("default")}
-            className="w-full mt-3 py-3 bg-[#0F3D2C] hover:bg-[#16503c] text-white rounded-xl font-bold text-sm transition-colors shadow-sm focus:outline-none"
-          >
-            Sistem Qrupuna qayıt
-          </button>
-        )}
+
       </div>
     </div>
   );

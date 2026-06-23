@@ -29,13 +29,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeGroupId, setActiveGroupIdState] = useState<string>("default");
+  const [activeGroupId, setActiveGroupIdState] = useState<string>("");
   const router = useRouter();
 
   useEffect(() => {
     if (user) {
       const stored = localStorage.getItem(`activeGroupId_${user.uid}`);
-      const fallback = user.groupId || "default";
+      const userGroups = (user.groupIds || []).filter(id => id !== "default");
+      const fallback = (user.groupId && user.groupId !== "default") 
+        ? user.groupId 
+        : (userGroups[0] || "");
       setActiveGroupIdState(stored || fallback);
     }
   }, [user]);
