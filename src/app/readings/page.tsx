@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/auth";
 import PageCard from "@/components/PageCard";
 import { togglePreviousCompletedPages, toggleCompletedPages, getUserAssignment } from "@/lib/db";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
 
@@ -12,12 +12,19 @@ export default function ReadingsPage() {
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [prevCompletedPagesState, setPrevCompletedPagesState] = useState<number[]>([]);
 
-  const activeAssignment = user ? getUserAssignment(user, activeGroupId) : null;
+  const activeAssignment = useMemo(
+    () => user ? getUserAssignment(user, activeGroupId) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.uid, activeGroupId, JSON.stringify(user?.groupData?.[activeGroupId])]
+  );
 
+  const completedPagesKey = JSON.stringify(activeAssignment?.completedPages || []);
+  const prevCompletedPagesKey = JSON.stringify(activeAssignment?.previousCompletedPages || []);
   useEffect(() => {
     setCompletedPagesState(activeAssignment?.completedPages || []);
     setPrevCompletedPagesState(activeAssignment?.previousCompletedPages || []);
-  }, [activeAssignment?.completedPages, activeAssignment?.previousCompletedPages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedPagesKey, prevCompletedPagesKey]);
 
   if (loading) {
     return (

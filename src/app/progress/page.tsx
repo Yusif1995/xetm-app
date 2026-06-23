@@ -32,7 +32,8 @@ export default function ProgressPage() {
     });
 
     return () => unsubUsers();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
 
   useEffect(() => {
     const settingsRef = activeGroupId === "default"

@@ -37,7 +37,8 @@ export default function StatsPage() {
       }
     }
     loadData();
-  }, [user, activeGroupId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, activeGroupId]);
 
   if (loading || dataLoading) {
     return (

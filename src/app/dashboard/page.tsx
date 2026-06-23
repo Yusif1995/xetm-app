@@ -12,7 +12,7 @@ import {
   getUserAssignment,
   isUserApprovedInGroup
 } from "@/lib/db";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot } from "firebase/firestore";
@@ -93,11 +93,17 @@ function DashboardContent() {
     window.history.replaceState({}, "", "/dashboard");
   };
 
-  const activeAssignment = user ? getUserAssignment(user, activeGroupId) : null;
+  const activeAssignment = useMemo(
+    () => user ? getUserAssignment(user, activeGroupId) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.uid, activeGroupId, JSON.stringify(user?.groupData?.[activeGroupId])]
+  );
 
+  const completedPagesKey = JSON.stringify(activeAssignment?.completedPages || []);
   useEffect(() => {
     setCompletedPagesState(activeAssignment?.completedPages || []);
-  }, [activeAssignment?.completedPages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedPagesKey]);
 
   useEffect(() => {
     if (!user) return;
@@ -117,7 +123,8 @@ function DashboardContent() {
     });
 
     return () => unsubUsers();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
 
   useEffect(() => {
     const settingsRef = activeGroupId === "default"

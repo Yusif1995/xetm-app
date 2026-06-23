@@ -51,7 +51,8 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     });
 
     return () => unsubGroups();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
 
   // Request browser Notification permission and register push subscription on mount/login
   useEffect(() => {
@@ -162,7 +163,8 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     });
 
     return () => unsubscribe();
-  }, [user, activeGroupId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, activeGroupId]);
 
   if (loading) {
     return (
