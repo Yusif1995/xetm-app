@@ -22,17 +22,23 @@ export function middleware(request: NextRequest) {
 
   // 1. If not logged in and not accessing a public page (/ or /progress) -> Redirect to login (/)
   if (!uid && !isLoginPage && !isProgressPage) {
-    return NextResponse.redirect(new URL("/", request.url));
+    const url = new URL("/", request.url);
+    url.search = request.nextUrl.search;
+    return NextResponse.redirect(url);
   }
 
   // 2. If logged in and accessing login page (/) -> Redirect to dashboard (/dashboard)
   if (uid && isLoginPage) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const url = new URL("/dashboard", request.url);
+    url.search = request.nextUrl.search;
+    return NextResponse.redirect(url);
   }
 
   // 3. If accessing admin page (/admin*) and role is not admin -> Redirect to dashboard (/dashboard)
   if (pathname.startsWith("/admin") && role !== "admin") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const url = new URL("/dashboard", request.url);
+    url.search = request.nextUrl.search;
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();

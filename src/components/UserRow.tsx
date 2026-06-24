@@ -7,6 +7,7 @@ import { useState } from "react";
 interface UserRowProps {
   user: UserDoc;
   isAdminView?: boolean;
+  groupCreatedBy?: string | null;
   onAssignPagesClick?: (user: UserDoc) => void;
   onRoleToggle?: (user: UserDoc) => void;
   onNotifyClick?: (user: UserDoc) => void;
@@ -16,6 +17,7 @@ interface UserRowProps {
 export default function UserRow({ 
   user, 
   isAdminView, 
+  groupCreatedBy,
   onAssignPagesClick, 
   onRoleToggle,
   onNotifyClick,
@@ -25,6 +27,11 @@ export default function UserRow({
   const [isExpanded, setIsExpanded] = useState(false);
   
   const isSelf = currentUser?.uid === user.uid;
+  const isGroupAdmin = isAdminView || (groupCreatedBy && currentUser?.uid === groupCreatedBy);
+  const displayName = (isGroupAdmin || isSelf) 
+    ? user.name 
+    : (user.nickname || "İştirakçı");
+
   const assignment = getUserAssignment(user, activeGroupId);
   const totalAssigned = assignment.assignedPages?.length || 0;
   const totalCompleted = assignment.completedPages?.filter(p => assignment.assignedPages.includes(p)).length || 0;
@@ -103,17 +110,17 @@ export default function UserRow({
             {user.photoURL ? (
               <img
                 src={user.photoURL}
-                alt={user.name}
+                alt={displayName}
                 className="w-8 h-8 rounded-full border border-[#0F3D2C]/20 shadow-sm"
                 referrerPolicy="no-referrer"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-[#EAE3D5] border border-[#0F3D2C]/20 flex items-center justify-center font-bold text-[#0F3D2C] text-xs">
-                {user.name.charAt(0).toUpperCase()}
+                {displayName.charAt(0).toUpperCase()}
               </div>
             )}
             <div className="flex flex-col">
-              <span className="text-xs md:text-sm font-bold text-[#0F3D2C]">{user.name}</span>
+              <span className="text-xs md:text-sm font-bold text-[#0F3D2C]">{displayName}</span>
             </div>
           </div>
         </td>

@@ -166,7 +166,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         const newlyCompleted = newPages.filter((p: number) => !oldPages.includes(p));
 
         if (newlyCompleted.length > 0) {
-          const name = data.name || "Bir iştirakçı";
+          const name = data.nickname || data.name || "Bir iştirakçı";
           const title = "Quran Xətm - Yeni Tamamlama!";
           const options = {
             body: `${name} yeni səhifəni tamamladı: Səhifə ${newlyCompleted.sort((a: number, b: number) => a - b).join(", ")}`,
@@ -512,7 +512,6 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                   <div className="absolute right-0 mt-12 top-0 w-52 bg-white border border-[#0F3D2C]/10 rounded-xl shadow-xl z-50 p-3 animate-fadeIn text-[#0F3D2C]">
                     <div className="flex flex-col gap-1.5 pb-2 border-b border-[#0F3D2C]/5 mb-1.5">
                       <span className="text-xs font-bold">{user.name}</span>
-                      <span className="text-[10px] text-[#0F3D2C]/60 truncate">{user.email}</span>
                       <span className="text-[10px] uppercase font-bold text-[#D5A85A] tracking-wider mt-0.5">
                         Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
                       </span>
@@ -649,9 +648,8 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                 {/* Mobile Profile Dropdown */}
                 {isProfileOpen && (
                   <div className="absolute right-0 mt-10 top-0 w-44 bg-[#0F3D2C] border border-white/10 rounded-xl shadow-2xl z-50 p-3 animate-fadeIn text-white text-xs">
-                    <div className="flex flex-col gap-1 pb-2 border-b border-white/10 mb-1.5">
+                    <div className="flex flex-col gap-1 pb-2 border-b border-white/10 mb-1.5 font-sans">
                       <span className="font-bold">{user.name}</span>
-                      <span className="text-[10px] text-white/60 truncate">{user.email}</span>
                       <span className="text-[9px] uppercase font-bold text-[#D5A85A] tracking-wider mt-0.5">
                         Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
                       </span>

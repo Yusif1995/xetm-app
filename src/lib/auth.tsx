@@ -53,17 +53,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const getInviteGroupId = (): string => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      return params.get("invite") || "";
+      const urlInvite = params.get("invite") || "";
+      if (urlInvite) {
+        sessionStorage.setItem("pendingInviteGroupId", urlInvite);
+        return urlInvite;
+      }
+      return sessionStorage.getItem("pendingInviteGroupId") || "";
     }
     return "";
+  };
+
+  const syncUserInvite = async (firebaseUser: FirebaseUser, userDoc: UserDoc, inviteGroupId: string): Promise<UserDoc> => {
+    if (!inviteGroupId) return userDoc;
+    const hasGroupInIds = userDoc.groupIds?.includes(inviteGroupId);
+    const needsActiveGroupIdUpdate = !userDoc.groupId || userDoc.groupId === "default" || !userDoc.isOnboarded;
+    
+    if (!hasGroupInIds || (needsActiveGroupIdUpdate && userDoc.groupId !== inviteGroupId)) {
+      const { doc: fsDoc, updateDoc, arrayUnion } = await import("firebase/firestore");
+      const userRef = fsDoc(db, "users", firebaseUser.uid);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updates: any = {};
+      
+      if (!hasGroupInIds) {
+        updates.groupIds = arrayUnion(inviteGroupId);
+        updates[`groupData.${inviteGroupId}.approved`] = false;
+        updates[`groupData.${inviteGroupId}.assignedPages`] = [];
+        updates[`groupData.${inviteGroupId}.completedPages`] = [];
+        updates[`groupData.${inviteGroupId}.completedAt`] = {};
+        updates[`groupData.${inviteGroupId}.totalCompletedPages`] = 0;
+      }
+      
+      if (needsActiveGroupIdUpdate) {
+        updates.groupId = inviteGroupId;
+      }
+      
+      await updateDoc(userRef, updates);
+      const updatedDoc = await getUserDoc(firebaseUser.uid);
+      return updatedDoc || userDoc;
+    }
+    return userDoc;
   };
 
   const handleUserChange = async (firebaseUser: FirebaseUser | null) => {
     if (firebaseUser) {
       // Get or create user document in Firestore
       let userDoc = await getUserDoc(firebaseUser.uid);
+      const inviteGroupId = getInviteGroupId();
       if (!userDoc) {
-        const inviteGroupId = getInviteGroupId();
         userDoc = await createUserDoc(
           firebaseUser.uid,
           firebaseUser.displayName || "",
@@ -71,6 +107,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           firebaseUser.photoURL || "",
           inviteGroupId
         );
+      } else {
+        userDoc = await syncUserInvite(firebaseUser, userDoc, inviteGroupId);
       }
       
       setUser(userDoc);
@@ -97,8 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (firebaseUser) {
           // Get or create user document in Firestore first (one-off check on login)
           let userDoc = await getUserDoc(firebaseUser.uid);
+          const inviteGroupId = getInviteGroupId();
           if (!userDoc) {
-            const inviteGroupId = getInviteGroupId();
             userDoc = await createUserDoc(
               firebaseUser.uid,
               firebaseUser.displayName || "",
@@ -106,6 +144,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               firebaseUser.photoURL || "",
               inviteGroupId
             );
+          } else {
+            userDoc = await syncUserInvite(firebaseUser, userDoc, inviteGroupId);
           }
 
           // Set initial user state
@@ -217,7 +257,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await signInWithPopup(auth, provider);
       await handleUserChange(result.user);
       setLoading(false);
-      router.push("/dashboard");
+      if (typeof window !== "undefined") {
+        router.push("/dashboard" + window.location.search);
+      } else {
+        router.push("/dashboard");
+      }
     } catch (error) {
       console.error("Google sign in error:", error);
       setLoading(false);

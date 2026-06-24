@@ -1104,6 +1104,7 @@ export default function AdminPage() {
                         key={u.uid} 
                         user={u} 
                         isAdminView={true} 
+                        groupCreatedBy={groupCreatedBy}
                         onAssignPagesClick={handleSelectUser} 
                         onRoleToggle={handleRoleToggle}
                         onNotifyClick={handleNotifyClick}

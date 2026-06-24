@@ -356,7 +356,7 @@ export async function toggleCompletedPages(
   await checkAndUpdateKhatmCompletion(effectiveGroupId);
 
   if (isCompleted) {
-    sendPushNotificationForCompletedPages(uid, pageNumbers).catch((err) =>
+    sendPushNotificationForCompletedPages(uid, pageNumbers, effectiveGroupId).catch((err) =>
       console.error("Failed to send push:", err)
     );
   }
@@ -768,7 +768,7 @@ export async function togglePreviousCompletedPages(
   await updateDoc(docRef, updates);
 
   if (isCompleted) {
-    sendPushNotificationForCompletedPages(uid, pageNumbers).catch((err) =>
+    sendPushNotificationForCompletedPages(uid, pageNumbers, effectiveGroupId).catch((err) =>
       console.error("Failed to send push:", err)
     );
   }
@@ -851,18 +851,26 @@ export async function removePushSubscription(uid: string, subscription: string):
 }
 
 // Client-side helper to query other users' subscriptions and trigger Next.js push API
-export async function sendPushNotificationForCompletedPages(senderUid: string, pageNumbers: number[]): Promise<void> {
+export async function sendPushNotificationForCompletedPages(
+  senderUid: string, 
+  pageNumbers: number[],
+  groupId?: string | null
+): Promise<void> {
   try {
+    const effectiveGroupId = groupId || "default";
     const users = await getAllUsers();
     let senderName = "Bir iştirakçı";
     const subscriptions: string[] = [];
 
     users.forEach((userData) => {
       if (userData.uid === senderUid) {
-        senderName = userData.name || "Bir iştirakçı";
+        senderName = userData.nickname || userData.name || "Bir iştirakçı";
       } else {
-        const userSubs: string[] = userData.pushSubscriptions || [];
-        subscriptions.push(...userSubs);
+        const userGroups = getUserGroupIds(userData);
+        if (userGroups.includes(effectiveGroupId)) {
+          const userSubs: string[] = userData.pushSubscriptions || [];
+          subscriptions.push(...userSubs);
+        }
       }
     });
 

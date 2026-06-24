@@ -24,6 +24,50 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
   const isInvited = user.groupId && user.groupId !== "default";
 
   useEffect(() => {
+    const getInviteId = () => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const urlInvite = params.get("invite");
+        if (urlInvite) {
+          sessionStorage.setItem("pendingInviteGroupId", urlInvite);
+          return urlInvite;
+        }
+        return sessionStorage.getItem("pendingInviteGroupId");
+      }
+      return null;
+    };
+
+    const inviteId = getInviteId();
+    if (inviteId && user.groupId !== inviteId) {
+      setLoadingInvite(true);
+      const updateInviteGroup = async () => {
+        try {
+          const userRef = doc(db, "users", user.uid);
+          const hasGroupInIds = user.groupIds?.includes(inviteId);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updates: any = {
+            groupId: inviteId
+          };
+          if (!hasGroupInIds) {
+            const { arrayUnion } = await import("firebase/firestore");
+            updates.groupIds = arrayUnion(inviteId);
+            updates[`groupData.${inviteId}.approved`] = false;
+            updates[`groupData.${inviteId}.assignedPages`] = [];
+            updates[`groupData.${inviteId}.completedPages`] = [];
+            updates[`groupData.${inviteId}.completedAt`] = {};
+            updates[`groupData.${inviteId}.totalCompletedPages`] = 0;
+          }
+          await updateDoc(userRef, updates);
+        } catch (err) {
+          console.error("Error linking invite group on onboarding screen:", err);
+        } finally {
+          setLoadingInvite(false);
+        }
+      };
+      updateInviteGroup();
+      return;
+    }
+
     if (isInvited && user.groupId) {
       setLoadingInvite(true);
       getGroupDoc(user.groupId)
@@ -36,7 +80,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
           setLoadingInvite(false);
         });
     }
-  }, [isInvited, user.groupId]);
+  }, [isInvited, user.groupId, user.uid, user.groupIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

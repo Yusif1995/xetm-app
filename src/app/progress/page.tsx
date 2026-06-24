@@ -173,7 +173,7 @@ export default function ProgressPage() {
                 </thead>
                 <tbody>
                   {filteredUsers.map((u) => (
-                    <UserRow key={u.uid} user={u} isAdminView={false} />
+                    <UserRow key={u.uid} user={u} isAdminView={false} groupCreatedBy={groupCreatedBy} />
                   ))}
                 </tbody>
               </table>
