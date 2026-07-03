@@ -33,8 +33,8 @@ service cloud.firestore {
       // Readable by anyone to show the Daily Ayah/Hadith on the login page
       allow read: if true;
       
-      // Only admins can update the Daily settings
-      allow write: if isAdmin();
+      // Only admins can update the Daily settings, or a request containing the secret token (for server updates)
+      allow write: if isAdmin() || (request.resource.data.secretToken == 'diItSNkdB7QOBkjy4dH2YgmOu6uKRhNIWACqjreiCDw');
     }
 
     // Rules for hadiths collection

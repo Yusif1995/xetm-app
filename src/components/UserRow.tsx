@@ -8,7 +8,6 @@ interface UserRowProps {
   user: UserDoc;
   isAdminView?: boolean;
   groupCreatedBy?: string | null;
-  onAssignPagesClick?: (user: UserDoc) => void;
   onRoleToggle?: (user: UserDoc) => void;
   onNotifyClick?: (user: UserDoc) => void;
   onRemoveUserClick?: (user: UserDoc) => void;
@@ -18,7 +17,6 @@ export default function UserRow({
   user, 
   isAdminView, 
   groupCreatedBy,
-  onAssignPagesClick, 
   onRoleToggle,
   onNotifyClick,
   onRemoveUserClick
@@ -38,6 +36,10 @@ export default function UserRow({
   const percentage = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 0;
   const remainingPages = totalAssigned - totalCompleted;
 
+  const prevAssigned = assignment.previousAssignedPages || [];
+  const prevCompleted = assignment.previousCompletedPages || [];
+  const hasUncompletedPrev = prevAssigned.length > 0 && !prevAssigned.every(p => prevCompleted.includes(p));
+
   // Gecikmə yoxlanışı
   const today = new Date().toISOString().split("T")[0];
   const isLate = assignment.assignmentEndDate && assignment.assignmentEndDate < today && totalCompleted < totalAssigned;
@@ -46,7 +48,10 @@ export default function UserRow({
   let statusColor = "bg-gray-100 text-gray-600 border-gray-200";
   let statusText = "Təyin edilməyib";
   
-  if (totalAssigned > 0) {
+  if (hasUncompletedPrev) {
+    statusColor = "bg-red-100 text-red-700 border-red-200 font-bold";
+    statusText = "Tamamlanmayıb";
+  } else if (totalAssigned > 0) {
     if (totalCompleted === totalAssigned) {
       statusColor = "bg-green-100 text-green-700 border-green-200";
       statusText = "Tamamlandı";
@@ -96,9 +101,11 @@ export default function UserRow({
       <tr 
         onClick={() => setIsExpanded(!isExpanded)}
         className={`border-b border-[#0F3D2C]/10 transition-colors cursor-pointer select-none text-[#0F3D2C] ${
-          isLate 
-            ? "bg-red-50/50 hover:bg-red-100/50 border-l-4 border-l-red-500" 
-            : "bg-white hover:bg-[#FAF7F2]"
+          hasUncompletedPrev
+            ? "bg-red-50/30 hover:bg-red-100/30 border-l-4 border-l-red-500"
+            : isLate 
+              ? "bg-red-50/50 hover:bg-red-100/50 border-l-4 border-l-red-500" 
+              : "bg-white hover:bg-[#FAF7F2]"
         }`}
       >
         <td className="px-4 py-3 md:px-6 md:py-4">
@@ -107,18 +114,6 @@ export default function UserRow({
               {isExpanded ? "▲" : "▼"}
             </span>
 
-            {user.photoURL ? (
-              <img
-                src={user.photoURL}
-                alt={displayName}
-                className="w-8 h-8 rounded-full border border-[#0F3D2C]/20 shadow-sm"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-[#EAE3D5] border border-[#0F3D2C]/20 flex items-center justify-center font-bold text-[#0F3D2C] text-xs">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-            )}
             <div className="flex flex-col">
               <span className="text-xs md:text-sm font-bold text-[#0F3D2C]">{displayName}</span>
             </div>
@@ -153,14 +148,6 @@ export default function UserRow({
         {isAdminView && (
           <td className="px-4 py-3 md:px-6 md:py-4 text-right" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-wrap items-center justify-end gap-1.5">
-              {onAssignPagesClick && (
-                <button
-                  onClick={() => onAssignPagesClick(user)}
-                  className="px-2 py-1 bg-[#0F3D2C]/5 hover:bg-[#0F3D2C]/10 text-[#0F3D2C] border border-[#0F3D2C]/20 rounded-md text-[9px] font-bold transition-all"
-                >
-                  Təyin et
-                </button>
-              )}
 
               {onNotifyClick && (
                 <button

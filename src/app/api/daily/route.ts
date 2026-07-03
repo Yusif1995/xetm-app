@@ -4,27 +4,39 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 export const dynamic = "force-dynamic";
 
-interface DailyItem {
+interface DailyResponse {
   text: string;
   translation: string;
   source: string;
-  type: "ayah" | "hadith";
+  type: "ayah";
+  ayah: {
+    text: string;
+    translation: string;
+    source: string;
+  };
+  hadith: {
+    text: string;
+    translation: string;
+    source: string;
+  };
 }
 
-const DEFAULT_FALLBACKS: DailyItem[] = [
-  {
+const FALLBACK_RESPONSE: DailyResponse = {
+  text: "فَإِنَّ مَعَ الْعُسْرِ يُسْرًا",
+  translation: "Şübhəsiz ki, hər çətinliklə bərabər bir asanlıq da vardır.",
+  source: "Şərh (İnşirah) surəsi, 5-ci ayə",
+  type: "ayah",
+  ayah: {
     text: "فَإِنَّ مَعَ الْعُسْرِ يُسْرًا",
     translation: "Şübhəsiz ki, hər çətinliklə bərabər bir asanlıq da vardır.",
-    source: "Şərh (İnşirah) surəsi, 5-ci ayə",
-    type: "ayah"
+    source: "Şərh (İnşirah) surəsi, 5-ci ayə"
   },
-  {
+  hadith: {
     text: "خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ",
     translation: "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir.",
-    source: "Hədis (Səhih əl-Buxari)",
-    type: "hadith"
+    source: "Hədis (Səhih əl-Buxari)"
   }
-];
+};
 
 export async function GET() {
   try {
@@ -47,22 +59,28 @@ export async function GET() {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE") {
       console.warn("Gemini API Key missing for daily item generation. Using fallback.");
-      return NextResponse.json(getRandomFallback());
+      return NextResponse.json(FALLBACK_RESPONSE);
     }
 
     const systemInstruction = 
       "Sən Quran Xətm tətbiqinin gündəlik məzmun seçən köməkçisisən. " +
-      "Hər gün üçün bir ədəd Quran ayəsi və ya mötəbər (səhih) hədis seçirsən. " +
-      "Seçdiyin ayə/hədis insanların mənəviyyatını ucaldan, səbr, elm, gözəl əxlaq, yardımsevərlik, sevgi və ya doğruluq mövzularında olmalıdır. " +
+      "Hər gün üçün eyni anda bir ədəd Quran ayəsi və bir ədəd mötəbər (səhih) hədis seçirsən. " +
+      "Seçdiyin ayə və hədis insanların mənəviyyatını ucaldan, səbr, elm, gözəl əxlaq, yardımsevərlik, sevgi və ya doğruluq mövzularında olmalıdır. " +
       "Sən cavabı yalnız və yalnız aşağıdakı JSON formatında qaytarmalısan:\n" +
       "{\n" +
-      "  \"text\": \"Ərəbcə orijinal mətn (hərəkələri ilə birlikdə)\",\n" +
-      "  \"translation\": \"Azərbaycan dilində gözəl və anlaşıqlı tərcüməsi\",\n" +
-      "  \"source\": \"Dəqiq mənbə (məs. Bəqərə surəsi, 153-cü ayə və ya Səhih əl-Buxari, 1234)\",\n" +
-      "  \"type\": \"ayah\" və ya \"hadith\"\n" +
+      "  \"ayah\": {\n" +
+      "    \"text\": \"Ayənin ərəbcə orijinal mətn (hərəkələri ilə birlikdə)\",\n" +
+      "    \"translation\": \"Azərbaycan dilində gözəl və anlaşıqlı tərcüməsi\",\n" +
+      "    \"source\": \"Dəqiq surə adı və ayə nömrəsi (məs. Bəqərə surəsi, 153)\"\n" +
+      "  },\n" +
+      "  \"hadith\": {\n" +
+      "    \"text\": \"Hədisin ərəbcə orijinal mətn (əgər varsa, yoxdursa boş burax)\",\n" +
+      "    \"translation\": \"Azərbaycan dilində gözəl və anlaşıqlı tərcüməsi\",\n" +
+      "    \"source\": \"Mötəbər hədis mənbəyi (məs. Səhih əl-Buxari, 1234)\"\n" +
+      "  }\n" +
       "}";
 
-    const prompt = "Bu gün üçün ilhamverici bir Quran ayəsi və ya mötəbər bir hədis seçib JSON olaraq qaytar.";
+    const prompt = "Bu gün üçün bir ədəd Quran ayəsi və bir ədəd mötəbər hədis seçib JSON olaraq qaytar.";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
@@ -94,29 +112,45 @@ export async function GET() {
       throw new Error("No text returned from Gemini");
     }
 
-    const dailyItem: DailyItem = JSON.parse(jsonText);
+    const dailyData = JSON.parse(jsonText);
     
     // Validate response structure
-    if (!dailyItem.text || !dailyItem.translation || !dailyItem.source || !dailyItem.type) {
+    if (!dailyData.ayah || !dailyData.ayah.text || !dailyData.ayah.translation || !dailyData.ayah.source ||
+        !dailyData.hadith || !dailyData.hadith.translation || !dailyData.hadith.source) {
       throw new Error("Invalid daily item structure from Gemini");
     }
+
+    const responseData: DailyResponse = {
+      text: dailyData.ayah.text,
+      translation: dailyData.ayah.translation,
+      source: dailyData.ayah.source,
+      type: "ayah",
+      ayah: {
+        text: dailyData.ayah.text,
+        translation: dailyData.ayah.translation,
+        source: dailyData.ayah.source
+      },
+      hadith: {
+        text: dailyData.hadith.text || "",
+        translation: dailyData.hadith.translation,
+        source: dailyData.hadith.source
+      }
+    };
 
     // Save to Firestore config so we don't query Gemini again today
     if (configSnap.exists()) {
       await updateDoc(configRef, {
-        currentDailyItem: dailyItem,
-        lastDailyUpdate: todayStr
+        currentDailyItem: responseData,
+        currentAyah: `${responseData.ayah.text}\n${responseData.ayah.translation} — ${responseData.ayah.source}`,
+        currentHadith: `${responseData.hadith.text ? responseData.hadith.text + '\n' : ''}${responseData.hadith.translation} — ${responseData.hadith.source}`,
+        lastDailyUpdate: todayStr,
+        secretToken: process.env.VAPID_PRIVATE_KEY || "diItSNkdB7QOBkjy4dH2YgmOu6uKRhNIWACqjreiCDw"
       });
     }
 
-    return NextResponse.json(dailyItem);
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error("Error generating daily item, returning fallback:", error);
-    return NextResponse.json(getRandomFallback());
+    return NextResponse.json(FALLBACK_RESPONSE);
   }
-}
-
-function getRandomFallback(): DailyItem {
-  const randomIdx = Math.floor(Math.random() * DEFAULT_FALLBACKS.length);
-  return DEFAULT_FALLBACKS[randomIdx];
 }

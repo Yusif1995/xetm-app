@@ -161,9 +161,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ? data.totalCompletedPages
                 : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
               const updatedDoc = { uid: firebaseUser.uid, ...data, totalCompletedPages } as UserDoc;
+              
+              const oldRole = Cookies.get("khatm_role");
+              const roleChanged = oldRole && oldRole !== updatedDoc.role;
+              
               setUser(updatedDoc);
               Cookies.set("khatm_uid", firebaseUser.uid, { expires: 30, path: "/" });
               Cookies.set("khatm_role", updatedDoc.role, { expires: 30, path: "/" });
+              
+              if (roleChanged) {
+                console.log("User role changed to", updatedDoc.role, "- refreshing router");
+                router.refresh();
+              }
             }
           }, (err) => {
             console.error("Error in user doc real-time listener:", err);

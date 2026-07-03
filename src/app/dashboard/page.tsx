@@ -59,6 +59,33 @@ function DashboardContent() {
   const [isMarking, setIsMarking] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
+  const [dailyAyah, setDailyAyah] = useState("");
+  const [dailyHadith, setDailyHadith] = useState("");
+
+  useEffect(() => {
+    async function fetchDaily() {
+      try {
+        const res = await fetch("/api/daily");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ayah && data.hadith) {
+            setDailyAyah(`${data.ayah.text}\n${data.ayah.translation} — ${data.ayah.source}`);
+            setDailyHadith(`${data.hadith.text ? data.hadith.text + '\n' : ''}${data.hadith.translation} — ${data.hadith.source}`);
+          } else if (data.text) {
+            const formatted = `${data.text}\n${data.translation} — ${data.source}`;
+            if (data.type === "ayah") {
+              setDailyAyah(formatted);
+            } else {
+              setDailyHadith(formatted);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching daily content in dashboard:", err);
+      }
+    }
+    fetchDaily();
+  }, []);
 
   const searchParams = useSearchParams();
   const [inviteGroup, setInviteGroup] = useState<GroupDoc | null>(null);
@@ -95,8 +122,7 @@ function DashboardContent() {
 
   const activeAssignment = useMemo(
     () => user ? getUserAssignment(user, activeGroupId) : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.uid, activeGroupId, JSON.stringify(user?.groupData?.[activeGroupId])]
+    [user, activeGroupId]
   );
 
   const completedPagesKey = JSON.stringify(activeAssignment?.completedPages || []);
@@ -403,18 +429,18 @@ function DashboardContent() {
         </div>
 
         {/* Günün Hədisi / Ayəsi */}
-        {(settings?.currentAyah || settings?.currentHadith) && (
+        {(dailyAyah || dailyHadith || settings?.currentAyah || settings?.currentHadith) && (
           <div className="card-premium grid grid-cols-1 md:grid-cols-2 gap-4 divide-y md:divide-y-0 md:divide-x divide-[#0F3D2C]/10 text-[#0F3D2C] relative overflow-hidden">
-            {settings.currentAyah && (
-              <div className="flex flex-col gap-1 pr-4">
+            {(dailyAyah || settings?.currentAyah) && (
+              <div className="flex flex-col gap-1 pr-4 whitespace-pre-line">
                 <span className="text-[10px] font-bold text-[#D5A85A] uppercase tracking-wider">Günün Ayəsi</span>
-                <p className="text-xs italic leading-relaxed">{settings.currentAyah}</p>
+                <p className="text-xs italic leading-relaxed">{dailyAyah || settings?.currentAyah}</p>
               </div>
             )}
-            {settings.currentHadith && (
-              <div className="flex flex-col gap-1 pl-0 md:pl-4 pt-3 md:pt-0">
+            {(dailyHadith || settings?.currentHadith) && (
+              <div className="flex flex-col gap-1 pl-0 md:pl-4 pt-3 md:pt-0 whitespace-pre-line">
                 <span className="text-[10px] font-bold text-[#D5A85A] uppercase tracking-wider">Günün Hədisi</span>
-                <p className="text-xs italic leading-relaxed">{settings.currentHadith}</p>
+                <p className="text-xs italic leading-relaxed">{dailyHadith || settings?.currentHadith}</p>
               </div>
             )}
           </div>

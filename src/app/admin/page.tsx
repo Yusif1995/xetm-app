@@ -680,13 +680,6 @@ export default function AdminPage() {
                   {pendingGroupUsers.map((u) => (
                     <tr key={u.uid} className="border-b border-amber-500/5 text-xs text-amber-900">
                       <td className="px-4 py-3 flex items-center gap-3">
-                        {u.photoURL ? (
-                          <img src={u.photoURL} alt={u.name} className="w-8 h-8 rounded-full border border-amber-500/20" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center font-bold text-amber-800">
-                            {u.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
                         <span className="font-bold">{u.name}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -905,88 +898,104 @@ export default function AdminPage() {
               </div>
             )}
 
-            {selectedUser ? (
-              <form onSubmit={handleAssignSubmit} className="space-y-4">
-                <div className="p-4 bg-[#FAF7F2] border border-[#0F3D2C]/10 rounded-xl">
-                  <span className="text-xs text-[#0F3D2C]/65 block mb-1">Seçilən İstifadəçi:</span>
-                  <span className="text-sm font-bold text-[#0F3D2C]">{selectedUser.name}</span>
-                </div>
+            <form onSubmit={handleAssignSubmit} className="space-y-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="block text-xs font-bold text-[#0F3D2C]/80 uppercase tracking-wide">
+                  İştirakçı Seçin
+                </label>
+                <select
+                  value={selectedUser?.uid || ""}
+                  onChange={(e) => {
+                    const selected = activeGroupUsers.find(u => u.uid === e.target.value);
+                    if (selected) {
+                      handleSelectUser(selected);
+                    } else {
+                      setSelectedUser(null);
+                      setPagesInput("");
+                    }
+                  }}
+                  required
+                  className="w-full px-3 py-2 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-lg text-xs font-semibold text-[#0F3D2C] focus:outline-none"
+                >
+                  <option value="">Seçin...</option>
+                  {activeGroupUsers.map(u => (
+                    <option key={u.uid} value={u.uid}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
 
+              <div>
+                <label className="block text-xs font-bold text-[#0F3D2C]/80 mb-1.5 uppercase tracking-wide">
+                  Səhifə Aralığı və ya Nömrələri
+                  </label>
+                <input
+                  type="text"
+                  required
+                  value={pagesInput}
+                  onChange={(e) => setPagesInput(e.target.value)}
+                  placeholder="Məsələn: 1-20, 35, 40-50"
+                  className="w-full px-4 py-2 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-lg text-[#0F3D2C] focus:outline-none font-mono text-sm"
+                />
+                <span className="text-[10px] text-[#0F3D2C]/50 mt-1 block">
+                  Range-ləri tire (-) ilə ayırın, tək səhifələri isə vergüllə daxil edin (1-604 arası).
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#0F3D2C]/80 mb-1.5 uppercase tracking-wide">
-                    Səhifə Aralığı və ya Nömrələri
+                    Başlama Tarixi
                   </label>
                   <input
-                    type="text"
+                    type="date"
                     required
-                    value={pagesInput}
-                    onChange={(e) => setPagesInput(e.target.value)}
-                    placeholder="Məsələn: 1-20, 35, 40-50"
-                    className="w-full px-4 py-2 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-lg text-[#0F3D2C] focus:outline-none font-mono text-sm"
+                    value={startDateInput}
+                    onChange={(e) => setStartDateInput(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-lg text-xs text-[#0F3D2C] focus:outline-none font-mono"
                   />
-                  <span className="text-[10px] text-[#0F3D2C]/50 mt-1 block">
-                    Range-ləri tire (-) ilə ayırın, tək səhifələri isə vergüllə daxil edin (1-604 arası).
-                  </span>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-[#0F3D2C]/80 mb-1.5 uppercase tracking-wide">
-                      Başlama Tarixi
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={startDateInput}
-                      onChange={(e) => setStartDateInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-lg text-xs text-[#0F3D2C] focus:outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-[#0F3D2C]/80 mb-1.5 uppercase tracking-wide">
-                      Bitmə Tarixi
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={endDateInput}
-                      onChange={(e) => setEndDateInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-lg text-xs text-[#0F3D2C] focus:outline-none font-mono"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F3D2C]/80 mb-1.5 uppercase tracking-wide">
+                    Bitmə Tarixi
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={endDateInput}
+                    onChange={(e) => setEndDateInput(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-lg text-xs text-[#0F3D2C] focus:outline-none font-mono"
+                  />
                 </div>
-
-                {assignError && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-semibold">
-                    {assignError}
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-2">
-                  <button
-                    type="submit"
-                    disabled={assignLoading}
-                    className="px-5 py-2 bg-[#0F3D2C] hover:bg-[#1C2E24] text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
-                  >
-                    {assignLoading ? "Yadda saxlanılır..." : "Təyin et"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedUser(null)}
-                    className="px-5 py-2 bg-white hover:bg-[#FAF7F2] border border-[#0F3D2C]/20 text-[#0F3D2C] rounded-lg text-xs font-bold transition-all"
-                  >
-                    Ləğv Et
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-[#0F3D2C]/15 rounded-xl bg-[#FAF7F2]/40">
-                <span className="text-3xl mb-2">📋</span>
-                <p className="text-xs text-[#0F3D2C]/55 max-w-xs font-semibold">
-                  Heç bir iştirakçı seçilməyib. Aşağıdakı cədvəldən bir istifadəçi seçin.
-                </p>
               </div>
-            )}
+
+              {assignError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-semibold">
+                  {assignError}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={assignLoading || !selectedUser}
+                  className="px-5 py-2 bg-[#0F3D2C] hover:bg-[#1C2E24] disabled:bg-[#0F3D2C]/40 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                >
+                  {assignLoading ? "Yadda saxlanılır..." : "Təyin et"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedUser(null);
+                    setPagesInput("");
+                    setStartDateInput("");
+                    setEndDateInput("");
+                  }}
+                  className="px-5 py-2 bg-white hover:bg-[#FAF7F2] border border-[#0F3D2C]/20 text-[#0F3D2C] rounded-lg text-xs font-bold transition-all"
+                >
+                  Ləğv Et
+                </button>
+              </div>
+            </form>
 
             {assignSuccess && (
               <div className="p-3 bg-green-50 border border-green-200 text-green-700 text-xs rounded-lg font-semibold">
@@ -1105,7 +1114,6 @@ export default function AdminPage() {
                         user={u} 
                         isAdminView={true} 
                         groupCreatedBy={groupCreatedBy}
-                        onAssignPagesClick={handleSelectUser} 
                         onRoleToggle={handleRoleToggle}
                         onNotifyClick={handleNotifyClick}
                         onRemoveUserClick={handleRemoveUser}

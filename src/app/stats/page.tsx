@@ -75,7 +75,33 @@ export default function StatsPage() {
       }
       return true;
     });
-    return { juzNum, isAssigned, isCompleted, usersCount: juzUsers.length };
+
+    // Check if this juz was previously assigned and has uncompleted pages
+    const prevJuzUsers = users.filter((u) => {
+      const assignment = getUserAssignment(u, activeGroupId);
+      const prevPages = assignment.previousAssignedPages || [];
+      if (prevPages.length === 0) return false;
+
+      const startPage = (juzNum - 1) * 20 + 1;
+      const endPage = juzNum === 30 ? 604 : juzNum * 20;
+      return prevPages.some(p => p >= startPage && p <= endPage);
+    });
+
+    const hasUncompletedPrev = prevJuzUsers.length > 0 && prevJuzUsers.some((u) => {
+      const assignment = getUserAssignment(u, activeGroupId);
+      const prevPages = assignment.previousAssignedPages || [];
+      const prevCompleted = assignment.previousCompletedPages || [];
+
+      const startPage = (juzNum - 1) * 20 + 1;
+      const endPage = juzNum === 30 ? 604 : juzNum * 20;
+
+      const juzAssignedPages = prevPages.filter(p => p >= startPage && p <= endPage);
+      return juzAssignedPages.some(p => !prevCompleted.includes(p));
+    });
+
+    const isPrevUncompleted = !isCompleted && hasUncompletedPrev;
+
+    return { juzNum, isAssigned, isCompleted, isPrevUncompleted, usersCount: juzUsers.length };
   });
 
   return (
@@ -112,9 +138,11 @@ export default function StatsPage() {
                 className={`p-3 rounded-2xl border text-center flex flex-col justify-between items-center transition-all ${
                   j.isCompleted 
                     ? "bg-[#E8F4EC] border-[#0F3D2C] text-[#0F3D2C]" 
-                    : j.isAssigned
-                      ? "bg-[#EFE9DF] border-[#0F3D2C]/30 text-[#0F3D2C]"
-                      : "bg-[#FFFFFF] border-[#0F3D2C]/10 text-[#0F3D2C]/30"
+                    : j.isPrevUncompleted
+                      ? "bg-red-50 border-red-500/40 text-red-700 font-bold"
+                      : j.isAssigned
+                        ? "bg-[#EFE9DF] border-[#0F3D2C]/30 text-[#0F3D2C]"
+                        : "bg-[#FFFFFF] border-[#0F3D2C]/10 text-[#0F3D2C]/30"
                 }`}
               >
                 <span className="text-[10px] font-bold uppercase block">Cüz</span>
@@ -122,9 +150,11 @@ export default function StatsPage() {
                 <span className="text-[8px] font-bold uppercase tracking-wider block">
                   {j.isCompleted 
                     ? "Bitib" 
-                    : j.isAssigned
-                      ? "Oxunur"
-                      : "Boşdur"
+                    : j.isPrevUncompleted
+                      ? "Yarımçıq"
+                      : j.isAssigned
+                        ? "Oxunur"
+                        : "Boşdur"
                   }
                 </span>
               </div>
@@ -135,6 +165,10 @@ export default function StatsPage() {
             <div className="flex items-center gap-1.5">
               <div className="w-3.5 h-3.5 bg-[#E8F4EC] border border-[#0F3D2C] rounded" />
               <span>Tamamlanmış Cüz</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3.5 h-3.5 bg-red-50 border border-red-500/40 rounded" />
+              <span>Əvvəlki Yarımçıq Cüz</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-3.5 h-3.5 bg-[#EFE9DF] border border-[#0F3D2C]/30 rounded" />

@@ -14,8 +14,7 @@ export default function ReadingsPage() {
 
   const activeAssignment = useMemo(
     () => user ? getUserAssignment(user, activeGroupId) : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.uid, activeGroupId, JSON.stringify(user?.groupData?.[activeGroupId])]
+    [user, activeGroupId]
   );
 
   const completedPagesKey = JSON.stringify(activeAssignment?.completedPages || []);
