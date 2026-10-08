@@ -1,33 +1,33 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { getAllUsers, type UserDoc, getUserGroupIds, getUserAssignment, getGroupDoc, isUserApprovedInGroup } from "@/lib/db";
+import { getAllUsers, type UserDoc, getUserGroupIds, getUserAssignment, isUserApprovedInGroup } from "@/lib/db";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import ProgressBar from "@/components/ProgressBar";
 
 export default function StatsPage() {
-  const { user, loading, activeGroupId } = useAuth();
+  const { user, loading, activeGroupId, activeGroup, activeGroupLoaded } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || !activeGroupId) return;
+    if (!user) return;
+    if (!activeGroupId) {
+      setUsers([]);
+      setDataLoading(false);
+      return;
+    }
+    if (!activeGroupLoaded) return;
 
     async function loadData() {
       try {
-        let createdBy: string | null = null;
-        if (activeGroupId !== "default") {
-          const groupDoc = await getGroupDoc(activeGroupId);
-          if (groupDoc) {
-            createdBy = groupDoc.createdBy || null;
-          }
-        }
+        const createdBy = activeGroup?.createdBy || null;
 
         const usersList = await getAllUsers();
         const filtered = usersList.filter((u) => 
           (getUserGroupIds(u).includes(activeGroupId) || (createdBy && u.uid === createdBy))
-          && isUserApprovedInGroup(u, activeGroupId)
+          && isUserApprovedInGroup(u, activeGroupId, activeGroup)
         );
         setUsers(filtered);
       } catch (err) {
@@ -38,7 +38,7 @@ export default function StatsPage() {
     }
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, activeGroupId]);
+  }, [user?.uid, activeGroupId, activeGroupLoaded, activeGroup?.members]);
 
   if (loading || dataLoading) {
     return (

@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Check if the request is authenticated
     function isAuthenticated() {
       return request.auth != null;
@@ -12,50 +12,121 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Check if the requesting user has the "admin" role
-    function isAdmin() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Super admins are listed in admins/{uid}. Those docs can only be created from the Firebase Console,
+    // so nobody can grant themselves this role from the app.
+    function isSuperAdmin() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // The group creator owns and manages the group
+    function isGroupOwner(groupId) {
+      return isAuthenticated()
+        && groupId is string
+        && exists(/databases/$(database)/documents/groups/$(groupId))
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
     }
 
     // Rules for users collection
     match /users/{userId} {
       // Authenticated users can view other members' progress
       allow read: if isAuthenticated();
-      
-      // Users can write/update their own documents, admins can write all
-      allow write: if isOwner(userId) || isAdmin();
+
+      // New users always start as plain, unapproved users
+      allow create: if isOwner(userId)
+        && request.resource.data.get('role', 'user') == 'user'
+        && request.resource.data.get('approved', false) == false;
+
+      // Users edit their own document but never their role or legacy approval flag
+      allow update: if (isOwner(userId) && !changedKeys().hasAny(['role', 'approved']))
+        || isSuperAdmin()
+        || isGroupOwnerEdit();
+
+      allow delete: if isOwner(userId) || isSuperAdmin();
+
+      // A group owner may only change the part of a member's document that belongs to their group.
+      // The client names that group in lastEditedGroup.
+      function isGroupOwnerEdit() {
+        let g = request.resource.data.get('lastEditedGroup', null);
+        let oldIds = resource.data.get('groupIds', []).toSet();
+        let newIds = request.resource.data.get('groupIds', []).toSet();
+        return isGroupOwner(g)
+          && (g in oldIds || g in resource.data.get('groupData', {}) || resource.data.get('groupId', '') == g)
+          && changedKeys().hasOnly(['groupData', 'groupIds', 'groupId', 'isOnboarded', 'adminNotification', 'lastEditedGroup'])
+          && request.resource.data.get('groupData', {}).diff(resource.data.get('groupData', {})).affectedKeys().hasOnly([g])
+          && oldIds.difference(newIds).hasOnly([g])
+          && newIds.difference(oldIds).hasOnly([g]);
+      }
     }
 
     // Rules for settings/config
     match /settings/config {
       // Readable by anyone to show the Daily Ayah/Hadith on the login page
       allow read: if true;
-      
-      // Only admins can update the Daily settings
-      allow write: if isAdmin();
+
+      // Only super admins can update the global settings
+      allow write: if isSuperAdmin();
     }
 
     // Rules for hadiths collection
     match /hadiths/{hadithId} {
       // Authenticated users can read the hadiths
       allow read: if isAuthenticated();
-      
-      // Only admins can write/update hadiths
-      allow write: if isAdmin(); 
+
+      // Only super admins can write/update hadiths
+      allow write: if isSuperAdmin();
     }
 
-    // Rules for groups collection
+    // Rules for groups collection.
+    // members maps uid -> 'owner' | 'member' | 'pending'.
     match /groups/{groupId} {
       // Authenticated users can read group details
       allow read: if isAuthenticated();
-      
-      // Only admins can create or delete groups
-      allow create, delete: if isAdmin();
-      
-      // Authenticated users can update group documents (needed for marking pages and auto khatm completion updates)
-      allow update: if isAuthenticated();
+
+      // Anyone can create a group they own, with themselves as the only member
+      allow create: if isAuthenticated()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.get('members', {}).keys().hasOnly([request.auth.uid]);
+
+      allow update: if isSuperAdmin()
+        || (resource.data.createdBy == request.auth.uid && request.resource.data.createdBy == resource.data.createdBy)
+        || isSelfMembershipChange()
+        || isKhatmCounterUpdate();
+
+      allow delete: if isSuperAdmin() || resource.data.createdBy == request.auth.uid;
+
+      // A user may only request to join (as pending) or leave the group
+      function isSelfMembershipChange() {
+        let newMembers = request.resource.data.get('members', {});
+        return isAuthenticated()
+          && changedKeys().hasOnly(['members'])
+          && newMembers.diff(resource.data.get('members', {})).affectedKeys().hasOnly([request.auth.uid])
+          && (!(request.auth.uid in newMembers) || newMembers[request.auth.uid] == 'pending');
+      }
+
+      function isApprovedMember() {
+        let members = resource.data.get('members', {});
+        return isAuthenticated()
+          && request.auth.uid in members
+          && members[request.auth.uid] in ['owner', 'member'];
+      }
+
+      // Approved members record a completed khatm (the counter can only go up by one)
+      function isKhatmCounterUpdate() {
+        let oldCount = resource.data.get('completedKhatms', 0);
+        let newCount = request.resource.data.get('completedKhatms', 0);
+        return isApprovedMember()
+          && changedKeys().hasOnly(['completedKhatms', 'isCurrentKhatmCompleted'])
+          && (newCount == oldCount || newCount == oldCount + 1);
+      }
     }
   }
 }

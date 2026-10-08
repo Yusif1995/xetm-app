@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
+import { auth } from "@/lib/firebase";
 import { useEffect, useState, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
 
@@ -18,7 +19,7 @@ const SUGGESTIONS = [
 ];
 
 export default function AiPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, activeGroup, activeGroupLoaded, isSuperAdmin } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -37,7 +38,7 @@ export default function AiPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
 
-  if (loading) {
+  if (loading || !activeGroupLoaded) {
     return (
       <div className="flex-1 flex flex-col justify-center items-center islamic-bg text-[#fdf6e3] min-h-screen">
         <div className="animate-spin h-10 w-10 text-[#c9a84c] mb-4">
@@ -51,8 +52,8 @@ export default function AiPage() {
     );
   }
 
-  if (!user || user.role !== "admin") {
-    return null; // Guarded by middleware
+  if (!user || !(isSuperAdmin || activeGroup?.createdBy === user.uid)) {
+    return null;
   }
 
   const handleSendMessage = async (textToSend: string) => {
@@ -76,10 +77,12 @@ export default function AiPage() {
         content: msg.content
       }));
 
+      const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken || ""}`,
         },
         body: JSON.stringify({ messages: history }),
       });

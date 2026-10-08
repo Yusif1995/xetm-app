@@ -9,8 +9,16 @@ import {
   type User as FirebaseUser
 } from "firebase/auth";
 import { auth, db } from "./firebase";
-import { doc, onSnapshot } from "firebase/firestore";
-import { getUserDoc, createUserDoc, type UserDoc } from "./db";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import {
+  getUserDoc,
+  createUserDoc,
+  getAllUsers,
+  requestGroupMembership,
+  backfillGroupMembers,
+  type UserDoc,
+  type GroupDoc
+} from "./db";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
 
@@ -22,6 +30,12 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   activeGroupId: string;
   setActiveGroupId: (id: string) => void;
+  // Live doc of the active group (null while loading or when there is none)
+  activeGroup: GroupDoc | null;
+  // False until the active group's doc has been fetched at least once
+  activeGroupLoaded: boolean;
+  // Listed in admins/{uid}; can only be granted from the Firebase Console
+  isSuperAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,7 +44,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeGroupId, setActiveGroupIdState] = useState<string>("");
+  const [activeGroup, setActiveGroup] = useState<GroupDoc | null>(null);
+  const [activeGroupLoaded, setActiveGroupLoaded] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setActiveGroup(null);
+    if (!user || !activeGroupId || activeGroupId === "default") {
+      setActiveGroupLoaded(true);
+      return;
+    }
+    setActiveGroupLoaded(false);
+    const unsub = onSnapshot(doc(db, "groups", activeGroupId), (snap) => {
+      setActiveGroup(snap.exists() ? ({ id: snap.id, ...snap.data() } as GroupDoc) : null);
+      setActiveGroupLoaded(true);
+    }, (err) => {
+      console.error("Error in active group listener:", err);
+      setActiveGroup(null);
+      setActiveGroupLoaded(true);
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, activeGroupId]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setIsSuperAdmin(false);
+      return;
+    }
+    getDoc(doc(db, "admins", user.uid))
+      .then((snap) => setIsSuperAdmin(snap.exists()))
+      .catch(() => setIsSuperAdmin(false));
+  }, [user?.uid]);
 
   useEffect(() => {
     if (user) {
@@ -88,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       await updateDoc(userRef, updates);
+      await requestGroupMembership(firebaseUser.uid, inviteGroupId);
       const updatedDoc = await getUserDoc(firebaseUser.uid);
       return updatedDoc || userDoc;
     }
@@ -114,11 +161,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(userDoc);
       // Set cookies for middleware
       Cookies.set("khatm_uid", firebaseUser.uid, { expires: 30, path: "/" });
-      Cookies.set("khatm_role", userDoc.role, { expires: 30, path: "/" });
     } else {
       setUser(null);
       Cookies.remove("khatm_uid", { path: "/" });
-      Cookies.remove("khatm_role", { path: "/" });
     }
   };
 
@@ -151,7 +196,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Set initial user state
           setUser(userDoc);
           Cookies.set("khatm_uid", firebaseUser.uid, { expires: 30, path: "/" });
-          Cookies.set("khatm_role", userDoc.role, { expires: 30, path: "/" });
 
           const userDocRef = doc(db, "users", firebaseUser.uid);
           unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
@@ -161,18 +205,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ? data.totalCompletedPages
                 : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
               const updatedDoc = { uid: firebaseUser.uid, ...data, totalCompletedPages } as UserDoc;
-              
-              const oldRole = Cookies.get("khatm_role");
-              const roleChanged = oldRole && oldRole !== updatedDoc.role;
-              
+
               setUser(updatedDoc);
               Cookies.set("khatm_uid", firebaseUser.uid, { expires: 30, path: "/" });
-              Cookies.set("khatm_role", updatedDoc.role, { expires: 30, path: "/" });
-              
-              if (roleChanged) {
-                console.log("User role changed to", updatedDoc.role, "- refreshing router");
-                router.refresh();
-              }
             }
           }, (err) => {
             console.error("Error in user doc real-time listener:", err);
@@ -180,13 +215,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setUser(null);
           Cookies.remove("khatm_uid", { path: "/" });
-          Cookies.remove("khatm_role", { path: "/" });
         }
       } catch (error) {
         console.error("Error in auth state change listener:", error);
         setUser(null);
         Cookies.remove("khatm_uid", { path: "/" });
-        Cookies.remove("khatm_role", { path: "/" });
       } finally {
         setLoading(false);
       }
@@ -221,27 +254,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Self-heal groups this user owns: make sure they are linked on the user doc
+  // and that their members map is filled in (groups created before it existed).
   useEffect(() => {
-    if (!user || user.role !== "admin") return;
+    if (!user) return;
 
-    const healGroupAssociations = async () => {
+    const healOwnedGroups = async () => {
       try {
         const { collection, getDocs, query, where, doc: fsDoc, updateDoc, arrayUnion } = await import("firebase/firestore");
         const q = query(collection(db, "groups"), where("createdBy", "==", user.uid));
         const snap = await getDocs(q);
-        const missingGroupIds: string[] = [];
+        const ownedGroups = snap.docs.map((d) => ({ id: d.id, ...d.data() } as GroupDoc));
+        if (ownedGroups.length === 0) return;
 
-        snap.forEach((docSnap) => {
-          const groupId = docSnap.id;
-          const currentGroupIds = user.groupIds || [];
-          if (!currentGroupIds.includes(groupId)) {
-            missingGroupIds.push(groupId);
-          }
-        });
-
+        const currentGroupIds = user.groupIds || [];
+        const missingGroupIds = ownedGroups.map((g) => g.id).filter((id) => !currentGroupIds.includes(id));
         if (missingGroupIds.length > 0) {
-          console.log("Self-healing missing groups for admin:", missingGroupIds);
-          const userRef = fsDoc(db, "users", user.uid);
+          console.log("Self-healing missing groups for owner:", missingGroupIds);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const updates: Record<string, any> = {
             groupIds: arrayUnion(...missingGroupIds)
@@ -249,14 +278,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           missingGroupIds.forEach(id => {
             updates[`groupData.${id}.approved`] = true;
           });
-          await updateDoc(userRef, updates);
+          await updateDoc(fsDoc(db, "users", user.uid), updates);
+        }
+
+        const allUsers = await getAllUsers();
+        for (const group of ownedGroups) {
+          await backfillGroupMembers(group, allUsers);
         }
       } catch (err) {
-        console.error("Error in self-healing groups association:", err);
+        console.error("Error in self-healing owned groups:", err);
       }
     };
 
-    healGroupAssociations();
+    healOwnedGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
   const loginWithGoogle = async () => {
@@ -299,7 +334,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const updated = await getUserDoc(uid);
         if (updated) {
           setUser(updated);
-          Cookies.set("khatm_role", updated.role, { expires: 30, path: "/" });
         }
       }
     }
@@ -310,7 +344,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, refreshUser, activeGroupId, setActiveGroupId }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, refreshUser, activeGroupId, setActiveGroupId, activeGroup, activeGroupLoaded, isSuperAdmin }}>
       {children}
     </AuthContext.Provider>
   );

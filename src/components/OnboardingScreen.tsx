@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../lib/firebase";
 import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { createGroup, getGroupDoc, UserDoc } from "../lib/db";
+import { createGroup, getGroupDoc, requestGroupMembership, UserDoc } from "../lib/db";
 
 interface OnboardingScreenProps {
   user: UserDoc;
@@ -58,6 +58,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
             updates[`groupData.${inviteId}.totalCompletedPages`] = 0;
           }
           await updateDoc(userRef, updates);
+          await requestGroupMembership(user.uid, inviteId);
         } catch (err) {
           console.error("Error linking invite group on onboarding screen:", err);
         } finally {
@@ -120,9 +121,8 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
           return;
         }
 
-        // 1. Temporarily upgrade role to "admin" to pass Firestore creation rules
+        // 1. Save profile
         await updateDoc(userRef, {
-          role: "admin",
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           nickname: nickname.trim(),

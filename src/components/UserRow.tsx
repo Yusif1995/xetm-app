@@ -8,7 +8,6 @@ interface UserRowProps {
   user: UserDoc;
   isAdminView?: boolean;
   groupCreatedBy?: string | null;
-  onRoleToggle?: (user: UserDoc) => void;
   onNotifyClick?: (user: UserDoc) => void;
   onRemoveUserClick?: (user: UserDoc) => void;
 }
@@ -17,7 +16,6 @@ export default function UserRow({
   user, 
   isAdminView, 
   groupCreatedBy,
-  onRoleToggle,
   onNotifyClick,
   onRemoveUserClick
 }: UserRowProps) {
@@ -158,18 +156,16 @@ export default function UserRow({
                 </button>
               )}
 
-              {onRoleToggle && (
-                <button
-                  onClick={() => onRoleToggle(user)}
-                  disabled={isSelf}
-                  className={`px-2 py-1 rounded-md text-[9px] font-bold border transition-all ${
-                    user.role === "admin"
-                      ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
-                      : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
-                  } disabled:opacity-40`}
+              {isAdminView && (
+                <span
+                  className={`px-2 py-1 rounded-md text-[9px] font-bold border ${
+                    groupCreatedBy === user.uid
+                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                      : "bg-gray-50 text-gray-500 border-gray-200"
+                  }`}
                 >
-                  {user.role === "admin" ? "Admin" : "Üzv"}
-                </button>
+                  {groupCreatedBy === user.uid ? "Qrup sahibi" : "Üzv"}
+                </span>
               )}
 
               {onRemoveUserClick && (

@@ -10,7 +10,7 @@ import { collection, doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/lib/auth";
 
 export default function ProgressPage() {
-  const { user, activeGroupId } = useAuth();
+  const { user, activeGroupId, activeGroup } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
   const [loading, setLoading] = useState(true);
@@ -63,7 +63,7 @@ export default function ProgressPage() {
   // Filter users by active group membership and approval
   const filteredUsers = users.filter((u) => 
     (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
-    && isUserApprovedInGroup(u, activeGroupId)
+    && isUserApprovedInGroup(u, activeGroupId, activeGroup)
   );
 
   // Calculate unique pages completed by the group out of 604

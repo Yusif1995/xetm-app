@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
-import { getGroupDoc, getUserGroupIds, getUserAssignment, createGroup, type UserDoc, type GroupDoc } from "@/lib/db";
+import { collection, onSnapshot } from "firebase/firestore";
+import { getGroupDoc, getUserGroupIds, getUserAssignment, createGroup, isUserApprovedInGroup, type UserDoc, type GroupDoc } from "@/lib/db";
 import OnboardingScreen from "./OnboardingScreen";
 import { isPushSupported, registerPushSubscription } from "@/lib/push";
 
@@ -15,7 +15,7 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
-  const { user, loading, logout, activeGroupId, setActiveGroupId } = useAuth();
+  const { user, loading, logout, activeGroupId, setActiveGroupId, activeGroup, activeGroupLoaded, isSuperAdmin } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [groups, setGroups] = useState<GroupDoc[]>([]);
@@ -37,12 +37,6 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
     try {
       if (!user) return;
-      
-      // Upgrade role to admin if not already, to satisfy Firestore write rules
-      if (user.role !== "admin") {
-        const userRef = doc(db, "users", user.uid);
-        await updateDoc(userRef, { role: "admin" });
-      }
 
       const newGroupId = await createGroup(newGroupName.trim(), user.uid);
       
@@ -180,7 +174,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, activeGroupId]);
 
-  if (loading) {
+  if (loading || (user && !activeGroupLoaded)) {
     return (
       <div className="flex-1 flex flex-col justify-center items-center bg-[#FAF7F2] text-[#0F3D2C] min-h-screen">
         <div className="animate-spin h-10 w-10 text-[#0F3D2C] mb-4">
@@ -204,11 +198,9 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   }
 
   // Approval Pending Wall check
-  const isApproved = user.role === "admin" || (
-    activeGroupId === "default" 
-      ? user.approved === true 
-      : user.groupData?.[activeGroupId]?.approved === true
-  );
+  const isApproved = isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup);
+  const isActiveGroupOwner = !!activeGroup && activeGroup.createdBy === user.uid;
+  const canManageGroup = isActiveGroupOwner || isSuperAdmin;
 
   return (
     <div className="min-h-screen flex bg-[#F7F4EB] text-[#1c2e24] relative overflow-x-hidden pb-16 md:pb-0">
@@ -332,7 +324,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </Link>
 
           {/* Admin panel routes if user is admin */}
-          {user.role === "admin" && (activeGroupId === "default" || groups.find(g => g.id === activeGroupId)?.createdBy === user.uid) && (
+          {canManageGroup && (
             <div className="border-t border-white/10 mt-3 pt-3 flex flex-col gap-2">
               <span className="text-[10px] uppercase tracking-wider text-[#D5A85A] font-bold px-4">Admin</span>
               <Link
@@ -395,7 +387,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           <div className="flex items-center gap-4 relative">
             
             {/* AI Icon (Desktop) - ONLY visible on Admin page */}
-            {user.role === "admin" && activeTab === "admin" && (
+            {activeTab === "admin" && (
               <Link
                 href="/admin/ai"
                 className="w-10 h-10 rounded-full bg-[#FAF7F2] border border-[#0F3D2C]/10 flex items-center justify-center text-[#0F3D2C] hover:bg-white hover:shadow-sm transition-all focus:outline-none"
@@ -484,7 +476,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                     <div className="flex flex-col gap-1.5 pb-2 border-b border-[#0F3D2C]/5 mb-1.5">
                       <span className="text-xs font-bold">{user.name}</span>
                       <span className="text-[10px] uppercase font-bold text-[#D5A85A] tracking-wider mt-0.5">
-                        Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
+                        Rol: {isActiveGroupOwner ? "Qrup sahibi" : "İştirakçı"}
                       </span>
                     </div>
                     <button
@@ -535,7 +527,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
           <div className="flex items-center gap-2 relative">
             {/* AI Icon (Mobile Header) - ONLY visible on Admin page */}
-            {user.role === "admin" && activeTab === "admin" && (
+            {activeTab === "admin" && (
               <Link
                 href="/admin/ai"
                 className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 transition-all"
@@ -619,7 +611,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                     <div className="flex flex-col gap-1 pb-2 border-b border-white/10 mb-1.5 font-sans">
                       <span className="font-bold">{user.name}</span>
                       <span className="text-[9px] uppercase font-bold text-[#D5A85A] tracking-wider mt-0.5">
-                        Rol: {user.role === "admin" ? "İnzibatçı" : "İştirakçı"}
+                        Rol: {isActiveGroupOwner ? "Qrup sahibi" : "İştirakçı"}
                       </span>
                     </div>
                     <button
@@ -698,7 +690,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </svg>
           <span className="text-[9px] font-semibold mt-0.5">Statistika</span>
         </Link>
-        {user.role === "admin" && (activeGroupId === "default" || groups.find(g => g.id === activeGroupId)?.createdBy === user.uid) && (
+        {canManageGroup && (
           <Link
             href="/admin"
             className={`flex flex-col items-center py-1 px-3 rounded-lg ${

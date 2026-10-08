@@ -1,4 +1,4 @@
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
 import { 
   doc, 
   getDoc, 
@@ -20,7 +20,7 @@ export interface UserDoc {
   name: string;
   email: string;
   photoURL: string;
-  role: "admin" | "user";
+  role: "admin" | "user"; // Legacy, ignored: super admins are listed in admins/{uid}
   firstName?: string;
   lastName?: string;
   nickname?: string;
@@ -91,11 +91,23 @@ export function getUserGroupIds(user: UserDoc | null): string[] {
   return Array.from(list);
 }
 
-export function isUserApprovedInGroup(user: UserDoc, groupId: string): boolean {
-  if (user.role === "admin") return true; // Admins are always approved
+export function isGroupOwner(user: UserDoc | null, group: GroupDoc | null | undefined): boolean {
+  return !!user && !!group && group.createdBy === user.uid;
+}
+
+// Approval lives on the group doc (members map), which only the group owner can change.
+// Groups created before the members map existed fall back to the legacy per-user flag
+// until their owner logs in and the map is backfilled.
+export function isUserApprovedInGroup(user: UserDoc, groupId: string, group?: GroupDoc | null): boolean {
   const gId = groupId || "default";
   if (gId === "default") {
     return user.approved === true;
+  }
+  if (group && group.id === gId) {
+    if (group.createdBy === user.uid) return true;
+    const status = group.members?.[user.uid];
+    if (status) return status === "owner" || status === "member";
+    if (group.membersBackfilled) return false;
   }
   return user.groupData?.[gId]?.approved === true;
 }
@@ -148,7 +160,12 @@ export interface GroupDoc {
   cycleStartJuz?: number;
   isCurrentKhatmCompleted?: boolean;
   completedKhatms?: number;
+  members?: Record<string, GroupMemberStatus>;
+  // True once members holds every member (new groups, or after the owner's backfill)
+  membersBackfilled?: boolean;
 }
+
+export type GroupMemberStatus = "owner" | "member" | "pending";
 
 export interface AppSettings {
   currentAyah?: string;
@@ -200,21 +217,18 @@ export async function createUserDoc(
     return existingDoc;
   }
 
-  const usersList = await getAllUsers();
-  const isFirstUser = usersList.length === 0;
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const newUser: Record<string, any> = {
     name: name || "Qonaq",
     email: email || "",
     photoURL: photoURL || "",
-    role: (isFirstUser ? "admin" : "user") as "admin" | "user",
+    role: "user",
     groupId: inviteGroupId || "",
     groupIds: inviteGroupId ? [inviteGroupId] : [],
     assignedPages: [],
     completedPages: [],
     createdAt: serverTimestamp(),
-    approved: isFirstUser, // First user (admin) is approved, others require approval
+    approved: false,
     totalCompletedPages: 0,
     isOnboarded: false, // Onboarding completes on OnboardingScreen
   };
@@ -222,7 +236,7 @@ export async function createUserDoc(
   if (inviteGroupId) {
     newUser.groupData = {
       [inviteGroupId]: {
-        approved: isFirstUser,
+        approved: false,
         assignedPages: [],
         completedPages: [],
         completedAt: {},
@@ -240,6 +254,9 @@ export async function createUserDoc(
   }
 
   await setDoc(docRef, newUser);
+  if (inviteGroupId) {
+    await requestGroupMembership(uid, inviteGroupId);
+  }
   return { uid, ...newUser } as unknown as UserDoc;
 }
 
@@ -362,64 +379,41 @@ export async function toggleCompletedPages(
   }
 }
 
-// Update a user's role in Firestore
-export async function updateUserRole(
-  uid: string,
-  role: "admin" | "user"
-): Promise<void> {
-  const docRef = doc(db, "users", uid);
-  await updateDoc(docRef, { role });
-}
-
-// Check if the current Khatm (all 604 pages) is completed and update settings
+// Check if the current Khatm (all 604 pages) is completed and update the group counters
 export async function checkAndUpdateKhatmCompletion(groupId?: string | null): Promise<void> {
   try {
     const effectiveGroupId = groupId || "default";
-    const users = await getAllUsers();
-    const groupUsers = users.filter((u) => (u.groupId || "default") === effectiveGroupId && u.approved !== false);
-    
+    if (effectiveGroupId === "default") return; // The legacy system group is no longer used
+
+    const [users, group] = await Promise.all([getAllUsers(), getGroupDoc(effectiveGroupId)]);
+    if (!group) return;
+    const groupUsers = users.filter(
+      (u) => getUserGroupIds(u).includes(effectiveGroupId) && isUserApprovedInGroup(u, effectiveGroupId, group)
+    );
+
     // Calculate unique completed pages
     const completedPagesSet = new Set<number>();
     groupUsers.forEach((u) => {
-      const assigned = u.assignedPages || [];
-      const completed = u.completedPages || [];
-      completed.forEach((page) => {
+      const assignment = getUserAssignment(u, effectiveGroupId);
+      const assigned = assignment.assignedPages || [];
+      (assignment.completedPages || []).forEach((page) => {
         if (page >= 1 && page <= 604 && assigned.includes(page)) {
           completedPagesSet.add(page);
         }
       });
     });
 
-    const totalUniqueCompleted = completedPagesSet.size;
-    const settings = await getGroupSettings(effectiveGroupId);
-    const isCompleted = totalUniqueCompleted === 604;
-
-    if (effectiveGroupId === "default") {
-      const docRef = doc(db, "settings", "config");
-      if (isCompleted && !settings.isCurrentKhatmCompleted) {
-        const currentCount = settings.completedKhatms || 0;
-        await updateDoc(docRef, {
-          completedKhatms: currentCount + 1,
-          isCurrentKhatmCompleted: true
-        });
-      } else if (!isCompleted && settings.isCurrentKhatmCompleted) {
-        await updateDoc(docRef, {
-          isCurrentKhatmCompleted: false
-        });
-      }
-    } else {
-      const docRef = doc(db, "groups", effectiveGroupId);
-      if (isCompleted && !settings.isCurrentKhatmCompleted) {
-        const currentCount = settings.completedKhatms || 0;
-        await updateDoc(docRef, {
-          completedKhatms: currentCount + 1,
-          isCurrentKhatmCompleted: true
-        });
-      } else if (!isCompleted && settings.isCurrentKhatmCompleted) {
-        await updateDoc(docRef, {
-          isCurrentKhatmCompleted: false
-        });
-      }
+    const isCompleted = completedPagesSet.size === 604;
+    const docRef = doc(db, "groups", effectiveGroupId);
+    if (isCompleted && !group.isCurrentKhatmCompleted) {
+      await updateDoc(docRef, {
+        completedKhatms: (group.completedKhatms || 0) + 1,
+        isCurrentKhatmCompleted: true
+      });
+    } else if (!isCompleted && group.isCurrentKhatmCompleted) {
+      await updateDoc(docRef, {
+        isCurrentKhatmCompleted: false
+      });
     }
   } catch (err) {
     console.error("Error in checkAndUpdateKhatmCompletion:", err);
@@ -457,7 +451,8 @@ export async function setAssignmentForUser(
       [`groupData.${gId}.assignmentEndDate`]: endDate,
       [`groupData.${gId}.assignedJuz`]: juzNumber || null,
       [`groupData.${gId}.assignedJuzs`]: juzNumber ? [juzNumber] : [],
-      [`groupData.${gId}.totalCompletedPages`]: 0
+      [`groupData.${gId}.totalCompletedPages`]: 0,
+      lastEditedGroup: gId
     });
   }
 }
@@ -469,10 +464,10 @@ export async function distributeJuzToUsers(
   groupId?: string | null
 ): Promise<void> {
   const effectiveGroupId = groupId || "default";
-  const users = await getAllUsers();
+  const [users, group] = await Promise.all([getAllUsers(), getGroupDoc(effectiveGroupId)]);
   // Sort users stably by name, with UID as fallback to be deterministic, filtered by group and approved
   const activeUsers = users
-    .filter((u) => getUserGroupIds(u).includes(effectiveGroupId) && isUserApprovedInGroup(u, effectiveGroupId))
+    .filter((u) => getUserGroupIds(u).includes(effectiveGroupId) && isUserApprovedInGroup(u, effectiveGroupId, group))
     .sort((a, b) => a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid));
 
   if (activeUsers.length === 0) return;
@@ -539,7 +534,8 @@ export async function distributeJuzToUsers(
         [`groupData.${effectiveGroupId}.assignmentEndDate`]: endDate,
         [`groupData.${effectiveGroupId}.assignedJuz`]: assignedJuz,
         [`groupData.${effectiveGroupId}.assignedJuzs`]: [assignedJuz],
-        [`groupData.${effectiveGroupId}.totalCompletedPages`]: 0
+        [`groupData.${effectiveGroupId}.totalCompletedPages`]: 0,
+        lastEditedGroup: effectiveGroupId
       };
 
       if (gd && gd.assignedPages && gd.assignedPages.length > 0) {
@@ -681,24 +677,17 @@ export async function deleteUserDoc(uid: string): Promise<void> {
   await deleteDoc(docRef);
 }
 
-// Update user approval status
-export async function updateUserApproval(uid: string, approved: boolean, groupId?: string | null): Promise<void> {
-  const docRef = doc(db, "users", uid);
-  const gId = groupId || "default";
-  if (gId === "default") {
-    await updateDoc(docRef, { approved });
-  } else {
-    await updateDoc(docRef, {
-      approved: true, // Approve globally so they can get past the global guard
-      [`groupData.${gId}.approved`]: approved
-    });
-  }
+// Approve (or move back to pending) a member of a group. Only the group owner can do this.
+export async function updateUserApproval(uid: string, approved: boolean, groupId: string): Promise<void> {
+  await updateDoc(doc(db, "groups", groupId), {
+    [`members.${uid}`]: approved ? "member" : "pending"
+  });
 }
 
-// Update user admin notification message
-export async function updateUserAdminNotification(uid: string, message: string): Promise<void> {
+// Update user admin notification message (sent by the owner of groupId)
+export async function updateUserAdminNotification(uid: string, message: string, groupId: string): Promise<void> {
   const docRef = doc(db, "users", uid);
-  await updateDoc(docRef, { adminNotification: message });
+  await updateDoc(docRef, { adminNotification: message, lastEditedGroup: groupId });
 }
 
 // Toggle completion for a page in a previous assignment
@@ -812,7 +801,8 @@ export async function clearAllAssignments(groupId?: string | null): Promise<void
         [`groupData.${effectiveGroupId}.previousCompletedPages`]: [],
         [`groupData.${effectiveGroupId}.previousStartDate`]: "",
         [`groupData.${effectiveGroupId}.previousEndDate`]: "",
-        [`groupData.${effectiveGroupId}.totalCompletedPages`]: 0
+        [`groupData.${effectiveGroupId}.totalCompletedPages`]: 0,
+        lastEditedGroup: effectiveGroupId
       });
     }
   }
@@ -876,9 +866,12 @@ export async function sendPushNotificationForCompletedPages(
 
     if (subscriptions.length === 0) return;
 
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return;
+
     await fetch("/api/send-push", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
       body: JSON.stringify({
         senderName,
         pageNumbers,
@@ -963,7 +956,7 @@ export async function getGroupDoc(groupId: string): Promise<GroupDoc | null> {
   }
 }
 
-// Create a new group
+// Create a new group owned by createdBy
 export async function createGroup(name: string, createdBy: string): Promise<string> {
   const { addDoc, collection, doc: fsDoc, updateDoc, arrayUnion } = await import("firebase/firestore");
   const docRef = await addDoc(collection(db, "groups"), {
@@ -973,13 +966,15 @@ export async function createGroup(name: string, createdBy: string): Promise<stri
     lastDistributedJuz: 0,
     cycleStartJuz: 1,
     isCurrentKhatmCompleted: false,
-    completedKhatms: 0
+    completedKhatms: 0,
+    members: { [createdBy]: "owner" },
+    membersBackfilled: true
   });
 
   const creatorRef = fsDoc(db, "users", createdBy);
   await updateDoc(creatorRef, {
     groupIds: arrayUnion(docRef.id),
-    [`groupData.${docRef.id}.approved`]: true // Creator is automatically approved in their own group!
+    [`groupData.${docRef.id}.approved`]: true
   });
 
   return docRef.id;
@@ -1004,69 +999,117 @@ export async function getGroupsCreatedBy(adminUid: string): Promise<GroupDoc[]> 
   }
 }
 
-// Update a user's group and clear their assignments
-export async function updateUserGroup(uid: string, groupId: string, approved: boolean): Promise<void> {
-  const { doc, updateDoc, arrayUnion } = await import("firebase/firestore");
-  const docRef = doc(db, "users", uid);
-  await updateDoc(docRef, {
-    groupId,
-    groupIds: arrayUnion(groupId),
-    [`groupData.${groupId}.approved`]: approved,
-    [`groupData.${groupId}.assignedPages`]: [],
-    [`groupData.${groupId}.completedPages`]: [],
-    [`groupData.${groupId}.completedAt`]: {},
-    [`groupData.${groupId}.assignedJuz`]: null,
-    [`groupData.${groupId}.assignedJuzs`]: [],
-    [`groupData.${groupId}.previousAssignedPages`]: [],
-    [`groupData.${groupId}.previousCompletedPages`]: [],
-    [`groupData.${groupId}.previousStartDate`]: "",
-    [`groupData.${groupId}.previousEndDate`]: "",
-    [`groupData.${groupId}.totalCompletedPages`]: 0
+// Ask to join a group: adds the user to the group's members map as pending.
+// Existing entries (owner, approved member, pending) are left untouched.
+export async function requestGroupMembership(uid: string, groupId: string): Promise<void> {
+  const group = await getGroupDoc(groupId);
+  if (!group) return;
+  if (group.createdBy === uid || group.members?.[uid]) return;
+  await updateDoc(doc(db, "groups", groupId), {
+    [`members.${uid}`]: "pending"
   });
+}
+
+// Join a group from an invite link. Progress in a group the user already belongs to is kept.
+export async function joinGroup(user: UserDoc, groupId: string): Promise<void> {
+  const { arrayUnion } = await import("firebase/firestore");
+  const docRef = doc(db, "users", user.uid);
+  const alreadyMember = (user.groupIds || []).includes(groupId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: Record<string, any> = { groupId };
+  if (!alreadyMember) {
+    updates.groupIds = arrayUnion(groupId);
+    updates[`groupData.${groupId}`] = {
+      approved: false,
+      assignedPages: [],
+      completedPages: [],
+      completedAt: {},
+      assignedJuz: null,
+      assignedJuzs: [],
+      previousAssignedPages: [],
+      previousCompletedPages: [],
+      previousStartDate: "",
+      previousEndDate: "",
+      totalCompletedPages: 0
+    };
+  }
+  await updateDoc(docRef, updates);
+  await requestGroupMembership(user.uid, groupId);
+}
+
+// Remove a user from a group (used by the group owner to reject or remove a member)
+export async function removeUserFromGroup(user: UserDoc, groupId: string): Promise<void> {
+  const { writeBatch, deleteField } = await import("firebase/firestore");
+  const remainingGroupIds = (user.groupIds || []).filter((id) => id !== groupId);
+  const batch = writeBatch(db);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userUpdates: Record<string, any> = {
+    groupIds: remainingGroupIds,
+    [`groupData.${groupId}`]: deleteField(),
+    lastEditedGroup: groupId
+  };
+  if (user.groupId === groupId) {
+    userUpdates.groupId = remainingGroupIds[0] || "";
+  }
+  batch.update(doc(db, "users", user.uid), userUpdates);
+  batch.update(doc(db, "groups", groupId), {
+    [`members.${user.uid}`]: deleteField()
+  });
+  await batch.commit();
+}
+
+// Fill in the members map for groups created before it existed.
+// Must be run by the group owner; existing entries are kept.
+export async function backfillGroupMembers(group: GroupDoc, users: UserDoc[]): Promise<void> {
+  if (group.membersBackfilled) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: Record<string, any> = { membersBackfilled: true };
+  if (!group.members?.[group.createdBy]) {
+    updates[`members.${group.createdBy}`] = "owner";
+  }
+  users.forEach((u) => {
+    if (u.uid === group.createdBy || group.members?.[u.uid]) return;
+    if (!getUserGroupIds(u).includes(group.id)) return;
+    updates[`members.${u.uid}`] = u.groupData?.[group.id]?.approved === true ? "member" : "pending";
+  });
+  await updateDoc(doc(db, "groups", group.id), updates);
 }
 
 // Delete a group and clean up user documents
 export async function deleteGroup(groupId: string): Promise<void> {
   if (!groupId) return;
-  const { doc, deleteDoc, writeBatch, deleteField } = await import("firebase/firestore");
-  
-  // 1. Delete group document
-  const groupRef = doc(db, "groups", groupId);
-  await deleteDoc(groupRef);
-  
-  // 2. Clean up users' groupIds and groupData
+  const { writeBatch, deleteField } = await import("firebase/firestore");
+
+  // Member cleanup and the group delete go in one batch: the rules check group ownership
+  // against the group doc, so it has to still exist while members are updated.
   const users = await getAllUsers();
   const batch = writeBatch(db);
-  let updatedCount = 0;
-  
+
   for (const u of users) {
     const userGroupIds = u.groupIds || [];
     const hasGroup = userGroupIds.includes(groupId) || u.groupId === groupId || (u.groupData && u.groupData[groupId]);
-    
-    if (hasGroup) {
-      const userRef = doc(db, "users", u.uid);
-      const newGroupIds = userGroupIds.filter(id => id !== groupId);
-      
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updates: Record<string, any> = {
-        groupIds: newGroupIds,
-        [`groupData.${groupId}`]: deleteField()
-      };
-      
-      if (u.groupId === groupId) {
-        updates.groupId = newGroupIds.length > 0 ? newGroupIds[0] : "";
-        if (newGroupIds.length === 0) {
-          updates.isOnboarded = false;
-        }
-      }
-      
-      batch.update(userRef, updates);
-      updatedCount++;
-    }
-  }
-  
-  if (updatedCount > 0) {
-    await batch.commit();
-  }
-}
+    if (!hasGroup) continue;
 
+    const newGroupIds = userGroupIds.filter(id => id !== groupId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: Record<string, any> = {
+      groupIds: newGroupIds,
+      [`groupData.${groupId}`]: deleteField(),
+      lastEditedGroup: groupId
+    };
+
+    if (u.groupId === groupId) {
+      updates.groupId = newGroupIds.length > 0 ? newGroupIds[0] : "";
+      if (newGroupIds.length === 0) {
+        updates.isOnboarded = false;
+      }
+    }
+
+    batch.update(doc(db, "users", u.uid), updates);
+  }
+
+  batch.delete(doc(db, "groups", groupId));
+  await batch.commit();
+}

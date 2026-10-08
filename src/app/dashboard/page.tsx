@@ -6,7 +6,7 @@ import {
   type UserDoc, 
   type AppSettings, 
   getGroupDoc, 
-  updateUserGroup, 
+  joinGroup, 
   type GroupDoc, 
   getUserGroupIds, 
   getUserAssignment,
@@ -53,7 +53,7 @@ const JUZ_MAP: Record<number, { surah: string }> = {
 };
 
 function DashboardContent() {
-  const { user, loading, refreshUser, activeGroupId } = useAuth();
+  const { user, loading, refreshUser, activeGroupId, setActiveGroupId, activeGroup } = useAuth();
   const [allUsers, setAllUsers] = useState<UserDoc[]>([]);
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [isMarking, setIsMarking] = useState(false);
@@ -94,6 +94,12 @@ function DashboardContent() {
   const inviteGroupId = searchParams.get("invite");
   useEffect(() => {
     if (user && inviteGroupId && inviteGroupId !== (user.groupId || "default")) {
+      // Already a member: just switch to that group instead of re-joining
+      if ((user.groupIds || []).includes(inviteGroupId)) {
+        setActiveGroupId(inviteGroupId);
+        window.history.replaceState({}, "", "/dashboard");
+        return;
+      }
       getGroupDoc(inviteGroupId).then((group) => {
         if (group) {
           setInviteGroup(group);
@@ -101,12 +107,14 @@ function DashboardContent() {
         }
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, inviteGroupId]);
 
   const handleJoinGroup = async () => {
     if (!user || !inviteGroup) return;
     try {
-      await updateUserGroup(user.uid, inviteGroup.id, false);
+      await joinGroup(user, inviteGroup.id);
+      setActiveGroupId(inviteGroup.id);
       setShowInviteModal(false);
       window.history.replaceState({}, "", "/dashboard");
       window.location.reload();
@@ -201,7 +209,7 @@ function DashboardContent() {
   // Filter list by same group and only approved ones (or the group creator)
   const filteredUsers = allUsers.filter((u) => 
     (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
-    && isUserApprovedInGroup(u, activeGroupId)
+    && isUserApprovedInGroup(u, activeGroupId, activeGroup)
   );
 
   const assignedPages = activeAssignment?.assignedPages || [];

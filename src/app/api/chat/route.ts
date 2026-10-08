@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchQuran, searchHadiths } from "@/lib/rag";
+import { verifyRequestUser, isRateLimited } from "@/lib/serverAuth";
 
 export async function POST(req: NextRequest) {
   try {
+    const uid = await verifyRequestUser(req);
+    if (!uid) {
+      return NextResponse.json({ error: "Giriş tələb olunur." }, { status: 401 });
+    }
+    if (isRateLimited(`chat:${uid}`, 20, 10 * 60 * 1000)) {
+      return NextResponse.json(
+        { error: "Çox sayda sorğu göndərdiniz. Zəhmət olmasa bir neçə dəqiqə sonra yenidən cəhd edin." },
+        { status: 429 }
+      );
+    }
+
     const { messages } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {

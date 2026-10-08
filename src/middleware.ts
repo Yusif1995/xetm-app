@@ -3,7 +3,6 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   const uid = request.cookies.get("khatm_uid")?.value;
-  const role = request.cookies.get("khatm_role")?.value;
   
   const { pathname } = request.nextUrl;
   
@@ -34,12 +33,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 3. If accessing admin page (/admin*) and role is not admin -> Redirect to dashboard (/dashboard)
-  if (pathname.startsWith("/admin") && role !== "admin") {
-    const url = new URL("/dashboard", request.url);
-    url.search = request.nextUrl.search;
-    return NextResponse.redirect(url);
-  }
+  // Admin pages check group ownership themselves; a role cookie could be set by anyone.
 
   return NextResponse.next();
 }

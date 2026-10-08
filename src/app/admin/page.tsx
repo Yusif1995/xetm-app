@@ -8,16 +8,15 @@ import {
   setGroupSettings, 
   setAssignmentForUser,
   distributeJuzToUsers,
-  updateUserRole,
   clearAllAssignments,
   updateUserAdminNotification,
-  deleteUserDoc,
   createGroup,
   updateUserApproval,
   getUserGroupIds,
   getUserAssignment,
   deleteGroup,
   isUserApprovedInGroup,
+  removeUserFromGroup,
   type UserDoc, 
   type AppSettings,
   type GroupDoc
@@ -63,7 +62,7 @@ const JUZ_MAP: Record<number, { surah: string }> = {
 };
 
 export default function AdminPage() {
-  const { user: currentUser, loading: authLoading, activeGroupId, setActiveGroupId } = useAuth();
+  const { user: currentUser, loading: authLoading, activeGroupId, setActiveGroupId, activeGroup, activeGroupLoaded, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -199,7 +198,7 @@ export default function AdminPage() {
     }
   }, [users, activeGroupId, groupStartDate, groupEndDate]);
 
-  if (authLoading || loading) {
+  if (authLoading || loading || !activeGroupLoaded) {
     return (
       <div className="flex-1 flex flex-col justify-center items-center bg-[#FAF7F2] text-[#0F3D2C] min-h-screen">
         <div className="animate-spin h-10 w-10 text-[#0F3D2C] mb-4">
@@ -213,19 +212,19 @@ export default function AdminPage() {
     );
   }
 
-  if (!currentUser || currentUser.role !== "admin") {
+  if (!currentUser) {
     return null; // Guarded by middleware
   }
 
-  const isCreatorOfGroup = activeGroupId === "default" || !groupCreatedBy || groupCreatedBy === currentUser.uid;
+  const isCreatorOfGroup = isSuperAdmin || (!!activeGroup && activeGroup.createdBy === currentUser.uid);
 
   // Calculate unique pages completed by the selected group out of 604
   const groupUsers = users.filter((u) => 
     getUserGroupIds(u).includes(activeGroupId) || 
     (groupCreatedBy && u.uid === groupCreatedBy)
   );
-  const activeGroupUsers = groupUsers.filter((u) => isUserApprovedInGroup(u, activeGroupId));
-  const pendingGroupUsers = groupUsers.filter((u) => !isUserApprovedInGroup(u, activeGroupId));
+  const activeGroupUsers = groupUsers.filter((u) => isUserApprovedInGroup(u, activeGroupId, activeGroup));
+  const pendingGroupUsers = groupUsers.filter((u) => !isUserApprovedInGroup(u, activeGroupId, activeGroup));
 
   const completedPagesSet = new Set<number>();
   activeGroupUsers.forEach((u) => {
@@ -258,9 +257,9 @@ export default function AdminPage() {
     if (window.confirm(`${user.name} adlı iştirakçının qoşulmaq istəyini rədd etmək istəyirsiniz?`)) {
       try {
         setLoading(true);
-        await deleteUserDoc(user.uid);
+        await removeUserFromGroup(user, activeGroupId);
         await loadData();
-        alert("İstək rədd edildi və silindi.");
+        alert("İstək rədd edildi.");
       } catch (err) {
         console.error("Error rejecting user:", err);
         alert("Rədd edərkən xəta baş verdi.");
@@ -328,17 +327,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleRoleToggle = async (user: UserDoc) => {
-    try {
-      const newRole = user.role === "admin" ? "user" : "admin";
-      await updateUserRole(user.uid, newRole);
-      await loadData();
-    } catch (err) {
-      console.error("Error toggling role:", err);
-      alert("Rol dəyişdirilərkən xəta baş verdi.");
-    }
-  };
-
   const handleClearAll = async () => {
     if (window.confirm("Bütün iştirakçıların səhifə təyinatlarını və arxiv tarixçələrini tamamilə sıfırlamaq (təmizləmək) istəyirsiniz?")) {
       try {
@@ -362,7 +350,7 @@ export default function AdminPage() {
     );
     if (msg !== null) {
       try {
-        await updateUserAdminNotification(user.uid, msg);
+        await updateUserAdminNotification(user.uid, msg, activeGroupId);
         await loadData();
       } catch (err) {
         console.error("Error updating admin notification:", err);
@@ -372,25 +360,13 @@ export default function AdminPage() {
   };
 
   const handleRemoveUser = async (user: UserDoc) => {
-    const groupName = activeGroupId === "default" 
-      ? "Sistem Qrupu"
-      : createdGroups.find(g => g.id === activeGroupId)?.name || "fərdi qrup";
+    const groupName = activeGroup?.name || "fərdi qrup";
 
     if (window.confirm(`${user.name} adlı iştirakçını “${groupName}” qrupundan kənarlaşdırmaq istədiyinizə əminsiniz?`)) {
       try {
         setLoading(true);
-        if (activeGroupId === "default") {
-          await deleteUserDoc(user.uid);
-          alert("İştirakçı Sistem Qrupundan (və tətbiqdən) silindi.");
-        } else {
-          const { doc, updateDoc, arrayRemove, deleteField } = await import("firebase/firestore");
-          const userRef = doc(db, "users", user.uid);
-          await updateDoc(userRef, {
-            groupIds: arrayRemove(activeGroupId),
-            [`groupData.${activeGroupId}`]: deleteField()
-          });
-          alert(`İştirakçı “${groupName}” qrupundan kənarlaşdırıldı.`);
-        }
+        await removeUserFromGroup(user, activeGroupId);
+        alert(`İştirakçı “${groupName}” qrupundan kənarlaşdırıldı.`);
         await loadData();
       } catch (err) {
         console.error("Error removing user:", err);
@@ -1114,7 +1090,6 @@ export default function AdminPage() {
                         user={u} 
                         isAdminView={true} 
                         groupCreatedBy={groupCreatedBy}
-                        onRoleToggle={handleRoleToggle}
                         onNotifyClick={handleNotifyClick}
                         onRemoveUserClick={handleRemoveUser}
                       />

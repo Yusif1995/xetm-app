@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
+import { verifyRequestUser, isRateLimited } from "@/lib/serverAuth";
+
+const MAX_SUBSCRIPTIONS = 500;
 
 let vapidConfigured = false;
 
@@ -23,15 +26,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Push notifications are not configured" }, { status: 500 });
     }
 
+    const uid = await verifyRequestUser(req);
+    if (!uid) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (isRateLimited(`push:${uid}`, 30, 10 * 60 * 1000)) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     const { senderName, pageNumbers, subscriptions } = await req.json();
 
     if (!senderName || !pageNumbers || !Array.isArray(pageNumbers) || pageNumbers.length === 0 || !Array.isArray(subscriptions)) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
+    if (
+      typeof senderName !== "string" || senderName.length > 100 ||
+      pageNumbers.length > 604 || !pageNumbers.every((p) => Number.isInteger(p) && p >= 1 && p <= 604) ||
+      subscriptions.length > MAX_SUBSCRIPTIONS
+    ) {
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
 
     const payload = JSON.stringify({
       title: "Quran Xətm - Yeni Tamamlama!",
-      body: `${senderName} yeni səhifəni tamamladı: Səhifə ${pageNumbers.sort((a, b) => a - b).join(", ")}`,
+      body: `${senderName} yeni səhifəni tamamladı: Səhifə ${(pageNumbers as number[]).sort((a, b) => a - b).join(", ")}`,
       icon: "/icon.png",
       badge: "/favicon.ico",
       vibrate: [200, 100, 200],
