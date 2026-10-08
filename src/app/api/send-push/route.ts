@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
 
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "diItSNkdB7QOBkjy4dH2YgmOu6uKRhNIWACqjreiCDw";
+let vapidConfigured = false;
 
-webpush.setVapidDetails(
-  "mailto:info@xetm.app",
-  vapidPublicKey,
-  vapidPrivateKey
-);
+// Configure lazily so a missing env var fails the request instead of the build
+function ensureVapidConfigured(): boolean {
+  if (vapidConfigured) return true;
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    return false;
+  }
+  webpush.setVapidDetails("mailto:info@xetm.app", vapidPublicKey, vapidPrivateKey);
+  vapidConfigured = true;
+  return true;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    if (!ensureVapidConfigured()) {
+      console.error("VAPID keys are not configured (NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).");
+      return NextResponse.json({ error: "Push notifications are not configured" }, { status: 500 });
+    }
+
     const { senderName, pageNumbers, subscriptions } = await req.json();
 
     if (!senderName || !pageNumbers || !Array.isArray(pageNumbers) || pageNumbers.length === 0 || !Array.isArray(subscriptions)) {

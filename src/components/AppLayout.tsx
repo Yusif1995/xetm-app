@@ -5,27 +5,13 @@ import { useState, useEffect, useRef } from "react";
 import { IslamicBorders } from "./IslamicBorders";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
-import { addPushSubscription, getGroupDoc, getUserGroupIds, getUserAssignment, createGroup, type UserDoc, type GroupDoc } from "@/lib/db";
+import { getGroupDoc, getUserGroupIds, getUserAssignment, createGroup, type UserDoc, type GroupDoc } from "@/lib/db";
 import OnboardingScreen from "./OnboardingScreen";
+import { isPushSupported, registerPushSubscription } from "@/lib/push";
 
 interface AppLayoutProps {
   children: React.ReactNode;
   activeTab: "dashboard" | "readings" | "progress" | "stats" | "admin" | "ai";
-}
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding)
-    .replace(/\-/g, '+')
-    .replace(/_/g, '/');
-
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
 }
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
@@ -99,7 +85,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     if (!user) return;
     
     const initPush = async () => {
-      if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+      if (isPushSupported()) {
         let permission = Notification.permission;
         if (permission === "default") {
           permission = await Notification.requestPermission();
@@ -107,19 +93,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         
         if (permission === "granted") {
           try {
-            const registration = await navigator.serviceWorker.ready;
-            let subscription = await registration.pushManager.getSubscription();
-            
-            if (!subscription) {
-              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-              subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(publicKey)
-              });
-            }
-            
-            if (subscription) {
-              await addPushSubscription(user.uid, JSON.stringify(subscription));
+            if (await registerPushSubscription(user.uid)) {
               console.log("Registered Push Subscription for user", user.uid);
             }
           } catch (err) {
@@ -458,18 +432,15 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                     <button
                       onClick={async () => {
                         setIsNotificationsOpen(false);
-                        if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+                        if (isPushSupported()) {
                           try {
                             const permission = await Notification.requestPermission();
                             if (permission === "granted") {
-                              const registration = await navigator.serviceWorker.ready;
-                              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-                              const subscription = await registration.pushManager.subscribe({
-                                userVisibleOnly: true,
-                                applicationServerKey: urlBase64ToUint8Array(publicKey)
-                              });
-                              await addPushSubscription(user.uid, JSON.stringify(subscription));
-                              alert("Bildirişlər uğurla aktiv edildi!");
+                              if (await registerPushSubscription(user.uid)) {
+                                alert("Bildirişlər uğurla aktiv edildi!");
+                              } else {
+                                alert("Bildirişlər hazırda konfiqurasiya edilməyib.");
+                              }
                             } else {
                               alert("Bildiriş icazəsi rədd edildi: " + permission);
                             }
@@ -599,18 +570,15 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                     <button
                       onClick={async () => {
                         setIsNotificationsOpen(false);
-                        if (typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window) {
+                        if (isPushSupported()) {
                           try {
                             const permission = await Notification.requestPermission();
                             if (permission === "granted") {
-                              const registration = await navigator.serviceWorker.ready;
-                              const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BFwS55H6VsjxTHDxWkRhjtW7Dy7VWHZ596I9Ak6rSjYOFRYI-2KQo9e67cGUawT79VkS4V9eAQyo73r5dgp03hg";
-                              const subscription = await registration.pushManager.subscribe({
-                                userVisibleOnly: true,
-                                applicationServerKey: urlBase64ToUint8Array(publicKey)
-                              });
-                              await addPushSubscription(user.uid, JSON.stringify(subscription));
-                              alert("Bildirişlər uğurla aktiv edildi!");
+                              if (await registerPushSubscription(user.uid)) {
+                                alert("Bildirişlər uğurla aktiv edildi!");
+                              } else {
+                                alert("Bildirişlər hazırda konfiqurasiya edilməyib.");
+                              }
                             } else {
                               alert("Bildiriş icazəsi rədd edildi: " + permission);
                             }
