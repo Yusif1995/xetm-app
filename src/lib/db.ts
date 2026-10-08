@@ -12,7 +12,10 @@ import {
   orderBy,
   serverTimestamp,
   deleteField,
-  deleteDoc
+  deleteDoc,
+  runTransaction,
+  where,
+  type DocumentData
 } from "firebase/firestore";
 
 export interface UserDoc {
@@ -183,19 +186,24 @@ export interface AppSettings {
   lastDailyUpdate?: string;
 }
 
-// Fetch a single user by UID
+function toUserDoc(uid: string, data: DocumentData): UserDoc {
+  const totalCompletedPages = data.totalCompletedPages !== undefined
+    ? data.totalCompletedPages
+    : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
+  return { uid, ...data, totalCompletedPages } as UserDoc;
+}
+
+// Fetch a single user by UID. Returns null only when the doc does not exist;
+// read errors (e.g. "client is offline") are thrown, never reported as a missing user.
+export async function fetchUserDoc(uid: string): Promise<UserDoc | null> {
+  const docSnap = await getDoc(doc(db, "users", uid));
+  return docSnap.exists() ? toUserDoc(uid, docSnap.data()) : null;
+}
+
+// Fetch a single user by UID (null on missing doc or error)
 export async function getUserDoc(uid: string): Promise<UserDoc | null> {
   try {
-    const docRef = doc(db, "users", uid);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      const totalCompletedPages = data.totalCompletedPages !== undefined
-        ? data.totalCompletedPages
-        : ((data.completedPages?.length || 0) + (data.previousCompletedPages?.length || 0));
-      return { uid, ...data, totalCompletedPages } as UserDoc;
-    }
-    return null;
+    return await fetchUserDoc(uid);
   } catch (error) {
     console.error("Error in getUserDoc:", error);
     return null;
@@ -211,11 +219,6 @@ export async function createUserDoc(
   inviteGroupId?: string
 ): Promise<UserDoc> {
   const docRef = doc(db, "users", uid);
-  const existingDoc = await getUserDoc(uid);
-  
-  if (existingDoc) {
-    return existingDoc;
-  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const newUser: Record<string, any> = {
@@ -253,7 +256,16 @@ export async function createUserDoc(
     };
   }
 
-  await setDoc(docRef, newUser);
+  // The existence check runs inside a transaction against the server, so an existing
+  // account is never overwritten (a cached/offline read can no longer look like "no user").
+  const existing = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(docRef);
+    if (snap.exists()) return toUserDoc(uid, snap.data());
+    tx.set(docRef, newUser);
+    return null;
+  });
+  if (existing) return existing;
+
   if (inviteGroupId) {
     await requestGroupMembership(uid, inviteGroupId);
   }
@@ -1010,6 +1022,52 @@ export async function requestGroupMembership(uid: string, groupId: string): Prom
   });
 }
 
+// Groups whose members map lists this user (owner, approved member or pending)
+export async function getMyGroupMemberships(uid: string): Promise<GroupDoc[]> {
+  const q = query(collection(db, "groups"), where(`members.${uid}`, "in", ["owner", "member", "pending"]));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as GroupDoc));
+}
+
+// Re-link groups the user belongs to (per the group docs) but that are missing from their
+// user doc, e.g. after the doc was recreated. Returns the user doc, updated if anything changed.
+export async function restoreGroupMemberships(user: UserDoc): Promise<UserDoc> {
+  const groups = await getMyGroupMemberships(user.uid);
+  const currentIds = user.groupIds || [];
+  const missing = groups.filter((g) => !currentIds.includes(g.id));
+  const activeIsValid = !!user.groupId && groups.some((g) => g.id === user.groupId);
+  if (missing.length === 0 && (activeIsValid || groups.length === 0)) return user;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: Record<string, any> = {};
+  if (missing.length > 0) {
+    updates.groupIds = arrayUnion(...missing.map((g) => g.id));
+  }
+  missing.forEach((g) => {
+    if (user.groupData?.[g.id]) return;
+    updates[`groupData.${g.id}`] = {
+      approved: false,
+      assignedPages: [],
+      completedPages: [],
+      completedAt: {},
+      assignedJuz: null,
+      assignedJuzs: [],
+      previousAssignedPages: [],
+      previousCompletedPages: [],
+      previousStartDate: "",
+      previousEndDate: "",
+      totalCompletedPages: 0
+    };
+  });
+  if (!activeIsValid && groups.length > 0) {
+    const preferred = groups.find((g) => g.members?.[user.uid] !== "pending") || groups[0];
+    updates.groupId = preferred.id;
+  }
+
+  await updateDoc(doc(db, "users", user.uid), updates);
+  return (await getUserDoc(user.uid)) || user;
+}
+
 // Join a group from an invite link. Progress in a group the user already belongs to is kept.
 export async function joinGroup(user: UserDoc, groupId: string): Promise<void> {
   const { arrayUnion } = await import("firebase/firestore");
@@ -1049,6 +1107,27 @@ export async function removeUserFromGroup(user: UserDoc, groupId: string): Promi
     groupIds: remainingGroupIds,
     [`groupData.${groupId}`]: deleteField(),
     lastEditedGroup: groupId
+  };
+  if (user.groupId === groupId) {
+    userUpdates.groupId = remainingGroupIds[0] || "";
+  }
+  batch.update(doc(db, "users", user.uid), userUpdates);
+  batch.update(doc(db, "groups", groupId), {
+    [`members.${user.uid}`]: deleteField()
+  });
+  await batch.commit();
+}
+
+// The user leaves a group they belong to (not allowed for the owner)
+export async function leaveGroup(user: UserDoc, groupId: string): Promise<void> {
+  const { writeBatch } = await import("firebase/firestore");
+  const remainingGroupIds = (user.groupIds || []).filter((id) => id !== groupId);
+  const batch = writeBatch(db);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userUpdates: Record<string, any> = {
+    groupIds: remainingGroupIds,
+    [`groupData.${groupId}`]: deleteField()
   };
   if (user.groupId === groupId) {
     userUpdates.groupId = remainingGroupIds[0] || "";

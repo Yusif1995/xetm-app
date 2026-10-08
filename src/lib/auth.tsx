@@ -12,7 +12,9 @@ import { auth, db } from "./firebase";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import {
   getUserDoc,
+  fetchUserDoc,
   createUserDoc,
+  restoreGroupMemberships,
   getAllUsers,
   requestGroupMembership,
   backfillGroupMembers,
@@ -85,7 +87,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const fallback = (user.groupId && user.groupId !== "default") 
         ? user.groupId 
         : (userGroups[0] || "");
-      setActiveGroupIdState(stored || fallback);
+      // Ignore a remembered group the user no longer belongs to
+      setActiveGroupIdState(stored && userGroups.includes(stored) ? stored : fallback);
     }
   }, [user]);
 
@@ -141,22 +144,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return userDoc;
   };
 
+  // Read the user doc, retrying transient errors (a freshly opened home-screen app is often
+  // still offline). A read error must never be treated as "new user".
+  const fetchUserDocWithRetry = async (uid: string): Promise<UserDoc | null> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        return await fetchUserDoc(uid);
+      } catch (err) {
+        lastError = err;
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
+    throw lastError;
+  };
+
+  // Get or create the user doc, apply a pending invite and restore group memberships
+  const loadOrCreateUser = async (firebaseUser: FirebaseUser): Promise<UserDoc> => {
+    let userDoc = await fetchUserDocWithRetry(firebaseUser.uid);
+    const inviteGroupId = getInviteGroupId();
+    if (!userDoc) {
+      userDoc = await createUserDoc(
+        firebaseUser.uid,
+        firebaseUser.displayName || "",
+        firebaseUser.email || "",
+        firebaseUser.photoURL || "",
+        inviteGroupId
+      );
+    } else {
+      userDoc = await syncUserInvite(firebaseUser, userDoc, inviteGroupId);
+    }
+
+    try {
+      userDoc = await restoreGroupMemberships(userDoc);
+    } catch (err) {
+      console.error("Error restoring group memberships:", err);
+    }
+    return userDoc;
+  };
+
   const handleUserChange = async (firebaseUser: FirebaseUser | null) => {
     if (firebaseUser) {
-      // Get or create user document in Firestore
-      let userDoc = await getUserDoc(firebaseUser.uid);
-      const inviteGroupId = getInviteGroupId();
-      if (!userDoc) {
-        userDoc = await createUserDoc(
-          firebaseUser.uid,
-          firebaseUser.displayName || "",
-          firebaseUser.email || "",
-          firebaseUser.photoURL || "",
-          inviteGroupId
-        );
-      } else {
-        userDoc = await syncUserInvite(firebaseUser, userDoc, inviteGroupId);
-      }
+      const userDoc = await loadOrCreateUser(firebaseUser);
       
       setUser(userDoc);
       // Set cookies for middleware
@@ -179,19 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (firebaseUser) {
           // Get or create user document in Firestore first (one-off check on login)
-          let userDoc = await getUserDoc(firebaseUser.uid);
-          const inviteGroupId = getInviteGroupId();
-          if (!userDoc) {
-            userDoc = await createUserDoc(
-              firebaseUser.uid,
-              firebaseUser.displayName || "",
-              firebaseUser.email || "",
-              firebaseUser.photoURL || "",
-              inviteGroupId
-            );
-          } else {
-            userDoc = await syncUserInvite(firebaseUser, userDoc, inviteGroupId);
-          }
+          const userDoc = await loadOrCreateUser(firebaseUser);
 
           // Set initial user state
           setUser(userDoc);
@@ -231,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         unsubscribeDoc();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

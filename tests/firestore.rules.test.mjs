@@ -6,6 +6,10 @@ import {
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
+  collection,
+  getDocs,
+  query,
+  where,
   arrayRemove,
   arrayUnion,
   deleteDoc,
@@ -233,6 +237,37 @@ describe("groups", () => {
     });
     batch.delete(doc(db, "groups", G));
     await assertSucceeds(batch.commit());
+  });
+});
+
+describe("memberships", () => {
+  test("member can leave a group in one batch", async () => {
+    const db = dbAs(MEMBER);
+    const batch = writeBatch(db);
+    batch.update(doc(db, "users", MEMBER), {
+      groupIds: [OTHER_G],
+      [`groupData.${G}`]: deleteField(),
+      groupId: OTHER_G,
+    });
+    batch.update(doc(db, "groups", G), { [`members.${MEMBER}`]: deleteField() });
+    await assertSucceeds(batch.commit());
+  });
+
+  test("user can re-link a group to their own (recreated) doc", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), "users", MEMBER), userDoc([], { isOnboarded: false }))
+    );
+    await assertSucceeds(updateDoc(doc(dbAs(MEMBER), "users", MEMBER), {
+      groupIds: arrayUnion(G),
+      [`groupData.${G}`]: { approved: false, assignedPages: [], completedPages: [] },
+      groupId: G,
+    }));
+  });
+
+  test("user can list the groups they belong to", async () => {
+    const q = query(collection(dbAs(MEMBER), "groups"), where(`members.${MEMBER}`, "in", ["owner", "member", "pending"]));
+    const snap = await assertSucceeds(getDocs(q));
+    if (snap.size !== 1 || snap.docs[0].id !== G) throw new Error("expected only group1, got " + snap.size);
   });
 });
 

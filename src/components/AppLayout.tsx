@@ -11,7 +11,7 @@ import { isPushSupported, registerPushSubscription } from "@/lib/push";
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  activeTab: "dashboard" | "readings" | "progress" | "stats" | "admin" | "ai";
+  activeTab: "dashboard" | "readings" | "progress" | "stats" | "groups" | "admin" | "ai";
 }
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
@@ -323,6 +323,23 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
             <span>Statistika</span>
           </Link>
 
+          {/* My Groups */}
+          <Link
+            href="/groups"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all font-semibold text-sm ${
+              activeTab === "groups"
+                ? "bg-[#F7F4EB] text-[#0F3D2C] shadow-md transform scale-[1.02]"
+                : "text-white/70 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18" />
+              <path d="M9 21V9" />
+            </svg>
+            <span>Qruplarım</span>
+          </Link>
+
           {/* Admin panel routes if user is admin */}
           {canManageGroup && (
             <div className="border-t border-white/10 mt-3 pt-3 flex flex-col gap-2">
@@ -629,7 +646,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
         {/* Content Area */}
         <main className="flex-1 p-4 md:p-8 min-w-0 relative z-10 bg-[#F7F4EB]">
-          {isApproved ? children : <ApprovalPendingScreen user={user} logout={logout} />}
+          {isApproved || activeTab === "groups" ? children : <ApprovalPendingScreen user={user} logout={logout} />}
         </main>
       </div>
 
@@ -637,7 +654,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0F3D2C] border-t border-white/10 flex justify-around items-center py-2 shadow-2xl pb-safe">
         <Link
           href="/dashboard"
-          className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+          className={`flex flex-col items-center py-1 px-1.5 rounded-lg ${
             activeTab === "dashboard" ? "text-[#D5A85A]" : "text-white/50"
           }`}
         >
@@ -651,7 +668,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         </Link>
         <Link
           href="/readings"
-          className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+          className={`flex flex-col items-center py-1 px-1.5 rounded-lg ${
             activeTab === "readings" ? "text-[#D5A85A]" : "text-white/50"
           }`}
         >
@@ -663,7 +680,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         </Link>
         <Link
           href="/progress"
-          className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+          className={`flex flex-col items-center py-1 px-1.5 rounded-lg ${
             activeTab === "progress" ? "text-[#D5A85A]" : "text-white/50"
           }`}
         >
@@ -679,7 +696,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         </Link>
         <Link
           href="/stats"
-          className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+          className={`flex flex-col items-center py-1 px-1.5 rounded-lg ${
             activeTab === "stats" ? "text-[#D5A85A]" : "text-white/50"
           }`}
         >
@@ -690,10 +707,23 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           </svg>
           <span className="text-[9px] font-semibold mt-0.5">Statistika</span>
         </Link>
+        <Link
+          href="/groups"
+          className={`flex flex-col items-center py-1 px-1.5 rounded-lg ${
+            activeTab === "groups" ? "text-[#D5A85A]" : "text-white/50"
+          }`}
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18" />
+            <path d="M9 21V9" />
+          </svg>
+          <span className="text-[9px] font-semibold mt-0.5">Qruplarım</span>
+        </Link>
         {canManageGroup && (
           <Link
             href="/admin"
-            className={`flex flex-col items-center py-1 px-3 rounded-lg ${
+            className={`flex flex-col items-center py-1 px-1.5 rounded-lg ${
               activeTab === "admin" ? "text-[#D5A85A]" : "text-white/50"
             }`}
           >
@@ -816,6 +846,13 @@ function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => 
             Zəhmət olmasa, adminin təsdiq etməsini gözləyin.
           </span>
         </p>
+
+        <Link
+          href="/groups"
+          className="w-full mb-3 py-3 bg-[#0F3D2C] hover:bg-[#16503c] text-white rounded-xl font-bold text-sm transition-colors shadow-sm text-center"
+        >
+          Qruplarım — başqa qrupa keç
+        </Link>
 
         <button
           onClick={logout}
