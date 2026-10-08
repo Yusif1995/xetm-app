@@ -1,16 +1,22 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import PageCard from "@/components/PageCard";
 import { togglePreviousCompletedPages, toggleCompletedPages, getUserAssignment } from "@/lib/db";
 import { useEffect, useState, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
+import { surahForPage } from "@/lib/quran";
+import { formatIsoDateAz } from "@/lib/dates";
+import { Bar, Card, IconBook, LoadingScreen, PageHeader, btn } from "@/components/ui";
+
+type Filter = "all" | "done" | "pending";
 
 export default function ReadingsPage() {
-  const { user, loading, refreshUser, activeGroupId } = useAuth();
+  const { user, loading, refreshUser, activeGroupId, activeGroup } = useAuth();
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [prevCompletedPagesState, setPrevCompletedPagesState] = useState<number[]>([]);
+  const [busyPage, setBusyPage] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
 
   const activeAssignment = useMemo(
     () => user ? getUserAssignment(user, activeGroupId) : null,
@@ -26,206 +32,288 @@ export default function ReadingsPage() {
   }, [completedPagesKey, prevCompletedPagesKey]);
 
   if (loading) {
-    return (
-      <div className="flex-1 flex flex-col justify-center items-center bg-[#FAF7F2] text-[#0F3D2C] min-h-screen">
-        <div className="animate-spin h-10 w-10 text-[#0F3D2C] mb-4">
-          <svg className="w-full h-full" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        </div>
-        <p className="text-sm font-semibold tracking-wide text-[#0F3D2C]/80">Yüklənir...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!user) {
     return null; // Guarded by middleware
   }
 
-  const assignedPages = activeAssignment?.assignedPages || [];
-  const prevAssignedPages = activeAssignment?.previousAssignedPages || [];
+  const assignedPages = [...(activeAssignment?.assignedPages || [])].sort((a, b) => a - b);
+  const prevAssignedPages = [...(activeAssignment?.previousAssignedPages || [])].sort((a, b) => a - b);
 
-  // Group pages into chunks of 5
-  const sortPages = (arr: number[]) => [...arr].sort((a, b) => a - b);
-  
-  const getChunks = (pagesList: number[]) => {
-    const sorted = sortPages(pagesList);
-    const chunksList: number[][] = [];
-    for (let i = 0; i < sorted.length; i += 5) {
-      chunksList.push(sorted.slice(i, i + 5));
-    }
-    return chunksList;
-  };
-
-  const currentChunks = getChunks(assignedPages);
-  const prevChunks = getChunks(prevAssignedPages);
-
-  // Check if previous assignment is uncompleted
-  const hasUncompletedPrev = prevAssignedPages.length > 0 && 
+  // Previous assignment must be completed before the new one unlocks
+  const hasUncompletedPrev = prevAssignedPages.length > 0 &&
     !prevAssignedPages.every(p => prevCompletedPagesState.includes(p));
 
-  const handleCurrentStatusChange = (pageNumbers: number[], isCompleted: boolean) => {
-    if (isCompleted) {
-      setCompletedPagesState(prev => {
-        const next = [...prev];
-        pageNumbers.forEach(p => {
-          if (!next.includes(p)) next.push(p);
-        });
-        return next;
-      });
-    } else {
-      setCompletedPagesState(prev => prev.filter(p => !pageNumbers.includes(p)));
+  // The hero works on the previous assignment first while it is unfinished
+  const workingPrev = hasUncompletedPrev;
+  const workingPages = workingPrev ? prevAssignedPages : assignedPages;
+  const workingDone = workingPrev ? prevCompletedPagesState : completedPagesState;
+  const nextPage = workingPages.find((p) => !workingDone.includes(p));
+  const doneCount = workingPages.filter((p) => workingDone.includes(p)).length;
+  const remaining = workingPages.length - doneCount;
+
+  const juzs = activeAssignment?.assignedJuzs?.length
+    ? activeAssignment.assignedJuzs
+    : activeAssignment?.assignedJuz ? [activeAssignment.assignedJuz] : [];
+  const juzLabel = juzs.length > 0 ? `Cüz ${juzs.join(", ")}` : "Təyinat";
+
+  const togglePage = async (page: number, isCompleted: boolean, previous: boolean) => {
+    const key = `${previous ? "p" : "c"}${page}`;
+    if (busyPage) return;
+    setBusyPage(key);
+    try {
+      if (previous) {
+        await togglePreviousCompletedPages(user.uid, [page], isCompleted, activeGroupId);
+        setPrevCompletedPagesState(prev => isCompleted ? [...prev, page] : prev.filter(p => p !== page));
+      } else {
+        await toggleCompletedPages(user.uid, [page], isCompleted, activeGroupId);
+        setCompletedPagesState(prev => isCompleted ? [...prev, page] : prev.filter(p => p !== page));
+      }
+      refreshUser();
+    } catch (err) {
+      console.error("Error toggling page:", err);
+    } finally {
+      setBusyPage(null);
     }
-    refreshUser();
   };
 
-  const handlePrevStatusChange = (pageNumbers: number[], isCompleted: boolean) => {
-    if (isCompleted) {
-      setPrevCompletedPagesState(prev => {
-        const next = [...prev];
-        pageNumbers.forEach(p => {
-          if (!next.includes(p)) next.push(p);
-        });
-        return next;
-      });
-    } else {
-      setPrevCompletedPagesState(prev => prev.filter(p => !pageNumbers.includes(p)));
-    }
-    refreshUser();
-  };
+  const subtitle = assignedPages.length > 0
+    ? `Sənə təyin edilmiş səhifələr · ${juzLabel}${activeGroup?.name ? ` · qrup: ${activeGroup.name}` : ""}`
+    : "Sənə təyin edilmiş səhifələr burada görünəcək";
 
-  const formatDateDisplay = (dateStr?: string) => {
-    if (!dateStr) return "";
-    const parts = dateStr.split("-");
-    if (parts.length === 3) {
-      return `${parts[2]}.${parts[1]}.${parts[0]}`;
-    }
-    return dateStr;
+  const hadith = (
+    <figure className="m-0 bg-white border border-line rounded-card p-5 md:p-6 flex flex-col gap-2.5 md:gap-3">
+      <figcaption className="text-xs md:text-[13px] font-bold text-goldtext">Günün hədisi · istikrar və davamlılıq</figcaption>
+      <blockquote className="m-0 font-display font-semibold text-[19px] md:text-[22px] leading-[1.4] text-forest">
+        Allah qatında əməllərin ən sevimlisi az da olsa davamlı olanıdır.
+      </blockquote>
+      <div className="text-xs md:text-[13px] text-muted">Buxari</div>
+    </figure>
+  );
+
+  // Empty state
+  if (assignedPages.length === 0 && prevAssignedPages.length === 0) {
+    return (
+      <AppLayout activeTab="readings">
+        <div className="flex flex-col gap-5 md:gap-7">
+          <PageHeader title="Səhifələrim" subtitle={subtitle} />
+          <section className="bg-white border border-line rounded-[22px] md:rounded-hero px-5 py-8 md:px-8 md:py-14 flex flex-col items-center text-center gap-3.5 md:gap-[18px]">
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-mint flex items-center justify-center text-forest">
+              <IconBook size={44} />
+            </div>
+            <h2 className="m-0 font-display font-semibold text-2xl md:text-[28px] leading-tight text-forest">Hələ sənə səhifə təyin edilməyib</h2>
+            <p className="m-0 max-w-[460px] text-sm md:text-base leading-relaxed text-muted">
+              Qrup sahibi cüzləri bölüşdürən kimi səhifələrin burada görünəcək və bildiriş alacaqsan.
+            </p>
+            <div className="flex flex-col md:flex-row gap-2.5 md:gap-3 w-full md:w-auto mt-1.5">
+              <Link href="/dashboard" className={btn.primary}>Panelə qayıt</Link>
+              <Link href="/progress" className={btn.outline}>Qrupa bax</Link>
+            </div>
+          </section>
+          <div className="max-w-[640px] w-full mx-auto">{hadith}</div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const counts = {
+    all: assignedPages.length,
+    done: assignedPages.filter((p) => completedPagesState.includes(p)).length,
+    pending: assignedPages.filter((p) => !completedPagesState.includes(p)).length,
   };
+  const visiblePages = assignedPages.filter((p) =>
+    filter === "all" ? true : filter === "done" ? completedPagesState.includes(p) : !completedPagesState.includes(p)
+  );
+  const currentDone = counts.done;
+  const currentRatio = assignedPages.length > 0 ? currentDone / assignedPages.length : 0;
+  const nextCurrent = assignedPages.find((p) => !completedPagesState.includes(p));
 
   return (
     <AppLayout activeTab="readings">
-      <div className="space-y-6 max-w-5xl mx-auto">
-        
-        {/* Title Header */}
-        <div className="flex flex-col border-b border-[#0F3D2C]/5 pb-4">
-          <h1 className="text-3xl font-bold tracking-tight text-[#0F3D2C]">
-            Xətm Səhifələrim
-          </h1>
-          <p className="text-xs font-semibold text-[#0F3D2C]/60 mt-1 uppercase tracking-wider">
-            Sizə təyin edilmiş səhifələri buradan izləyə və oxundu olaraq işarələyə bilərsiniz.
-          </p>
-        </div>
+      <div className="flex flex-col gap-5 md:gap-7">
+        <PageHeader title="Səhifələrim" subtitle={subtitle} />
 
-        {/* Hadith Header Banner */}
-        <div className="card-premium flex flex-col items-center text-center gap-2 relative bg-[#EFE9DF] border border-[#0F3D2C]/10 text-[#0F3D2C] p-6 shadow-sm">
-          <span className="text-[10px] font-bold text-[#D5A85A] uppercase tracking-widest block">Günün Hədisi — İstikrar və Davamlılıq</span>
-          <p className="font-serif text-sm md:text-base italic leading-relaxed max-w-xl">
-            &quot;Allah qatında əməllərin ən sevimlisi az da olsa davamlı olanıdır.&quot;
-          </p>
-          <span className="text-[10px] text-[#0F3D2C]/50 block font-semibold">— Buxari</span>
-        </div>
+        <div className="flex flex-wrap gap-5 md:gap-7 items-start">
+          <div className="flex-[999_1_520px] min-w-0 flex flex-col gap-5 md:gap-7">
 
-        {/* Assigned Pages List */}
-        {assignedPages.length === 0 && prevAssignedPages.length === 0 ? (
-          <div className="card-premium text-center py-16 px-6 max-w-2xl mx-auto flex flex-col items-center bg-white">
-            <span className="text-5xl mb-4">🕋</span>
-            <h3 className="text-lg font-semibold text-[#0F3D2C] mb-2">Səhifə təyin edilməyib</h3>
-            <p className="text-sm text-[#0F3D2C]/60 leading-relaxed mb-6 max-w-md">
-              Hörmətli iştirakçı, hazırda sizə oxumaq üçün heç bir səhifə təyin edilməyib.
-            </p>
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 bg-[#0F3D2C] hover:bg-[#1C2E24] text-white font-semibold rounded-xl transition-colors text-xs uppercase tracking-wider"
-            >
-              Panelə Qayıt
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            
-            {/* Section 1: Previous Assignment (if exists and has uncompleted pages) */}
+            {/* Next page hero */}
+            <section aria-labelledby="novbeti" className="bg-forest text-cream rounded-[22px] md:rounded-hero p-5 md:p-8 flex flex-wrap items-center gap-4 md:gap-8">
+              <div className="flex flex-col items-center justify-center w-[88px] h-[88px] md:w-[168px] md:h-[168px] rounded-[18px] md:rounded-hero bg-[rgba(247,243,234,0.08)] border border-[rgba(226,184,92,0.5)] shrink-0">
+                <div className="text-[11px] md:text-[13px] font-semibold text-gold">Səhifə</div>
+                <div className="font-display font-bold text-[44px] md:text-[84px] leading-none">{nextPage ?? "✓"}</div>
+              </div>
+              <div className="flex-[1_1_200px] flex flex-col gap-4 min-w-0">
+                <div className="flex flex-col gap-1 md:gap-1.5">
+                  <div className="text-xs md:text-[13px] font-semibold text-gold">
+                    {workingPrev ? "Əvvəlki tapşırıq · növbəti səhifə" : "Növbəti səhifə"}
+                  </div>
+                  <h2 id="novbeti" className="m-0 font-display font-semibold text-[22px] md:text-[28px] leading-tight">
+                    {nextPage ? surahForPage(nextPage) : "Hamısı oxunub"}
+                  </h2>
+                  <div className="text-[13px] md:text-[15px] text-onforest">
+                    {remaining > 0 ? `${workingPrev ? "Əvvəlki tapşırıq" : juzLabel} · ${remaining} səhifə qalıb` : "Allah qəbul etsin"}
+                  </div>
+                </div>
+                {nextPage && (
+                  <div className="flex flex-col md:flex-row gap-2.5 md:gap-3">
+                    <button
+                      type="button"
+                      onClick={() => togglePage(nextPage, true, workingPrev)}
+                      disabled={!!busyPage}
+                      className={btn.gold}
+                    >
+                      {busyPage ? "Qeyd edilir..." : "Oxudum"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Previous assignment */}
             {prevAssignedPages.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 border-b border-[#0F3D2C]/10 pb-3">
-                  <h3 className="text-sm font-bold text-red-600 uppercase tracking-wider flex items-center gap-2">
-                    <span>⚠️ Əvvəlki Oxu Tapşırığı</span>
-                    <span className="text-xs bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full border border-red-500/20 font-mono">
-                      {prevAssignedPages.length} səhifə
-                    </span>
-                  </h3>
+              <Card danger={hasUncompletedPrev}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className={`m-0 text-base md:text-lg font-bold ${hasUncompletedPrev ? "text-danger" : "text-forest"}`}>
+                    Əvvəlki oxu tapşırığı
+                  </h2>
                   {activeAssignment?.previousStartDate && activeAssignment?.previousEndDate && (
-                    <span className="text-[10px] md:text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-lg border border-red-500/20 font-mono">
-                      Müddət: {formatDateDisplay(activeAssignment.previousStartDate)} — {formatDateDisplay(activeAssignment.previousEndDate)}
+                    <span className="text-xs text-muted font-semibold">
+                      {formatIsoDateAz(activeAssignment.previousStartDate)} — {formatIsoDateAz(activeAssignment.previousEndDate)}
                     </span>
                   )}
                 </div>
-
                 {hasUncompletedPrev && (
-                  <div className="p-3 bg-red-50 border border-red-500/20 text-red-600 text-[11px] rounded-xl text-center font-bold">
-                    Diqqət! Yeni tapşırığı işarələmək üçün əvvəlcə bu bölmədəki bütün səhifələri oxuyub bitirməlisiniz.
-                  </div>
+                  <p className="m-0 text-sm text-danger">
+                    Yeni səhifələri işarələmək üçün əvvəlcə bu tapşırığı bitirməlisən.
+                  </p>
                 )}
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {prevChunks.map((chunk) => (
-                    <PageCard
-                      key={`prev-${chunk.join(",")}`}
-                      userId={user.uid}
-                      pageNumbers={chunk}
-                      initialCompleted={chunk.every((page) => prevCompletedPagesState.includes(page))}
-                      onStatusChange={handlePrevStatusChange}
-                      toggleFn={(uid, pages, isCompleted) => togglePreviousCompletedPages(uid, pages, isCompleted, activeGroupId)}
-                      disabled={false}
-                    />
-                  ))}
-                </div>
-              </div>
+                <PageGrid
+                  pages={prevAssignedPages}
+                  done={prevCompletedPagesState}
+                  busyKey={busyPage}
+                  keyPrefix="p"
+                  onToggle={(p, isCompleted) => togglePage(p, isCompleted, true)}
+                />
+              </Card>
             )}
 
-            {/* Section 2: Current/New Assignment */}
+            {/* Current assignment */}
             {assignedPages.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 border-b border-[#0F3D2C]/10 pb-3">
-                  <h3 className="text-sm font-bold text-[#0F3D2C] uppercase tracking-wider flex items-center gap-2.5">
-                    <span>📖 {prevAssignedPages.length > 0 ? "Yeni Oxu Tapşırığı" : "Təyin Olunmuş Səhifələrim"}</span>
-                    <span className="text-xs bg-[#0F3D2C]/5 text-[#0F3D2C] px-2.5 py-0.5 rounded-full border border-[#0F3D2C]/10 font-mono">
-                      {assignedPages.length} səhifə
-                    </span>
-                  </h3>
-                  {activeAssignment?.assignmentStartDate && activeAssignment?.assignmentEndDate && (
-                    <span className="text-[10px] md:text-xs font-bold text-[#0F3D2C]/80 bg-[#FAF7F2] px-3 py-1 rounded-lg border border-[#0F3D2C]/10 font-mono">
-                      Müddət: {formatDateDisplay(activeAssignment.assignmentStartDate)} — {formatDateDisplay(activeAssignment.assignmentEndDate)}
-                    </span>
-                  )}
+              <Card>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="m-0 text-base md:text-lg font-bold text-forest">
+                    {prevAssignedPages.length > 0 ? "Yeni oxu tapşırığı" : "Bütün səhifələr"}
+                  </h2>
+                  <div role="tablist" aria-label="Filtr" className="grid grid-cols-3 md:flex gap-1 p-1 rounded-xl bg-[#F1EBDB] w-full md:w-auto">
+                    {([
+                      ["all", `Hamısı · ${counts.all}`],
+                      ["done", `Oxunmuş · ${counts.done}`],
+                      ["pending", `Gözləyən · ${counts.pending}`],
+                    ] as [Filter, string][]).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        role="tab"
+                        aria-selected={filter === key}
+                        onClick={() => setFilter(key)}
+                        className={`min-h-[36px] md:min-h-[36px] px-3.5 rounded-[9px] text-xs md:text-[13px] ${
+                          filter === key ? "bg-white text-forest font-bold" : "text-muted font-semibold"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-
-                {hasUncompletedPrev && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-500/20 text-yellow-600 text-[11px] rounded-xl text-center font-bold">
-                    🔒 Yeni səhifələr kilidlidir. Əvvəlki tapşırığı tamamlayan kimi kilid avtomatik açılacaqdır.
+                {activeAssignment?.assignmentStartDate && activeAssignment?.assignmentEndDate && (
+                  <div className="text-xs text-muted font-semibold">
+                    Müddət: {formatIsoDateAz(activeAssignment.assignmentStartDate)} — {formatIsoDateAz(activeAssignment.assignmentEndDate)}
                   </div>
                 )}
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {currentChunks.map((chunk) => (
-                    <PageCard
-                      key={`curr-${chunk.join(",")}`}
-                      userId={user.uid}
-                      pageNumbers={chunk}
-                      initialCompleted={chunk.every((page) => completedPagesState.includes(page))}
-                      onStatusChange={handleCurrentStatusChange}
-                      toggleFn={(uid, pages, isCompleted) => toggleCompletedPages(uid, pages, isCompleted, activeGroupId)}
-                      disabled={hasUncompletedPrev}
-                    />
-                  ))}
-                </div>
-              </div>
+                {hasUncompletedPrev && (
+                  <p className="m-0 text-sm text-progresstext">Yeni səhifələr əvvəlki tapşırıq bitəndə açılacaq.</p>
+                )}
+                <PageGrid
+                  pages={visiblePages}
+                  done={completedPagesState}
+                  next={nextCurrent}
+                  busyKey={busyPage}
+                  keyPrefix="c"
+                  disabled={hasUncompletedPrev}
+                  onToggle={(p, isCompleted) => togglePage(p, isCompleted, false)}
+                />
+              </Card>
             )}
-
           </div>
-        )}
+
+          {/* Right column */}
+          <div className="flex-[1_1_320px] min-w-0 flex flex-col gap-5 md:gap-7">
+            {assignedPages.length > 0 && (
+              <Card>
+                <h2 className="m-0 text-sm md:text-[15px] font-bold text-muted">{juzLabel} gedişatı</h2>
+                <div className="flex items-baseline gap-2">
+                  <div className="font-display font-bold text-4xl md:text-[44px] leading-none text-forest">{currentDone}</div>
+                  <div className="text-sm md:text-[15px] text-muted">/ {assignedPages.length} səhifə</div>
+                </div>
+                <Bar ratio={currentRatio} color={currentRatio >= 1 ? "done" : "accent"} height={12} />
+                <div className="text-xs md:text-[13px] text-muted">Təyinatın {Math.round(currentRatio * 100)}%-i oxunub</div>
+              </Card>
+            )}
+            {hadith}
+          </div>
+        </div>
       </div>
     </AppLayout>
+  );
+}
+
+function PageGrid({
+  pages,
+  done,
+  next,
+  busyKey,
+  keyPrefix,
+  disabled = false,
+  onToggle,
+}: {
+  pages: number[];
+  done: number[];
+  next?: number;
+  busyKey: string | null;
+  keyPrefix: string;
+  disabled?: boolean;
+  onToggle: (page: number, isCompleted: boolean) => void;
+}) {
+  if (pages.length === 0) {
+    return <p className="m-0 text-sm text-muted">Bu filtrdə səhifə yoxdur.</p>;
+  }
+  return (
+    <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(56px,1fr))] gap-2">
+      {pages.map((p) => {
+        const isDone = done.includes(p);
+        const isNext = p === next;
+        return (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onToggle(p, !isDone)}
+            disabled={disabled || !!busyKey}
+            aria-pressed={isDone}
+            aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}`}
+            className={`min-h-[44px] md:min-h-[48px] rounded-xl font-bold text-[15px] box-border transition-colors disabled:cursor-not-allowed ${
+              isDone
+                ? "bg-forest text-cream border border-forest"
+                : isNext
+                  ? "bg-white text-forest border-2 border-accent"
+                  : "bg-white text-muted border border-[#D9D1BE]"
+            } ${busyKey === `${keyPrefix}${p}` ? "opacity-50" : ""} ${disabled ? "opacity-60" : ""}`}
+          >
+            {p}
+          </button>
+        );
+      })}
+    </div>
   );
 }

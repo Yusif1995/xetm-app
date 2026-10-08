@@ -1,20 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type UserDoc, type AppSettings, getUserGroupIds, getUserAssignment, isUserApprovedInGroup } from "@/lib/db";
-import ProgressBar from "@/components/ProgressBar";
-import UserRow from "@/components/UserRow";
+import Link from "next/link";
+import { type UserDoc, getUserGroupIds, getUserAssignment, isUserApprovedInGroup } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/lib/auth";
+import { relativeTimeAz } from "@/lib/dates";
+import { ParticipantRow, participantName, computeJuzStates, JuzMap } from "@/components/GroupWidgets";
+import { Bar, Card, IconLink, LoadingScreen, PageHeader, btn, button } from "@/components/ui";
 
 export default function ProgressPage() {
   const { user, activeGroupId, activeGroup } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({ completedKhatms: 0 });
+  const [completedKhatms, setCompletedKhatms] = useState(0);
   const [loading, setLoading] = useState(true);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -49,9 +52,7 @@ export default function ProgressPage() {
         } else {
           setGroupCreatedBy(null);
         }
-        setSettings({
-          completedKhatms: data.completedKhatms || 0
-        } as AppSettings);
+        setCompletedKhatms(data.completedKhatms || 0);
       }
     }, (err) => {
       console.error("Error in real-time settings listener:", err);
@@ -60,127 +61,173 @@ export default function ProgressPage() {
     return () => unsubSettings();
   }, [activeGroupId]);
 
+  if (loading || !user) {
+    return <LoadingScreen text="Ümumi gedişat yüklənir..." />;
+  }
+
   // Filter users by active group membership and approval
-  const filteredUsers = users.filter((u) => 
+  const filteredUsers = users.filter((u) =>
     (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
     && isUserApprovedInGroup(u, activeGroupId, activeGroup)
   );
+  const participants = [...filteredUsers].sort((a, b) =>
+    a.uid === groupCreatedBy ? -1 : b.uid === groupCreatedBy ? 1 : a.name.localeCompare(b.name)
+  );
+  const viewerIsOwner = !!groupCreatedBy && groupCreatedBy === user.uid;
 
-  // Calculate unique pages completed by the group out of 604
+  // Unique pages completed by the group out of 604 (only pages assigned to the reader)
   const completedPagesSet = new Set<number>();
   filteredUsers.forEach((u) => {
     const assignment = getUserAssignment(u, activeGroupId);
     const assigned = assignment.assignedPages || [];
-    const completed = assignment.completedPages || [];
-    completed.forEach((page) => {
-      // Only count if the page is assigned to this user and is within the Quran page bounds
+    (assignment.completedPages || []).forEach((page) => {
       if (page >= 1 && page <= 604 && assigned.includes(page)) {
         completedPagesSet.add(page);
       }
     });
   });
-  
   const totalUniqueCompleted = completedPagesSet.size;
+  const ratio = totalUniqueCompleted / 604;
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex flex-col justify-center items-center bg-[#FAF7F2] text-[#0F3D2C] min-h-screen">
-        <div className="animate-spin h-10 w-10 text-[#0F3D2C] mb-4">
-          <svg className="w-full h-full" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        </div>
-        <p className="text-sm font-semibold tracking-wide text-[#0F3D2C]/80">Ümumi gedişat yüklənir...</p>
-      </div>
-    );
-  }
+  const juzStates = computeJuzStates(filteredUsers, activeGroupId);
+  const completedJuz = juzStates.filter((j) => j.state === "done").length;
+
+  // Recent activity: pages read per member per day, newest first
+  const activityMap = new Map<string, { name: string; count: number; time: number }>();
+  filteredUsers.forEach((u) => {
+    const completedAt = getUserAssignment(u, activeGroupId).completedAt || {};
+    Object.values(completedAt).forEach((iso) => {
+      const time = new Date(iso).getTime();
+      if (Number.isNaN(time)) return;
+      const key = `${u.uid}|${new Date(time).toDateString()}`;
+      const entry = activityMap.get(key);
+      if (entry) {
+        entry.count++;
+        entry.time = Math.max(entry.time, time);
+      } else {
+        activityMap.set(key, { name: participantName(u, user.uid, viewerIsOwner), count: 1, time });
+      }
+    });
+  });
+  const activities = Array.from(activityMap.values()).sort((a, b) => b.time - a.time).slice(0, 5);
+
+  const handleCopyInvite = () => {
+    if (!activeGroupId) return;
+    const inviteLink = `${window.location.origin}/?invite=${activeGroupId}`;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    });
+  };
+
+  const groupName = activeGroup?.name || "Qrup";
 
   return (
     <AppLayout activeTab="progress">
-      <div className="space-y-6 max-w-5xl mx-auto">
-        
-        {/* Title Header */}
-        <div className="flex flex-col border-b border-[#0F3D2C]/5 pb-4">
-          <h1 className="text-3xl font-bold tracking-tight text-[#0F3D2C]">
-            Qrup Üzrə Ümumi Gedişat
-          </h1>
-          <p className="text-xs font-semibold text-[#0F3D2C]/60 mt-1 uppercase tracking-wider">
-            Xətm qrupumuzdakı bütün iştirakçıların Quran oxuma gedişatını buradan izləyə bilərsiniz.
-          </p>
-        </div>
+      <div className="flex flex-col gap-5 md:gap-7">
+        <PageHeader
+          title={`Qrup · ${groupName}`}
+          subtitle={<>
+            <span className="md:hidden">{participants.length} iştirakçı</span>
+            <span className="hidden md:inline">Xətm qrupundakı bütün iştirakçıların oxuma gedişatı</span>
+          </>}
+          actions={
+            <div className="md:hidden"><Link href="/groups" className={button("outline", "sm")}>Qruplarım</Link></div>
+          }
+        />
 
-        {/* Top Summary Card */}
-        <div className="card-premium flex flex-col gap-4">
-          <h2 className="text-lg font-bold text-[#0F3D2C] tracking-wide">
-            Qrup Xətm Tamamlanması
-          </h2>
-          <p className="text-xs text-[#0F3D2C]/70 leading-relaxed max-w-2xl font-sans">
-            Məqsədimiz Quranın 604 səhifəsinin hamısını birgə tamamlamaqdır. Aşağıdakı bar qrup üzrə tamamlanan unikal səhifələrin sayını göstərir.
-          </p>
-
-          <ProgressBar 
-            completed={totalUniqueCompleted} 
-            total={604} 
-            label="Qrup Üzrə Oxunan Səhifə" 
-          />
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="card-premium text-center flex flex-col justify-center items-center py-5">
-            <span className="text-[10px] text-[#D5A85A] uppercase font-bold tracking-wider">Tamamlanan Ümumi Xətm</span>
-            <div className="text-3xl font-extrabold text-[#0F3D2C] mt-1 font-mono">{settings.completedKhatms || 0}</div>
-          </div>
-          <div className="card-premium text-center flex flex-col justify-center items-center py-5">
-            <span className="text-[10px] text-[#D5A85A] uppercase font-bold tracking-wider">Cari Xətmin Səhifələri</span>
-            <div className="text-3xl font-extrabold text-[#0F3D2C] mt-1 font-mono">{totalUniqueCompleted} / 604</div>
-          </div>
-          <div className="card-premium text-center flex flex-col justify-center items-center py-5">
-            <span className="text-[10px] text-[#D5A85A] uppercase font-bold tracking-wider">Cari Xətm Faiz</span>
-            <div className="text-3xl font-extrabold text-[#D5A85A] mt-1 font-mono">
-              {Math.round((totalUniqueCompleted / 604) * 100)}%
+        {/* Summary */}
+        <section aria-labelledby="xetm" className="bg-forest text-cream rounded-[22px] md:rounded-hero p-5 md:p-8 flex flex-col gap-3.5 md:gap-[22px]">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="flex flex-col gap-2">
+              <h2 id="xetm" className="m-0 text-[13px] font-semibold text-gold">Cari xətm</h2>
+              <div className="flex items-baseline gap-2.5">
+                <div className="font-display font-bold text-[44px] md:text-[64px] leading-none">{totalUniqueCompleted}</div>
+                <div className="text-sm md:text-lg text-onforest">/ 604 səhifə</div>
+              </div>
             </div>
+            <div className="font-display font-bold text-[28px] md:text-[40px] text-gold">{Math.round(ratio * 100)}%</div>
           </div>
-        </div>
+          <Bar ratio={ratio} color="gold" height={14} dark />
+          <div className="flex flex-wrap gap-6 md:gap-8 text-sm text-onforest">
+            <Stat label="Tamamlanan xətm" value={String(completedKhatms)} />
+            <Stat label="Tamamlanan cüz" value={`${completedJuz} / 30`} />
+            <Stat label="İştirakçı" value={String(participants.length)} />
+          </div>
+        </section>
 
-        {/* Participants Table */}
-        <div className="card-premium overflow-hidden !p-0">
-          <div className="p-5 border-b border-[#0F3D2C]/5 bg-[#FAF7F2]">
-            <h3 className="text-sm font-bold text-[#0F3D2C] flex items-center gap-2">
-              <span>İştirakçıların Siyahısı</span>
-              <span className="text-[10px] bg-[#0F3D2C]/5 text-[#0F3D2C] px-2.5 py-0.5 rounded-full border border-[#0F3D2C]/10 font-bold">
-                {filteredUsers.length} nəfər
-              </span>
-            </h3>
+        <div className="flex flex-wrap gap-5 md:gap-7 items-start">
+          <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-5 md:gap-7">
+            <Card>
+              <div className="flex flex-col gap-1">
+                <h2 className="m-0 text-base md:text-lg font-bold text-forest">30 cüz üzrə vəziyyət</h2>
+                <div className="text-sm text-muted hidden md:block">Hər kart bir cüzdür. İçindəki rəqəm oxunmuş səhifələrin sayıdır.</div>
+              </div>
+              <JuzMap states={juzStates} />
+            </Card>
+
+            <Card className="!gap-2">
+              <div className="flex items-center gap-2.5 pb-2">
+                <h2 className="m-0 text-base md:text-lg font-bold text-forest">İştirakçılar</h2>
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{participants.length} nəfər</span>
+              </div>
+              {participants.length === 0 ? (
+                <p className="m-0 text-sm text-muted py-4">Siyahıda hələ heç bir iştirakçı yoxdur.</p>
+              ) : (
+                participants.map((u) => (
+                  <ParticipantRow
+                    key={u.uid}
+                    user={u}
+                    groupId={activeGroupId}
+                    name={participantName(u, user.uid, viewerIsOwner)}
+                    isSelf={u.uid === user.uid}
+                    isOwner={u.uid === groupCreatedBy}
+                  />
+                ))
+              )}
+            </Card>
           </div>
 
-          {filteredUsers.length === 0 ? (
-            <div className="text-center py-16 text-[#0F3D2C]/40">
-              Siyahıda hələ heç bir iştirakçı yoxdur.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-[#FAF7F2] border-b border-[#0F3D2C]/10 text-[10px] text-[#0F3D2C]/60 uppercase font-bold tracking-wider">
-                    <th className="px-4 py-3 md:px-6 md:py-4">İştirakçı</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4">Təyin edilmiş Səhifələr</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4">Tamamlanan</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4">Faiz</th>
-                    <th className="px-4 py-3 md:px-6 md:py-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((u) => (
-                    <UserRow key={u.uid} user={u} isAdminView={false} groupCreatedBy={groupCreatedBy} />
+          <div className="flex-[1_1_300px] min-w-0 flex flex-col gap-5 md:gap-7">
+            <Card>
+              <h2 className="m-0 text-base md:text-[15px] font-bold text-forest md:text-muted">Son fəaliyyət</h2>
+              {activities.length === 0 ? (
+                <p className="m-0 text-sm text-muted">Hələ oxunmuş səhifə yoxdur.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {activities.map((a, i) => (
+                    <div key={i} className="flex gap-3 items-start">
+                      <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${i === 0 ? "bg-accent" : "bg-done"}`} />
+                      <div className="flex flex-col gap-0.5">
+                        <div className="text-sm font-semibold">{a.name} {a.count} səhifə oxuyub</div>
+                        <div className="text-[13px] text-muted">{relativeTimeAz(a.time)}</div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                </div>
+              )}
+            </Card>
+
+            <section className="bg-mint rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
+              <h2 className="m-0 font-display font-semibold text-lg md:text-[22px] text-forest">Qrupa yeni iştirakçı əlavə et</h2>
+              <div className="text-sm leading-relaxed text-[#2F4A3E]">Dəvət linkini paylaş, qoşulan şəxs qrup sahibinin təsdiqindən sonra qrupa daxil olsun.</div>
+              <button type="button" onClick={handleCopyInvite} className={btn.primary}>
+                <IconLink size={18} />
+                {copied ? "Link kopyalandı" : "Dəvət linkini kopyala"}
+              </button>
+            </section>
+          </div>
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span>{label}</span>
+      <span className="text-[22px] font-bold text-cream">{value}</span>
+    </div>
   );
 }

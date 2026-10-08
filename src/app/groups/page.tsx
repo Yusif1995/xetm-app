@@ -7,20 +7,36 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { createGroup, leaveGroup, type GroupDoc, type GroupMemberStatus } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
+import { Card, Chip, IconLogout, PageHeader, btn, button, inputCls } from "@/components/ui";
 
-const STATUS_LABELS: Record<GroupMemberStatus, { text: string; className: string }> = {
-  owner: { text: "Qrup sahibi", className: "bg-purple-50 text-purple-700 border-purple-200" },
-  member: { text: "Üzv", className: "bg-green-50 text-green-700 border-green-200" },
-  pending: { text: "Təsdiq gözlənilir", className: "bg-amber-50 text-amber-700 border-amber-200" },
+const STATUS_CHIP: Record<GroupMemberStatus, { tone: "owner" | "done" | "pending"; text: string }> = {
+  owner: { tone: "owner", text: "Qrup sahibi" },
+  member: { tone: "done", text: "Üzv" },
+  pending: { tone: "pending", text: "Təsdiq gözlənilir" },
 };
 
+// Accepts a full invite link (".../?invite=ID") or a bare group ID
+function parseInviteId(input: string): string {
+  const value = input.trim();
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    return url.searchParams.get("invite") || "";
+  } catch {
+    const match = value.match(/invite=([A-Za-z0-9_-]+)/);
+    if (match) return match[1];
+    return /^[A-Za-z0-9_-]{10,}$/.test(value) ? value : "";
+  }
+}
+
 export default function GroupsPage() {
-  const { user, loading, activeGroupId, setActiveGroupId } = useAuth();
+  const { user, loading, logout, activeGroupId, setActiveGroupId, isSuperAdmin } = useAuth();
   const router = useRouter();
   const [groups, setGroups] = useState<GroupDoc[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [newGroupName, setNewGroupName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [inviteInput, setInviteInput] = useState("");
   const [busyGroupId, setBusyGroupId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +49,8 @@ export default function GroupsPage() {
     );
     const unsub = onSnapshot(q, (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as GroupDoc));
-      list.sort((a, b) => a.name.localeCompare(b.name));
+      // Active group first, then by name
+      list.sort((a, b) => (a.id === activeGroupId ? -1 : b.id === activeGroupId ? 1 : a.name.localeCompare(b.name)));
       setGroups(list);
       setGroupsLoading(false);
     }, (err) => {
@@ -48,9 +65,9 @@ export default function GroupsPage() {
     return null;
   }
 
-  const handleOpen = (groupId: string) => {
+  const openGroup = (groupId: string, path: string) => {
     setActiveGroupId(groupId);
-    router.push("/dashboard");
+    router.push(path);
   };
 
   const handleLeave = async (group: GroupDoc) => {
@@ -82,7 +99,7 @@ export default function GroupsPage() {
       const newId = await createGroup(newGroupName.trim(), user.uid);
       setNewGroupName("");
       setActiveGroupId(newId);
-      router.push("/dashboard");
+      router.push("/admin");
     } catch (err) {
       console.error("Error creating group:", err);
       setError("Qrup yaradılarkən xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.");
@@ -91,64 +108,83 @@ export default function GroupsPage() {
     }
   };
 
+  // Hand the invite over to the dashboard, which shows the join dialog
+  const handleJoin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const inviteId = parseInviteId(inviteInput);
+    if (!inviteId) {
+      setError("Dəvət linki tanınmadı. Linki tam şəkildə yapışdırın.");
+      return;
+    }
+    setError(null);
+    router.push(`/dashboard?invite=${encodeURIComponent(inviteId)}`);
+  };
+
   return (
     <AppLayout activeTab="groups">
-      <div className="space-y-6 max-w-3xl mx-auto">
-        <div className="flex flex-col border-b border-[#0F3D2C]/5 pb-4">
-          <h1 className="text-3xl font-bold tracking-tight text-[#0F3D2C]">Qruplarım</h1>
-          <p className="text-xs font-semibold text-[#0F3D2C]/60 mt-1 uppercase tracking-wider">
-            Üzv olduğunuz xətm qrupları. Qrupa keçmək üçün &quot;Daxil ol&quot; düyməsinə basın.
-          </p>
-        </div>
+      <div className="flex flex-col gap-5 md:gap-7">
+        <PageHeader
+          title="Qruplarım"
+          subtitle={<>
+            <span className="md:hidden">Qrupunu idarə et, yeni qrup yarat və ya qoşul</span>
+            <span className="hidden md:inline">Üzv olduğun xətm qrupları</span>
+          </>}
+        />
 
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-semibold">
+          <div className="p-3.5 bg-[#FBEAE5] border border-dangerline text-danger text-sm rounded-btn font-semibold">
             {error}
           </div>
         )}
 
-        <div className="card-premium flex flex-col gap-3">
+        <section aria-label="Qrup siyahısı" className="flex flex-col gap-3.5">
           {groupsLoading ? (
-            <p className="text-sm text-[#0F3D2C]/60 py-6 text-center">Qruplar yüklənir...</p>
+            <Card><p className="m-0 text-sm text-muted text-center py-4">Qruplar yüklənir...</p></Card>
           ) : groups.length === 0 ? (
-            <p className="text-sm text-[#0F3D2C]/60 py-6 text-center">
-              Hələ heç bir qrupa üzv deyilsiniz. Dəvət linki ilə qoşulun və ya aşağıdan yeni qrup yaradın.
-            </p>
+            <Card>
+              <p className="m-0 text-sm text-muted text-center py-4">
+                Hələ heç bir qrupa üzv deyilsən. Dəvət linki ilə qoşul və ya aşağıdan yeni qrup yarat.
+              </p>
+            </Card>
           ) : (
             groups.map((g) => {
               const status = (g.members?.[user.uid] || "pending") as GroupMemberStatus;
-              const label = STATUS_LABELS[status];
+              const chip = STATUS_CHIP[status];
               const memberCount = Object.values(g.members || {}).filter((s) => s === "owner" || s === "member").length;
               const isActive = g.id === activeGroupId;
+              const canManage = status === "owner" || isSuperAdmin;
               return (
                 <div
                   key={g.id}
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border ${
-                    isActive ? "border-[#0F3D2C]/40 bg-[#E8F4EC]" : "border-[#0F3D2C]/10 bg-[#FAF7F2]"
+                  className={`bg-white rounded-card p-5 md:p-6 flex flex-wrap items-center gap-4 md:gap-5 ${
+                    isActive ? "border-2 border-forest" : "border border-line"
                   }`}
                 >
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-sm font-bold text-[#0F3D2C] truncate">{g.name}</span>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${label.className}`}>
-                        {label.text}
-                      </span>
-                      <span className="text-[10px] text-[#0F3D2C]/60 font-semibold">{memberCount} iştirakçı</span>
-                      {isActive && <span className="text-[10px] text-[#0F3D2C] font-bold">• Aktiv qrup</span>}
+                  <div className="flex-[1_1_260px] flex flex-col gap-2.5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <div className="font-display font-bold text-[22px] md:text-[26px] text-forest truncate">{g.name}</div>
+                      <Chip tone={chip.tone}>{chip.text}</Chip>
+                      {isActive && <Chip tone="active">Aktiv qrup</Chip>}
+                    </div>
+                    <div className="text-sm text-muted">
+                      {memberCount} iştirakçı{(g.completedKhatms || 0) > 0 ? ` · ${g.completedKhatms} xətm tamamlanıb` : ""}
                     </div>
                   </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => handleOpen(g.id)}
-                      className="px-4 py-2 bg-[#0F3D2C] hover:bg-[#16503c] text-white rounded-lg text-xs font-bold transition-colors"
-                    >
-                      Daxil ol
+                  <div className="flex flex-wrap gap-3 w-full md:w-auto">
+                    <button type="button" onClick={() => openGroup(g.id, "/progress")} className={`${btn.primary} flex-1 md:flex-none`}>
+                      {isActive ? "Qrupa bax" : "Daxil ol"}
                     </button>
+                    {canManage && (
+                      <button type="button" onClick={() => openGroup(g.id, "/admin")} className={`${btn.outline} flex-1 md:flex-none`}>
+                        İdarə et
+                      </button>
+                    )}
                     {status !== "owner" && (
                       <button
+                        type="button"
                         onClick={() => handleLeave(g)}
                         disabled={busyGroupId === g.id}
-                        className="px-3 py-2 bg-white hover:bg-red-50 border border-red-200 text-red-600 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                        className={button("danger", "md")}
                       >
                         {busyGroupId === g.id ? "..." : "Çıx"}
                       </button>
@@ -158,28 +194,54 @@ export default function GroupsPage() {
               );
             })
           )}
+        </section>
+
+        <div className="flex flex-wrap gap-5 items-stretch">
+          <form onSubmit={handleCreate} className="flex-[1_1_360px] bg-white border border-line rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
+            <h2 className="m-0 text-base md:text-lg font-bold text-forest">Yeni qrup yarat</h2>
+            <div className="flex flex-wrap gap-2.5 items-end">
+              <label className="flex-[1_1_220px] flex flex-col gap-2 text-sm font-semibold">
+                Qrupun adı
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="Məs. Ailə xətmi"
+                  disabled={creating}
+                  className={inputCls}
+                />
+              </label>
+              <button type="submit" disabled={creating || !newGroupName.trim()} className={`${btn.primary} w-full md:w-auto`}>
+                {creating ? "Yaradılır..." : "Yarat"}
+              </button>
+            </div>
+          </form>
+
+          <form onSubmit={handleJoin} className="flex-[1_1_360px] bg-white border border-line rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
+            <h2 className="m-0 text-base md:text-lg font-bold text-forest">Dəvət linki ilə qoşul</h2>
+            <div className="flex flex-wrap gap-2.5 items-end">
+              <label className="flex-[1_1_220px] flex flex-col gap-2 text-sm font-semibold">
+                Dəvət linki
+                <input
+                  type="text"
+                  value={inviteInput}
+                  onChange={(e) => setInviteInput(e.target.value)}
+                  placeholder="Linki bura yapışdır"
+                  className={inputCls}
+                />
+              </label>
+              <button type="submit" disabled={!inviteInput.trim()} className={`${button("outlineStrong")} w-full md:w-auto`}>
+                Qoşul
+              </button>
+            </div>
+          </form>
         </div>
 
-        <form onSubmit={handleCreate} className="card-premium flex flex-col gap-3">
-          <h3 className="text-sm font-bold text-[#0F3D2C]">Yeni qrup yarat</h3>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="text"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder="Məs. Ailə Xətmi"
-              disabled={creating}
-              className="flex-1 px-3.5 py-2.5 bg-white border border-[#0F3D2C]/15 focus:border-[#0F3D2C] rounded-xl text-xs font-semibold text-[#0F3D2C] focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={creating || !newGroupName.trim()}
-              className="px-4 py-2.5 bg-[#D5A85A] hover:bg-[#b0913e] disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors"
-            >
-              {creating ? "Yaradılır..." : "Yarat"}
-            </button>
-          </div>
-        </form>
+        {/* Logout lives in the sidebar on desktop; on mobile it is here */}
+        <button type="button" onClick={logout} className={`${btn.danger} md:hidden w-full`}>
+          <IconLogout size={18} />
+          Çıxış
+        </button>
       </div>
     </AppLayout>
   );

@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { useEffect, useState, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
+import { IconSparkle, LoadingScreen, PageHeader, btn, inputCls } from "@/components/ui";
 
 interface Message {
   id: string;
@@ -39,17 +40,7 @@ export default function AiPage() {
   }, [messages, isSending]);
 
   if (loading || !activeGroupLoaded) {
-    return (
-      <div className="flex-1 flex flex-col justify-center items-center islamic-bg text-[#fdf6e3] min-h-screen">
-        <div className="animate-spin h-10 w-10 text-[#c9a84c] mb-4">
-          <svg className="w-full h-full" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        </div>
-        <p className="text-sm font-semibold tracking-wide text-[#fdf6e3]/85">Süni İntellekt Köməkçisi yüklənir...</p>
-      </div>
-    );
+    return <LoadingScreen text="Süni İntellekt Köməkçisi yüklənir..." />;
   }
 
   if (!user || !(isSuperAdmin || activeGroup?.createdBy === user.uid)) {
@@ -125,7 +116,7 @@ export default function AiPage() {
       const content = parts.map((part, partIdx) => {
         if (part.startsWith("**") && part.endsWith("**")) {
           return (
-            <strong key={partIdx} className="font-bold text-[#c9a84c]">
+            <strong key={partIdx} className="font-bold text-forest">
               {part.slice(2, -2)}
             </strong>
           );
@@ -135,7 +126,7 @@ export default function AiPage() {
 
       if (isListItem) {
         return (
-          <li key={index} className="ml-4 list-disc text-xs leading-relaxed text-[#fdf6e3]/90 my-0.5">
+          <li key={index} className="ml-4 list-disc text-sm leading-relaxed text-ink my-0.5">
             {content}
           </li>
         );
@@ -144,14 +135,14 @@ export default function AiPage() {
       const hasArabic = /[\u0600-\u06FF]/.test(line);
       if (hasArabic) {
         return (
-          <p key={index} className="text-lg md:text-xl leading-loose font-amiri text-[#c9a84c] text-center my-2.5 py-0.5 font-semibold select-all" dir="rtl">
+          <p key={index} className="text-xl md:text-2xl leading-loose font-amiri text-forest text-right my-2.5 py-0.5 select-all" dir="rtl">
             {content}
           </p>
         );
       }
 
       return (
-        <p key={index} className="text-xs leading-relaxed text-[#fdf6e3]/95 my-1 min-h-[0.25rem]">
+        <p key={index} className="text-sm leading-relaxed text-ink my-1 min-h-[0.25rem]">
           {content}
         </p>
       );
@@ -160,136 +151,95 @@ export default function AiPage() {
 
   return (
     <AppLayout activeTab="ai">
-      <div className="space-y-6 max-w-4xl mx-auto h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)] flex flex-col">
-        {/* Page Header */}
-        <div className="p-4 islamic-card shrink-0 relative overflow-hidden">
-          <div className="islamic-card-inner" />
-          <div className="islamic-pattern" />
-          <div className="relative z-10 flex items-center gap-3">
-            <svg className="w-8 h-8 text-[#c9a84c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 2L15 5L18 3L17 7L21 8L19 12L21 16L17 17L18 21L15 19L12 22L9 19L6 21L7 17L3 16L5 12L3 8L7 7L6 3L9 5Z" fill="currentColor" fillOpacity="0.15" />
-              <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1.5" />
-              <circle cx="12" cy="12" r="2.5" fill="currentColor" />
-            </svg>
-            <div>
-              <h2 className="text-lg font-amiri font-bold text-[#c9a84c] leading-none">
-                Süni İntellekt Köməkçisi
-              </h2>
-              <p className="text-[10px] text-[#fdf6e3]/60 font-sans mt-1">
-                Quran ayələri, hədislər və İslam dini barədə öyrənmək istədiyiniz sualları ünvanlayın.
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-col gap-5 md:gap-7 h-[calc(100dvh-10rem)] md:h-[calc(100vh-6rem)]">
+        <PageHeader title="AI köməkçi" subtitle="Quran ayələri, hədislər və İslam dini barədə suallarını ver." />
 
-        {/* Chat Card Box */}
-        <div className="islamic-card flex-1 flex flex-col overflow-hidden min-h-0">
-          <div className="islamic-card-inner" />
-          <div className="islamic-pattern" />
-          
-          <div className="relative z-10 flex flex-col h-full w-full overflow-hidden bg-[#05180d]/40">
-            {/* Chat History */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin scrollbar-thumb-[#c9a84c]/20 bg-[#05180d]/60">
-              {messages.map((msg) => (
+        <section className="bg-white border border-line rounded-card flex-1 flex flex-col overflow-hidden min-h-0">
+          {/* Chat history */}
+          <div className="flex-1 p-4 md:p-6 overflow-y-auto flex flex-col gap-4">
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex w-full gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "assistant" && (
+                  <div className="w-9 h-9 rounded-full bg-mint text-forest flex items-center justify-center shrink-0 self-start">
+                    <IconSparkle size={18} />
+                  </div>
+                )}
                 <div
-                  key={msg.id}
-                  className={`flex w-full gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                    msg.role === "user"
+                      ? "bg-forest text-cream rounded-tr-md text-sm font-medium"
+                      : "bg-cream border border-line text-ink rounded-tl-md"
+                  }`}
                 >
-                  {msg.role === "assistant" && (
-                    <div className="w-7 h-7 rounded-full bg-[#1a5c38]/40 border border-[#c9a84c]/20 flex items-center justify-center font-bold text-[#c9a84c] text-[10px] shrink-0 self-start mt-0.5">
-                      🕋
-                    </div>
-                  )}
-                  
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-md ${
-                      msg.role === "user"
-                        ? "bg-gradient-to-br from-[#c9a84c]/90 to-[#b0913e]/90 text-[#0b301a] rounded-tr-none font-semibold text-xs"
-                        : "bg-[#05180d]/80 border border-[#c9a84c]/20 text-[#fdf6e3] rounded-tl-none"
-                    }`}
-                  >
-                    {msg.role === "user" ? (
-                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                    ) : (
-                      <div className="space-y-1">{parseMessageText(msg.content)}</div>
-                    )}
-                  </div>
-
-                  {msg.role === "user" && (
-                    <div className="w-7 h-7 rounded-full bg-[#c9a84c]/10 border border-[#c9a84c]/30 flex items-center justify-center font-bold text-[#c9a84c] text-[9px] shrink-0 self-start mt-0.5">
-                      👤
-                    </div>
+                  {msg.role === "user" ? (
+                    <p className="m-0 whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  ) : (
+                    <div className="flex flex-col gap-1">{parseMessageText(msg.content)}</div>
                   )}
                 </div>
-              ))}
+              </div>
+            ))}
 
-              {isSending && (
-                <div className="flex w-full gap-2.5 justify-start">
-                  <div className="w-7 h-7 rounded-full bg-[#1a5c38]/40 border border-[#c9a84c]/20 flex items-center justify-center font-bold text-[#c9a84c] text-[10px] shrink-0">
-                    🕋
-                  </div>
-                  <div className="bg-[#05180d]/80 border border-[#c9a84c]/20 text-[#fdf6e3] rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-1.5">
-                    <span className="text-[10px] text-[#fdf6e3]/70 font-medium animate-pulse">Düşünür</span>
-                    <span className="flex gap-0.5">
-                      <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                      <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                      <span className="w-1 h-1 bg-[#c9a84c] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                    </span>
-                  </div>
+            {isSending && (
+              <div className="flex w-full gap-2.5 justify-start">
+                <div className="w-9 h-9 rounded-full bg-mint text-forest flex items-center justify-center shrink-0">
+                  <IconSparkle size={18} />
                 </div>
-              )}
-
-              {error && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 text-[10px] rounded-xl text-center">
-                  ⚠️ {error}
-                </div>
-              )}
-              
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Suggestions */}
-            {messages.length === 1 && !isSending && (
-              <div className="p-3 border-t border-[#c9a84c]/10 bg-[#05180d]/85 shrink-0">
-                <span className="text-[9px] text-[#c9a84c] uppercase tracking-wider font-bold block mb-1.5">
-                  Hazır Sorğular:
-                </span>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {SUGGESTIONS.map((sug, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSendMessage(sug.prompt)}
-                      className="p-2 text-left bg-[#05180d]/60 hover:bg-[#1a5c38]/20 border border-[#c9a84c]/20 hover:border-[#c9a84c]/40 rounded-lg transition-all group flex flex-col justify-between"
-                    >
-                      <span className="text-[10px] font-bold text-[#c9a84c] block line-clamp-1 group-hover:text-[#fdf6e3]">
-                        {sug.label}
-                      </span>
-                    </button>
-                  ))}
+                <div className="bg-cream border border-line rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-2">
+                  <span className="text-sm text-muted animate-pulse">Düşünür</span>
+                  <span className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </span>
                 </div>
               </div>
             )}
 
-            {/* Input Form */}
-            <form onSubmit={handleFormSubmit} className="p-3 border-t border-[#c9a84c]/15 bg-[#05180d]/90 flex gap-2 shrink-0">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Quran ayəsi, hədis və ya dini sual..."
-                disabled={isSending}
-                className="flex-1 bg-[#05180d]/80 border border-[#c9a84c]/30 focus:border-[#c9a84c] rounded-xl px-3 py-2.5 text-xs text-[#fdf6e3] placeholder-[#fdf6e3]/40 focus:outline-none transition-all disabled:opacity-60"
-              />
-              <button
-                type="submit"
-                disabled={isSending || !input.trim()}
-                className="bg-[#c9a84c] hover:bg-[#b0913e] disabled:bg-[#c9a84c]/40 disabled:text-[#0b301a]/60 text-[#0b301a] font-bold px-4 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center shrink-0"
-              >
-                Göndər
-              </button>
-            </form>
+            {error && (
+              <div className="p-3 bg-[#FBEAE5] border border-dangerline text-danger text-sm rounded-btn text-center">
+                {error}
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
-        </div>
+
+          {/* Suggestions */}
+          {messages.length === 1 && !isSending && (
+            <div className="px-4 md:px-6 py-3 border-t border-sand shrink-0 flex flex-col gap-2">
+              <span className="text-xs font-bold text-goldtext">Hazır sorğular</span>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {SUGGESTIONS.map((sug, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSendMessage(sug.prompt)}
+                    className="min-h-[44px] px-3 text-left bg-cream hover:bg-sand border border-line rounded-xl text-sm font-semibold text-forest transition-colors"
+                  >
+                    {sug.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Input */}
+          <form onSubmit={handleFormSubmit} className="p-3 md:p-4 border-t border-sand flex gap-2.5 shrink-0">
+            <label className="sr-only" htmlFor="ai-input">Sorğun</label>
+            <input
+              id="ai-input"
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Quran ayəsi, hədis və ya dini sual..."
+              disabled={isSending}
+              className={`${inputCls} flex-1 disabled:opacity-60`}
+            />
+            <button type="submit" disabled={isSending || !input.trim()} className={btn.primary}>
+              Göndər
+            </button>
+          </form>
+        </section>
       </div>
     </AppLayout>
   );

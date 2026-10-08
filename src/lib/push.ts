@@ -61,3 +61,22 @@ export async function registerPushSubscription(uid: string): Promise<boolean> {
   await addPushSubscription(uid, JSON.stringify(subscription));
   return true;
 }
+
+// Called from a button press: asks for permission and subscribes. Returns a user-facing message.
+export async function enablePushFromUserGesture(uid: string): Promise<string> {
+  if (!isPushSupported()) {
+    return "Cihazınız və ya brauzeriniz Web Push bildirişləri dəstəkləmir.";
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      return "Bildiriş icazəsi rədd edildi: " + permission;
+    }
+    return (await registerPushSubscription(uid))
+      ? "Bildirişlər uğurla aktiv edildi!"
+      : "Bildirişlər hazırda konfiqurasiya edilməyib.";
+  } catch (err) {
+    console.error("Subscription error:", err);
+    return "Bildirişləri aktiv edərkən xəta baş verdi: " + (err instanceof Error ? err.message : String(err));
+  }
+}

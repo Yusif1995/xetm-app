@@ -1,11 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { Amiri, Inter } from "next/font/google";
+import { Amiri, Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-jakarta",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin", "latin-ext"],
+  weight: ["600", "700"],
+  variable: "--font-fraunces",
 });
 
 const amiri = Amiri({
@@ -15,7 +22,7 @@ const amiri = Amiri({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#1a5c38",
+  themeColor: "#0E3B2B",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -40,7 +47,7 @@ export default function RootLayout({
   return (
     <html lang="az" className="h-full">
       <body
-        className={`${inter.variable} ${amiri.variable} font-sans antialiased text-[#fdf6e3] h-full flex flex-col`}
+        className={`${jakarta.variable} ${fraunces.variable} ${amiri.variable} font-sans antialiased text-ink bg-cream h-full flex flex-col`}
       >
         <AuthProvider>
           <div className="flex-1 flex flex-col">
