@@ -33,6 +33,7 @@ export interface UserDoc {
   assignedPages: number[];   // pages 1-604
   completedPages: number[];  // subset of assignedPages
   completedAt?: Record<string, string>; // pageNumber -> ISO timestamp string
+  previousCompletedAt?: Record<string, string>;
   assignmentStartDate?: string; // YYYY-MM-DD
   assignmentEndDate?: string;   // YYYY-MM-DD
   assignedJuz?: number;         // 1-30
@@ -52,6 +53,7 @@ export interface UserDoc {
     assignedPages: number[];
     completedPages: number[];
     completedAt?: Record<string, string>;
+    previousCompletedAt?: Record<string, string>;
     assignmentStartDate?: string;
     assignmentEndDate?: string;
     assignedJuz?: number;
@@ -76,6 +78,7 @@ export interface UserAssignment {
   assignedPages: number[];
   completedPages: number[];
   completedAt: Record<string, string>;
+  previousCompletedAt: Record<string, string>;
   assignmentStartDate: string;
   assignmentEndDate: string;
   assignedJuz?: number;
@@ -88,9 +91,8 @@ export interface UserAssignment {
 }
 
 export function getUserGroupIds(user: UserDoc | null): string[] {
-  if (!user) return ["default"];
+  if (!user) return [];
   const list = new Set<string>();
-  list.add("default");
   if (user.groupId) {
     list.add(user.groupId);
   }
@@ -130,6 +132,7 @@ export function getUserAssignment(user: UserDoc, groupId: string): UserAssignmen
       assignedPages: user.assignedPages || [],
       completedPages: user.completedPages || [],
       completedAt: user.completedAt || {},
+      previousCompletedAt: user.previousCompletedAt || {},
       assignmentStartDate: user.assignmentStartDate || "",
       assignmentEndDate: user.assignmentEndDate || "",
       assignedJuz: user.assignedJuz,
@@ -148,6 +151,7 @@ export function getUserAssignment(user: UserDoc, groupId: string): UserAssignmen
     assignedPages: gd?.assignedPages || [],
     completedPages: gd?.completedPages || [],
     completedAt: gd?.completedAt || {},
+    previousCompletedAt: gd?.previousCompletedAt || {},
     assignmentStartDate: gd?.assignmentStartDate || "",
     assignmentEndDate: gd?.assignmentEndDate || "",
     assignedJuz: gd?.assignedJuz,
@@ -325,78 +329,63 @@ export async function setAssignedPages(uid: string, pages: number[]): Promise<vo
   await updateDoc(docRef, { assignedPages: pages });
 }
 
-// Toggle multiple pages completion at once
-export async function toggleCompletedPages(
-  uid: string, 
-  pageNumbers: number[], 
+// Mark/unmark pages of the current (or previous) assignment as read.
+// Runs in a transaction so the completed-pages counter stays correct under concurrent clicks.
+async function togglePages(
+  uid: string,
+  pageNumbers: number[],
   isCompleted: boolean,
-  groupId?: string | null
+  groupId: string | null | undefined,
+  previous: boolean
 ): Promise<void> {
   const effectiveGroupId = groupId || "default";
+  const prefix = effectiveGroupId === "default" ? "" : `groupData.${effectiveGroupId}.`;
+  const pagesField = previous ? "previousCompletedPages" : "completedPages";
+  const timesField = previous ? "previousCompletedAt" : "completedAt";
   const docRef = doc(db, "users", uid);
   const timestamp = new Date().toISOString();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updates: Record<string, any> = {};
 
-  const userSnap = await getDoc(docRef);
-  let currentTotal = 0;
-  let activeAssignment: UserAssignment = {
-    assignedPages: [], completedPages: [], completedAt: {},
-    assignmentStartDate: "", assignmentEndDate: "",
-    previousAssignedPages: [], previousCompletedPages: [],
-    previousStartDate: "", previousEndDate: "", totalCompletedPages: 0
-  };
+  const changedPages = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(docRef);
+    if (!snap.exists()) return [];
+    const assignment = getUserAssignment(toUserDoc(uid, snap.data()), effectiveGroupId);
+    const alreadyCompleted = previous ? assignment.previousCompletedPages : assignment.completedPages;
+    const changed = isCompleted
+      ? pageNumbers.filter((p) => !alreadyCompleted.includes(p))
+      : pageNumbers.filter((p) => alreadyCompleted.includes(p));
+    if (changed.length === 0) return [];
 
-  if (userSnap.exists()) {
-    const data = userSnap.data() as UserDoc;
-    activeAssignment = getUserAssignment(data, effectiveGroupId);
-    currentTotal = activeAssignment.totalCompletedPages;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: Record<string, any> = {
+      [`${prefix}${pagesField}`]: isCompleted ? arrayUnion(...changed) : arrayRemove(...changed),
+      [`${prefix}totalCompletedPages`]: Math.max(0, assignment.totalCompletedPages + (isCompleted ? changed.length : -changed.length)),
+    };
+    changed.forEach((p) => {
+      updates[`${prefix}${timesField}.${p}`] = isCompleted ? timestamp : deleteField();
+    });
+    tx.update(docRef, updates);
+    return changed;
+  });
+
+  if (changedPages.length === 0) return;
+  if (!previous) {
+    await checkAndUpdateKhatmCompletion(effectiveGroupId);
   }
-
   if (isCompleted) {
-    const alreadyCompleted = activeAssignment.completedPages || [];
-    const newPages = pageNumbers.filter(p => !alreadyCompleted.includes(p));
-
-    if (effectiveGroupId === "default") {
-      updates.completedPages = arrayUnion(...pageNumbers);
-      pageNumbers.forEach((p) => {
-        updates[`completedAt.${p}`] = timestamp;
-      });
-      updates.totalCompletedPages = currentTotal + newPages.length;
-    } else {
-      updates[`groupData.${effectiveGroupId}.completedPages`] = arrayUnion(...pageNumbers);
-      pageNumbers.forEach((p) => {
-        updates[`groupData.${effectiveGroupId}.completedAt.${p}`] = timestamp;
-      });
-      updates[`groupData.${effectiveGroupId}.totalCompletedPages`] = currentTotal + newPages.length;
-    }
-  } else {
-    const alreadyCompleted = activeAssignment.completedPages || [];
-    const removedPages = pageNumbers.filter(p => alreadyCompleted.includes(p));
-
-    if (effectiveGroupId === "default") {
-      updates.completedPages = arrayRemove(...pageNumbers);
-      pageNumbers.forEach((p) => {
-        updates[`completedAt.${p}`] = deleteField();
-      });
-      updates.totalCompletedPages = Math.max(0, currentTotal - removedPages.length);
-    } else {
-      updates[`groupData.${effectiveGroupId}.completedPages`] = arrayRemove(...pageNumbers);
-      pageNumbers.forEach((p) => {
-        updates[`groupData.${effectiveGroupId}.completedAt.${p}`] = deleteField();
-      });
-      updates[`groupData.${effectiveGroupId}.totalCompletedPages`] = Math.max(0, currentTotal - removedPages.length);
-    }
-  }
-
-  await updateDoc(docRef, updates);
-  await checkAndUpdateKhatmCompletion(effectiveGroupId);
-
-  if (isCompleted) {
-    sendPushNotificationForCompletedPages(uid, pageNumbers, effectiveGroupId).catch((err) =>
+    sendPushNotificationForCompletedPages(uid, changedPages, effectiveGroupId).catch((err) =>
       console.error("Failed to send push:", err)
     );
   }
+}
+
+// Toggle multiple pages of the current assignment at once
+export async function toggleCompletedPages(
+  uid: string,
+  pageNumbers: number[],
+  isCompleted: boolean,
+  groupId?: string | null
+): Promise<void> {
+  await togglePages(uid, pageNumbers, isCompleted, groupId, false);
 }
 
 // Check if the current Khatm (all 604 pages) is completed and update the group counters
@@ -405,7 +394,7 @@ export async function checkAndUpdateKhatmCompletion(groupId?: string | null): Pr
     const effectiveGroupId = groupId || "default";
     if (effectiveGroupId === "default") return; // The legacy system group is no longer used
 
-    const [users, group] = await Promise.all([getAllUsers(), getGroupDoc(effectiveGroupId)]);
+    const [users, group] = await Promise.all([getGroupMembers(effectiveGroupId), getGroupDoc(effectiveGroupId)]);
     if (!group) return;
     const groupUsers = users.filter(
       (u) => getUserGroupIds(u).includes(effectiveGroupId) && isUserApprovedInGroup(u, effectiveGroupId, group)
@@ -484,7 +473,7 @@ export async function distributeJuzToUsers(
   groupId?: string | null
 ): Promise<void> {
   const effectiveGroupId = groupId || "default";
-  const [users, group] = await Promise.all([getAllUsers(), getGroupDoc(effectiveGroupId)]);
+  const [users, group] = await Promise.all([getGroupMembers(effectiveGroupId), getGroupDoc(effectiveGroupId)]);
   // Sort users stably by name, with UID as fallback to be deterministic, filtered by group and approved
   const activeUsers = users
     .filter((u) => getUserGroupIds(u).includes(effectiveGroupId) && isUserApprovedInGroup(u, effectiveGroupId, group))
@@ -541,6 +530,7 @@ export async function distributeJuzToUsers(
       if (user.assignedPages && user.assignedPages.length > 0) {
         updates.previousAssignedPages = user.assignedPages;
         updates.previousCompletedPages = user.completedPages || [];
+        updates.previousCompletedAt = user.completedAt || {};
         updates.previousStartDate = user.assignmentStartDate || "";
         updates.previousEndDate = user.assignmentEndDate || "";
       }
@@ -561,6 +551,7 @@ export async function distributeJuzToUsers(
       if (gd && gd.assignedPages && gd.assignedPages.length > 0) {
         updates[`groupData.${effectiveGroupId}.previousAssignedPages`] = gd.assignedPages;
         updates[`groupData.${effectiveGroupId}.previousCompletedPages`] = gd.completedPages || [];
+        updates[`groupData.${effectiveGroupId}.previousCompletedAt`] = gd.completedAt || {};
         updates[`groupData.${effectiveGroupId}.previousStartDate`] = gd.assignmentStartDate || "";
         updates[`groupData.${effectiveGroupId}.previousEndDate`] = gd.assignmentEndDate || "";
       }
@@ -645,6 +636,18 @@ export function calculateStatsForUsers(users: UserDoc[]): CompletionStat {
   });
 
   return { weeklyCount, thisMonthCount, lastMonthCount, yearlyCount };
+}
+
+// Users linked to a group (by groupIds). Much cheaper than reading every user.
+export async function getGroupMembers(groupId: string): Promise<UserDoc[]> {
+  if (!groupId || groupId === "default") return [];
+  try {
+    const snap = await getDocs(query(collection(db, "users"), where("groupIds", "array-contains", groupId)));
+    return snap.docs.map((d) => toUserDoc(d.id, d.data()));
+  } catch (error) {
+    console.error("Error in getGroupMembers:", error);
+    return [];
+  }
 }
 
 // Get all users ordered by createdAt
@@ -738,84 +741,20 @@ export async function markMemberMessageRead(uid: string, groupId: string): Promi
   });
 }
 
-// Toggle completion for a page in a previous assignment
+// Toggle completion for pages in a previous assignment
 export async function togglePreviousCompletedPages(
   uid: string,
   pageNumbers: number[],
   isCompleted: boolean,
   groupId?: string | null
 ): Promise<void> {
-  const effectiveGroupId = groupId || "default";
-  const docRef = doc(db, "users", uid);
-  const timestamp = new Date().toISOString();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updates: Record<string, any> = {};
-
-  const userSnap = await getDoc(docRef);
-  let currentTotal = 0;
-  let activeAssignment: UserAssignment = {
-    assignedPages: [], completedPages: [], completedAt: {},
-    assignmentStartDate: "", assignmentEndDate: "",
-    previousAssignedPages: [], previousCompletedPages: [],
-    previousStartDate: "", previousEndDate: "", totalCompletedPages: 0
-  };
-
-  if (userSnap.exists()) {
-    const data = userSnap.data() as UserDoc;
-    activeAssignment = getUserAssignment(data, effectiveGroupId);
-    currentTotal = activeAssignment.totalCompletedPages;
-  }
-
-  if (isCompleted) {
-    const alreadyCompleted = activeAssignment.previousCompletedPages || [];
-    const newPages = pageNumbers.filter(p => !alreadyCompleted.includes(p));
-
-    if (effectiveGroupId === "default") {
-      updates.previousCompletedPages = arrayUnion(...pageNumbers);
-      pageNumbers.forEach((p) => {
-        updates[`completedAt.${p}`] = timestamp;
-      });
-      updates.totalCompletedPages = currentTotal + newPages.length;
-    } else {
-      updates[`groupData.${effectiveGroupId}.previousCompletedPages`] = arrayUnion(...pageNumbers);
-      pageNumbers.forEach((p) => {
-        updates[`groupData.${effectiveGroupId}.completedAt.${p}`] = timestamp;
-      });
-      updates[`groupData.${effectiveGroupId}.totalCompletedPages`] = currentTotal + newPages.length;
-    }
-  } else {
-    const alreadyCompleted = activeAssignment.previousCompletedPages || [];
-    const removedPages = pageNumbers.filter(p => alreadyCompleted.includes(p));
-
-    if (effectiveGroupId === "default") {
-      updates.previousCompletedPages = arrayRemove(...pageNumbers);
-      pageNumbers.forEach((p) => {
-        updates[`completedAt.${p}`] = deleteField();
-      });
-      updates.totalCompletedPages = Math.max(0, currentTotal - removedPages.length);
-    } else {
-      updates[`groupData.${effectiveGroupId}.previousCompletedPages`] = arrayRemove(...pageNumbers);
-      pageNumbers.forEach((p) => {
-        updates[`groupData.${effectiveGroupId}.completedAt.${p}`] = deleteField();
-      });
-      updates[`groupData.${effectiveGroupId}.totalCompletedPages`] = Math.max(0, currentTotal - removedPages.length);
-    }
-  }
-
-  await updateDoc(docRef, updates);
-
-  if (isCompleted) {
-    sendPushNotificationForCompletedPages(uid, pageNumbers, effectiveGroupId).catch((err) =>
-      console.error("Failed to send push:", err)
-    );
-  }
+  await togglePages(uid, pageNumbers, isCompleted, groupId, true);
 }
 
 // Clear all page assignments and resets everything for a specific group
 export async function clearAllAssignments(groupId?: string | null): Promise<void> {
   const effectiveGroupId = groupId || "default";
-  const users = await getAllUsers();
-  const groupUsers = users.filter((u) => getUserGroupIds(u).includes(effectiveGroupId));
+  const groupUsers = await getGroupMembers(effectiveGroupId);
   const { writeBatch } = await import("firebase/firestore");
   const batch = writeBatch(db);
   
@@ -847,6 +786,7 @@ export async function clearAllAssignments(groupId?: string | null): Promise<void
         [`groupData.${effectiveGroupId}.assignedJuzs`]: [],
         [`groupData.${effectiveGroupId}.previousAssignedPages`]: [],
         [`groupData.${effectiveGroupId}.previousCompletedPages`]: [],
+        [`groupData.${effectiveGroupId}.previousCompletedAt`]: {},
         [`groupData.${effectiveGroupId}.previousStartDate`]: "",
         [`groupData.${effectiveGroupId}.previousEndDate`]: "",
         [`groupData.${effectiveGroupId}.totalCompletedPages`]: 0,
@@ -896,7 +836,7 @@ export async function sendPushNotificationForCompletedPages(
 ): Promise<void> {
   try {
     const effectiveGroupId = groupId || "default";
-    const users = await getAllUsers();
+    const users = await getGroupMembers(effectiveGroupId);
     let senderName = "Bir iştirakçı";
     const subscriptions: string[] = [];
 

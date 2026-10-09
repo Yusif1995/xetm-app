@@ -6,9 +6,7 @@ export function middleware(request: NextRequest) {
   
   const { pathname } = request.nextUrl;
   
-  // `/progress` is public and visible to everyone.
   const isLoginPage = pathname === "/";
-  const isProgressPage = pathname === "/progress";
   
   // Allow all static files and internal Next.js/API calls
   if (
@@ -19,8 +17,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 1. If not logged in and not accessing a public page (/ or /progress) -> Redirect to login (/)
-  if (!uid && !isLoginPage && !isProgressPage) {
+  // 1. If not logged in and not on the login page -> Redirect to login (/)
+  if (!uid && !isLoginPage) {
     const url = new URL("/", request.url);
     url.search = request.nextUrl.search;
     return NextResponse.redirect(url);

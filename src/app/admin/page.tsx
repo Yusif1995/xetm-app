@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import {
-  getAllUsers,
+  getGroupMembers,
   getGroupSettings,
   setGroupSettings,
   setAssignmentForUser,
@@ -23,7 +23,7 @@ import {
 } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { JUZ_MAP, juzPages, pageRangesLabel } from "@/lib/quran";
 import { participantStats } from "@/components/GroupWidgets";
 import { relativeTimeAz } from "@/lib/dates";
@@ -73,8 +73,7 @@ export default function AdminPage() {
 
   async function loadData(groupId = activeGroupId) {
     try {
-      const allUsers = await getAllUsers();
-      setUsers(allUsers);
+      setUsers(await getGroupMembers(groupId));
       const appSettings = await getGroupSettings(groupId);
       setSettings(appSettings);
     } catch (err) {
@@ -84,9 +83,15 @@ export default function AdminPage() {
     }
   }
 
-  // Real-time listener for users
+  // Real-time listener for the members of the managed group
   useEffect(() => {
-    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+    if (!activeGroupId) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+    const membersQuery = query(collection(db, "users"), where("groupIds", "array-contains", activeGroupId));
+    const unsubUsers = onSnapshot(membersQuery, (snapshot) => {
       const list: UserDoc[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -103,7 +108,7 @@ export default function AdminPage() {
     });
 
     return () => unsubUsers();
-  }, []);
+  }, [activeGroupId]);
 
   // Real-time listener for settings based on activeGroupId
   useEffect(() => {
@@ -141,13 +146,11 @@ export default function AdminPage() {
   // Real-time listener for groups created by this user
   useEffect(() => {
     if (!currentUser) return;
-    const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
+    const ownedQuery = query(collection(db, "groups"), where("createdBy", "==", currentUser.uid));
+    const unsubGroups = onSnapshot(ownedQuery, (snapshot) => {
       const list: GroupDoc[] = [];
       snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.createdBy === currentUser.uid) {
-          list.push({ id: docSnap.id, ...data } as GroupDoc);
-        }
+        list.push({ id: docSnap.id, ...docSnap.data() } as GroupDoc);
       });
       setCreatedGroups(list);
     }, (err) => {

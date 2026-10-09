@@ -1,10 +1,8 @@
 "use client";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
-import { useState, useEffect, useRef, type ReactNode } from "react";
-import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
-import { getGroupDoc, getUserGroupIds, getUserAssignment, isUserApprovedInGroup, type UserDoc, type GroupDoc } from "@/lib/db";
+import { useState, useEffect, type ReactNode } from "react";
+import { getGroupDoc, isUserApprovedInGroup, type UserDoc } from "@/lib/db";
 import OnboardingScreen from "./OnboardingScreen";
 import { isPushSupported, registerPushSubscription } from "@/lib/push";
 import {
@@ -40,128 +38,15 @@ const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const { user, loading, logout, activeGroupId, activeGroup, activeGroupLoaded, isSuperAdmin } = useAuth();
-  const [groups, setGroups] = useState<GroupDoc[]>([]);
-  const prevCompletionsRef = useRef<Record<string, number[]>>({});
-  const isFirstLoadRef = useRef(true);
-
+  // Keep this browser's push subscription up to date once permission has been granted.
+  // Permission itself is only requested from the bell button (a user gesture), never on load.
   useEffect(() => {
-    if (!user) return;
-    const unsubGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
-      const list: GroupDoc[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.createdBy === user.uid || getUserGroupIds(user).includes(docSnap.id)) {
-          list.push({ id: docSnap.id, ...data } as GroupDoc);
-        }
-      });
-      setGroups(list);
-    }, (err) => {
-      console.error("Error in AppLayout groups listener:", err);
+    if (!user || !isPushSupported() || Notification.permission !== "granted") return;
+    registerPushSubscription(user.uid).catch((err) => {
+      console.error("Error setting up push subscription:", err);
     });
-
-    return () => unsubGroups();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
-
-  // Request browser Notification permission and register push subscription on mount/login
-  useEffect(() => {
-    if (!user) return;
-    
-    const initPush = async () => {
-      if (isPushSupported()) {
-        let permission = Notification.permission;
-        if (permission === "default") {
-          permission = await Notification.requestPermission();
-        }
-        
-        if (permission === "granted") {
-          try {
-            if (await registerPushSubscription(user.uid)) {
-              console.log("Registered Push Subscription for user", user.uid);
-            }
-          } catch (err) {
-            console.error("Error setting up push subscription:", err);
-          }
-        }
-      }
-    };
-    
-    initPush();
-  }, [user]);
-
-  // Listen to completedPages updates in real-time
-  useEffect(() => {
-    if (!user || !activeGroupId) return;
-
-    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-      const currentCompletions: Record<string, number[]> = {};
-      
-      snapshot.forEach((doc) => {
-        const data = doc.data() as UserDoc;
-        if (getUserGroupIds(data).includes(activeGroupId)) {
-          const assignment = getUserAssignment(data, activeGroupId);
-          currentCompletions[doc.id] = assignment.completedPages || [];
-        }
-      });
-
-      if (isFirstLoadRef.current) {
-        prevCompletionsRef.current = currentCompletions;
-        isFirstLoadRef.current = false;
-        return;
-      }
-
-      // Check for changes
-      snapshot.forEach((docSnap) => {
-        const uid = docSnap.id;
-        if (uid === user.uid) return; // Do not notify about self
-        const data = docSnap.data() as UserDoc;
-        if (!getUserGroupIds(data).includes(activeGroupId)) return; // Only notify if in same group
-
-        const oldPages = prevCompletionsRef.current[uid] || [];
-        const assignment = getUserAssignment(data, activeGroupId);
-        const newPages = assignment.completedPages || [];
-        const newlyCompleted = newPages.filter((p: number) => !oldPages.includes(p));
-
-        if (newlyCompleted.length > 0) {
-          const name = data.nickname || data.name || "Bir iştirakçı";
-          const title = "Quran Xətm - Yeni Tamamlama!";
-          const options = {
-            body: `${name} yeni səhifəni tamamladı: Səhifə ${newlyCompleted.sort((a: number, b: number) => a - b).join(", ")}`,
-            icon: "/icon.png",
-            badge: "/favicon.ico",
-            vibrate: [200, 100, 200],
-            data: { url: "/dashboard" }
-          };
-
-          if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-            if ("serviceWorker" in navigator) {
-              navigator.serviceWorker.ready.then((registration) => {
-                registration.showNotification(title, options);
-              }).catch((err) => {
-                console.error("Error in service worker notification:", err);
-                try {
-                  new Notification(title, { body: options.body, icon: options.icon });
-                } catch (e) {
-                  console.error("Fallback notification error:", e);
-                }
-              });
-            } else {
-              try {
-                new Notification(title, { body: options.body, icon: options.icon });
-              } catch (err) {
-                console.error("Error triggering HTML5 notification:", err);
-              }
-            }
-          }
-        }
-      });
-
-      prevCompletionsRef.current = currentCompletions;
-    });
-
-    return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, activeGroupId]);
 
   if (loading || (user && !activeGroupLoaded)) {
     return <LoadingScreen />;
@@ -183,7 +68,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 
   const current = NAV_FOR_TAB[activeTab];
   const memberCount = Object.values(activeGroup?.members || {}).filter((s) => s === "owner" || s === "member").length;
-  const activeGroupName = activeGroup?.name || groups.find((g) => g.id === activeGroupId)?.name || "Qrup seçilməyib";
+  const activeGroupName = activeGroup?.name || "Qrup seçilməyib";
 
   const navItems: { key: NavKey; href: string; label: string; short: string; icon: ReactNode }[] = [
     { key: "dashboard", href: "/dashboard", label: "Bu gün", short: "Bu gün", icon: <IconToday /> },

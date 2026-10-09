@@ -15,7 +15,7 @@ import {
   fetchUserDoc,
   createUserDoc,
   restoreGroupMemberships,
-  getAllUsers,
+  getGroupMembers,
   requestGroupMembership,
   backfillGroupMembers,
   type UserDoc,
@@ -299,9 +299,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await updateDoc(fsDoc(db, "users", user.uid), updates);
         }
 
-        const allUsers = await getAllUsers();
         for (const group of ownedGroups) {
-          await backfillGroupMembers(group, allUsers);
+          if (group.membersBackfilled) continue;
+          await backfillGroupMembers(group, await getGroupMembers(group.id));
         }
       } catch (err) {
         console.error("Error in self-healing owned groups:", err);

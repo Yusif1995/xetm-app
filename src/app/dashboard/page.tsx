@@ -17,7 +17,7 @@ import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { useSearchParams } from "next/navigation";
 import { surahForPage, pageRangesLabel } from "@/lib/quran";
 import { formatGregorianAz, formatHijriAz, relativeTimeAz } from "@/lib/dates";
@@ -135,10 +135,15 @@ function DashboardContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completedPagesKey]);
 
+  // Members of the active group only
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeGroupId) {
+      setAllUsers([]);
+      return;
+    }
 
-    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+    const membersQuery = query(collection(db, "users"), where("groupIds", "array-contains", activeGroupId));
+    const unsubUsers = onSnapshot(membersQuery, (snapshot) => {
       const list: UserDoc[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -154,7 +159,7 @@ function DashboardContent() {
 
     return () => unsubUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+  }, [user?.uid, activeGroupId]);
 
   useEffect(() => {
     if (!activeGroupId) return;
@@ -278,8 +283,11 @@ function DashboardContent() {
   };
 
   // Reading streak (consecutive days with a completion, ending today or yesterday)
-  const completedAt = activeAssignment?.completedAt || {};
-  const readDays = new Set(Object.values(completedAt).map((t) => new Date(t).toDateString()));
+  const readTimes = [
+    ...Object.values(activeAssignment?.completedAt || {}),
+    ...Object.values(activeAssignment?.previousCompletedAt || {}),
+  ];
+  const readDays = new Set(readTimes.map((t) => new Date(t).toDateString()));
   const getStreak = () => {
     const oneDay = 24 * 60 * 60 * 1000;
     const today = new Date(new Date().toDateString()).getTime();

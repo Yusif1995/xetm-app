@@ -78,8 +78,8 @@ service cloud.firestore {
 
     // Rules for hadiths collection
     match /hadiths/{hadithId} {
-      // Authenticated users can read the hadiths
-      allow read: if isAuthenticated();
+      // Public religious texts; the AI assistant's server-side search reads them without a user session
+      allow read: if true;
 
       // Only super admins can write/update hadiths
       allow write: if isSuperAdmin();

@@ -297,6 +297,14 @@ describe("member messages", () => {
   });
 });
 
+describe("hadiths", () => {
+  test("anyone can read hadiths, only super admin writes", async () => {
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), "hadiths", "h1")));
+    await assertFails(setDoc(doc(dbAs(OWNER), "hadiths", "h1"), { text: "x" }));
+    await assertSucceeds(setDoc(doc(dbAs(SUPER), "hadiths", "h1"), { text: "x" }));
+  });
+});
+
 describe("settings", () => {
   test("anyone can read config, only super admin writes", async () => {
     await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), "settings", "config")));

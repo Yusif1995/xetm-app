@@ -5,7 +5,7 @@ import Link from "next/link";
 import { type UserDoc, getUserGroupIds, getUserAssignment, isUserApprovedInGroup } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth";
 import { relativeTimeAz } from "@/lib/dates";
 import { ParticipantRow, participantName, computeJuzStates, JuzMap } from "@/components/GroupWidgets";
@@ -19,10 +19,17 @@ export default function ProgressPage() {
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Members of the active group only
   useEffect(() => {
     if (!user) return;
+    if (!activeGroupId) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
 
-    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+    const membersQuery = query(collection(db, "users"), where("groupIds", "array-contains", activeGroupId));
+    const unsubUsers = onSnapshot(membersQuery, (snapshot) => {
       const list: UserDoc[] = [];
       snapshot.forEach((docSnap) => {
         list.push({ uid: docSnap.id, ...docSnap.data() } as UserDoc);
@@ -36,7 +43,7 @@ export default function ProgressPage() {
 
     return () => unsubUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
+  }, [user?.uid, activeGroupId]);
 
   useEffect(() => {
     if (!activeGroupId) return;
@@ -95,8 +102,8 @@ export default function ProgressPage() {
   // Recent activity: pages read per member per day, newest first
   const activityMap = new Map<string, { name: string; count: number; time: number }>();
   filteredUsers.forEach((u) => {
-    const completedAt = getUserAssignment(u, activeGroupId).completedAt || {};
-    Object.values(completedAt).forEach((iso) => {
+    const a = getUserAssignment(u, activeGroupId);
+    [...Object.values(a.completedAt || {}), ...Object.values(a.previousCompletedAt || {})].forEach((iso) => {
       const time = new Date(iso).getTime();
       if (Number.isNaN(time)) return;
       const key = `${u.uid}|${new Date(time).toDateString()}`;
