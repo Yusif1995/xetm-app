@@ -795,12 +795,13 @@ export default function AdminPage() {
                           <Bar ratio={s.ratio} color={s.status === "done" ? "done" : "accent"} />
                         </div>
                         {isOwnerRow && <Chip tone="owner">Qrup sahibi</Chip>}
-                        <div className="flex gap-2">
-                          <button onClick={() => openMessage(u)} className={button("outline", "sm")}>Mesaj</button>
-                          {!isSelf && (
+                        {/* No messaging or removing yourself */}
+                        {!isSelf && (
+                          <div className="flex gap-2">
+                            <button onClick={() => openMessage(u)} className={button("outline", "sm")}>Mesaj</button>
                             <button onClick={() => handleRemoveUser(u)} className={button("danger", "sm")}>Çıxar</button>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })
