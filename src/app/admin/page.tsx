@@ -10,7 +10,7 @@ import {
   setAssignmentForUser,
   distributeJuzToUsers,
   clearAllAssignments,
-  updateUserAdminNotification,
+  sendMemberMessage,
   updateUserApproval,
   getUserGroupIds,
   getUserAssignment,
@@ -26,6 +26,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { JUZ_MAP, juzPages, pageRangesLabel } from "@/lib/quran";
 import { participantStats } from "@/components/GroupWidgets";
+import { relativeTimeAz } from "@/lib/dates";
 import {
   Avatar, Bar, Card, Chip, IconLink, IconSparkle, IconTrash, LoadingScreen, PageHeader, btn, button, inputCls
 } from "@/components/ui";
@@ -59,6 +60,12 @@ export default function AdminPage() {
   const [groupEndDate, setGroupEndDate] = useState("");
   const [pickedJuz, setPickedJuz] = useState<number | null>(null);
   const [pickedUid, setPickedUid] = useState("");
+
+  // Message to a member
+  const [messageTarget, setMessageTarget] = useState<UserDoc | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
 
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -278,19 +285,26 @@ export default function AdminPage() {
     }
   };
 
-  const handleNotifyClick = async (user: UserDoc) => {
-    const msg = window.prompt(
-      "İştirakçıya bildiriş daxil edin (Boş buraxdıqda mövcud bildiriş silinir):",
-      user.adminNotification || ""
-    );
-    if (msg !== null) {
-      try {
-        await updateUserAdminNotification(user.uid, msg, activeGroupId);
-        await loadData();
-      } catch (err) {
-        console.error("Error updating admin notification:", err);
-        alert("Bildiriş göndərilərkən xəta baş verdi.");
-      }
+  const openMessage = (user: UserDoc) => {
+    setMessageTarget(user);
+    setMessageText(user.groupData?.[activeGroupId]?.adminMessage?.text || "");
+    setMessageError(null);
+  };
+
+  // Empty text clears the current message
+  const submitMessage = async (text: string) => {
+    if (!messageTarget) return;
+    setMessageSending(true);
+    setMessageError(null);
+    try {
+      await sendMemberMessage(messageTarget.uid, activeGroupId, text);
+      setMessageTarget(null);
+      setMessageText("");
+    } catch (err) {
+      console.error("Error sending member message:", err);
+      setMessageError("Mesaj göndərilərkən xəta baş verdi.");
+    } finally {
+      setMessageSending(false);
     }
   };
 
@@ -736,6 +750,11 @@ export default function AdminPage() {
                             <div className="text-xs text-muted">
                               {isOwnerRow ? "Qrup sahibi" : "İştirakçı"} · {s.juzLabel}
                             </div>
+                            {u.groupData?.[activeGroupId]?.adminMessage && (
+                              <div className="text-xs font-semibold text-goldtext">
+                                Mesaj {u.groupData[activeGroupId].adminMessage!.read ? "oxunub" : "hələ oxunmayıb"}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex-[1_1_140px] flex flex-col gap-1">
@@ -744,7 +763,7 @@ export default function AdminPage() {
                         </div>
                         {isOwnerRow && <Chip tone="owner">Qrup sahibi</Chip>}
                         <div className="flex gap-2">
-                          <button onClick={() => handleNotifyClick(u)} className={button("outline", "sm")}>Bildiriş</button>
+                          <button onClick={() => openMessage(u)} className={button("outline", "sm")}>Mesaj</button>
                           {!isSelf && (
                             <button onClick={() => handleRemoveUser(u)} className={button("danger", "sm")}>Çıxar</button>
                           )}
@@ -839,6 +858,54 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      {messageTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-4">
+          <form
+            onSubmit={(e) => { e.preventDefault(); submitMessage(messageText); }}
+            className="bg-white border border-line rounded-hero p-6 w-full max-w-md flex flex-col gap-4"
+          >
+            <div className="flex flex-col gap-1">
+              <h3 className="m-0 font-display font-semibold text-2xl text-forest">Mesaj göndər</h3>
+              <div className="text-sm text-muted">
+                {messageTarget.name} · {groupName}
+              </div>
+            </div>
+            {messageTarget.groupData?.[activeGroupId]?.adminMessage && (
+              <div className="text-xs text-muted">
+                Əvvəlki mesaj {relativeTimeAz(new Date(messageTarget.groupData[activeGroupId].adminMessage!.sentAt).getTime())} göndərilib
+                {messageTarget.groupData[activeGroupId].adminMessage!.read ? " və oxunub." : ", hələ oxunmayıb."}
+              </div>
+            )}
+            <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
+              Mesaj
+              <textarea
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                rows={4}
+                maxLength={500}
+                autoFocus
+                placeholder="Məs. Cüzünü cümə gününə qədər bitirməyə çalış"
+                className={`${inputCls} py-3 resize-y`}
+              />
+            </label>
+            <div className="text-xs text-muted">İştirakçı mesajı &quot;Bu gün&quot; ekranında görəcək və telefonuna bildiriş gələcək.</div>
+            {messageError && <div className="text-sm font-semibold text-danger">{messageError}</div>}
+            <div className="flex flex-wrap gap-2.5">
+              <button type="submit" disabled={messageSending || !messageText.trim()} className={`${btn.primary} flex-1`}>
+                {messageSending ? "Göndərilir..." : "Göndər"}
+              </button>
+              {messageTarget.groupData?.[activeGroupId]?.adminMessage && (
+                <button type="button" disabled={messageSending} onClick={() => submitMessage("")} className={btn.danger}>
+                  Mesajı sil
+                </button>
+              )}
+              <button type="button" disabled={messageSending} onClick={() => setMessageTarget(null)} className={btn.outline}>
+                Ləğv et
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </AppLayout>
   );
 }

@@ -40,7 +40,7 @@ export interface UserDoc {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createdAt: any;
   approved?: boolean;
-  adminNotification?: string;
+  adminNotification?: string; // Legacy, unused: messages now live in groupData[groupId].adminMessage
   previousAssignedPages?: number[];
   previousCompletedPages?: number[];
   previousStartDate?: string;
@@ -61,7 +61,15 @@ export interface UserDoc {
     previousStartDate?: string;
     previousEndDate?: string;
     totalCompletedPages?: number;
+    adminMessage?: GroupMessage;
   }>;
+}
+
+// A message from the group owner to one member
+export interface GroupMessage {
+  text: string;
+  sentAt: string; // ISO timestamp
+  read: boolean;
 }
 
 export interface UserAssignment {
@@ -696,10 +704,38 @@ export async function updateUserApproval(uid: string, approved: boolean, groupId
   });
 }
 
-// Update user admin notification message (sent by the owner of groupId)
-export async function updateUserAdminNotification(uid: string, message: string, groupId: string): Promise<void> {
+// The group owner sends (or, with empty text, clears) a message to a member.
+// The message is stored on the member's doc for this group and pushed to their devices.
+export async function sendMemberMessage(uid: string, groupId: string, text: string): Promise<void> {
+  const trimmed = text.trim();
   const docRef = doc(db, "users", uid);
-  await updateDoc(docRef, { adminNotification: message, lastEditedGroup: groupId });
+  await updateDoc(docRef, {
+    [`groupData.${groupId}.adminMessage`]: trimmed
+      ? { text: trimmed, sentAt: new Date().toISOString(), read: false }
+      : deleteField(),
+    lastEditedGroup: groupId
+  });
+
+  if (!trimmed) return;
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return;
+    await fetch("/api/notify-member", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ groupId, targetUid: uid, text: trimmed })
+    });
+  } catch (err) {
+    // The message is saved either way; push is best effort
+    console.error("Error pushing member message:", err);
+  }
+}
+
+// The member marks the owner's message in this group as read
+export async function markMemberMessageRead(uid: string, groupId: string): Promise<void> {
+  await updateDoc(doc(db, "users", uid), {
+    [`groupData.${groupId}.adminMessage.read`]: true
+  });
 }
 
 // Toggle completion for a page in a previous assignment

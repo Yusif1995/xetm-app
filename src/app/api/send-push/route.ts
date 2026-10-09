@@ -1,23 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import webpush from "web-push";
 import { verifyRequestUser, isRateLimited } from "@/lib/serverAuth";
+import { ensureVapidConfigured, sendToSubscriptions } from "@/lib/pushServer";
 
 const MAX_SUBSCRIPTIONS = 500;
-
-let vapidConfigured = false;
-
-// Configure lazily so a missing env var fails the request instead of the build
-function ensureVapidConfigured(): boolean {
-  if (vapidConfigured) return true;
-  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!vapidPublicKey || !vapidPrivateKey) {
-    return false;
-  }
-  webpush.setVapidDetails("mailto:info@xetm.app", vapidPublicKey, vapidPrivateKey);
-  vapidConfigured = true;
-  return true;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,24 +41,8 @@ export async function POST(req: NextRequest) {
       data: { url: "/dashboard" }
     });
 
-    const notifications: Promise<unknown>[] = [];
-
-    subscriptions.forEach((subStr) => {
-      try {
-        const subscription = JSON.parse(subStr);
-        const promise = webpush.sendNotification(subscription, payload)
-          .catch((err) => {
-            console.error("Error sending push notification to endpoint:", err.statusCode);
-          });
-        notifications.push(promise);
-      } catch (e) {
-        console.error("Failed to parse push subscription JSON:", e);
-      }
-    });
-
-    await Promise.all(notifications);
-
-    return NextResponse.json({ success: true, count: notifications.length });
+    const count = await sendToSubscriptions(subscriptions, payload);
+    return NextResponse.json({ success: true, count });
   } catch (error) {
     console.error("Error in send-push API route:", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });

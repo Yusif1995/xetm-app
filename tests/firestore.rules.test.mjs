@@ -271,6 +271,32 @@ describe("memberships", () => {
   });
 });
 
+describe("member messages", () => {
+  const message = { text: "Salam", sentAt: "2026-10-09T10:00:00.000Z", read: false };
+
+  test("group owner can message a member of their group", async () => {
+    await assertSucceeds(updateDoc(doc(dbAs(OWNER), "users", MEMBER), {
+      [`groupData.${G}.adminMessage`]: message,
+      lastEditedGroup: G,
+    }));
+  });
+
+  test("group owner cannot message into another group's slot", async () => {
+    await assertFails(updateDoc(doc(dbAs(OWNER), "users", MEMBER), {
+      [`groupData.${OTHER_G}.adminMessage`]: message,
+      lastEditedGroup: G,
+    }));
+  });
+
+  test("member can mark the message read, others cannot write it", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      updateDoc(doc(ctx.firestore(), "users", MEMBER), { [`groupData.${G}.adminMessage`]: message })
+    );
+    await assertSucceeds(updateDoc(doc(dbAs(MEMBER), "users", MEMBER), { [`groupData.${G}.adminMessage.read`]: true }));
+    await assertFails(updateDoc(doc(dbAs(STRANGER), "users", MEMBER), { [`groupData.${G}.adminMessage.read`]: false }));
+  });
+});
+
 describe("settings", () => {
   test("anyone can read config, only super admin writes", async () => {
     await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), "settings", "config")));

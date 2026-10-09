@@ -10,7 +10,8 @@ import {
   type GroupDoc,
   getUserGroupIds,
   getUserAssignment,
-  isUserApprovedInGroup
+  isUserApprovedInGroup,
+  markMemberMessageRead
 } from "@/lib/db";
 import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
@@ -19,7 +20,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { useSearchParams } from "next/navigation";
 import { surahForPage, pageRangesLabel } from "@/lib/quran";
-import { formatGregorianAz, formatHijriAz } from "@/lib/dates";
+import { formatGregorianAz, formatHijriAz, relativeTimeAz } from "@/lib/dates";
 import { enablePushFromUserGesture } from "@/lib/push";
 import { ParticipantRow, participantName } from "@/components/GroupWidgets";
 import { Avatar, Bar, Card, IconBell, IconLogout, LoadingScreen, ProgressRing, btn } from "@/components/ui";
@@ -44,6 +45,7 @@ function DashboardContent() {
   const [dailyAyah, setDailyAyah] = useState<DailyText | null>(null);
   const [dailyHadith, setDailyHadith] = useState<DailyText | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [markingMessage, setMarkingMessage] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -308,6 +310,21 @@ function DashboardContent() {
   const dateLine = `${formatGregorianAz(now)}${hijri ? ` -- ${hijri}` : ""}`;
   const firstName = user.firstName || user.name.split(" ")[0];
 
+  // Unread message from the group owner
+  const ownerMessage = user.groupData?.[activeGroupId]?.adminMessage;
+  const showOwnerMessage = !!ownerMessage?.text && !ownerMessage.read;
+
+  const handleMessageRead = async () => {
+    setMarkingMessage(true);
+    try {
+      await markMemberMessageRead(user.uid, activeGroupId);
+    } catch (err) {
+      console.error("Error marking message as read:", err);
+    } finally {
+      setMarkingMessage(false);
+    }
+  };
+
   const handleEnablePush = async () => {
     alert(await enablePushFromUserGesture(user.uid));
   };
@@ -374,6 +391,28 @@ function DashboardContent() {
             </div>
           </div>
         </header>
+
+        {showOwnerMessage && ownerMessage && (
+          <section
+            aria-label="Qrup sahibindən mesaj"
+            className="bg-progress border border-accent rounded-card p-5 md:p-6 flex flex-wrap items-start justify-between gap-4"
+          >
+            <div className="flex gap-3.5 min-w-0 flex-[1_1_260px]">
+              <div className="w-11 h-11 rounded-full bg-white text-goldtext flex items-center justify-center shrink-0">
+                <IconBell size={22} />
+              </div>
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="text-[13px] font-bold text-goldtext">
+                  Qrup sahibindən mesaj{activeGroup?.name ? ` · ${activeGroup.name}` : ""} · {relativeTimeAz(new Date(ownerMessage.sentAt).getTime())}
+                </div>
+                <p className="m-0 text-[15px] leading-relaxed text-ink whitespace-pre-line break-words">{ownerMessage.text}</p>
+              </div>
+            </div>
+            <button type="button" onClick={handleMessageRead} disabled={markingMessage} className={`${btn.primary} w-full md:w-auto`}>
+              {markingMessage ? "..." : "Oxudum"}
+            </button>
+          </section>
+        )}
 
         <div className="flex flex-wrap gap-5 md:gap-7 items-start">
 
