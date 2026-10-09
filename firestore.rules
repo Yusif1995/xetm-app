@@ -30,40 +30,75 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // Fields that live in users/{uid}/private/profile and must not appear on the public user doc
+    function privateFields() {
+      return ['email', 'pushSubscriptions', 'name', 'firstName', 'lastName'];
+    }
+
     match /admins/{uid} {
       allow read: if isOwner(uid);
       allow write: if false;
     }
 
-    // Rules for users collection
+    // Rules for users collection.
+    // Public part: nickname, photo, group links and reading progress. Names and contact data are private.
     match /users/{userId} {
-      // Authenticated users can view other members' progress
       allow read: if isAuthenticated();
 
-      // New users always start as plain, unapproved users; private data goes to private/profile
+      // New users start as plain users with no group data (joining is a separate update)
       allow create: if isOwner(userId)
         && request.resource.data.get('role', 'user') == 'user'
         && request.resource.data.get('approved', false) == false
-        && !request.resource.data.keys().hasAny(['email', 'pushSubscriptions']);
+        && !request.resource.data.keys().hasAny(privateFields())
+        && !request.resource.data.keys().hasAny(['groupData']);
 
-      // Users edit their own document but never their role or legacy approval flag.
-      // email / pushSubscriptions may only be removed from here (they live in private/profile).
-      allow update: if (isOwner(userId)
-          && !changedKeys().hasAny(['role', 'approved'])
-          && privateFieldRemovedOrUntouched('email')
-          && privateFieldRemovedOrUntouched('pushSubscriptions'))
+      allow update: if (isOwner(userId) && isValidSelfUpdate())
         || isSuperAdmin()
         || isGroupOwnerEdit();
 
-      function privateFieldRemovedOrUntouched(field) {
-        return !changedKeys().hasAny([field]) || !(field in request.resource.data);
-      }
-
       allow delete: if isOwner(userId) || isSuperAdmin();
 
-      // Email and push subscriptions: only the user themselves (the server uses the Admin SDK)
-      match /private/{docId} {
-        allow read, write: if isOwner(userId);
+      // A user may never change their role or legacy approval flag, may only remove private fields
+      // from this doc, and may only touch one group's data at a time (named in selfEditedGroup)
+      function isValidSelfUpdate() {
+        return !changedKeys().hasAny(['role', 'approved'])
+          && privateFieldsRemovedOrUntouched()
+          && (!changedKeys().hasAny(['groupData']) || isValidSelfGroupDataEdit());
+      }
+
+      function privateFieldsRemovedOrUntouched() {
+        return !changedKeys().hasAny(privateFields())
+          || !request.resource.data.keys().hasAny(privateFields());
+      }
+
+      function isValidSelfGroupDataEdit() {
+        let g = request.resource.data.get('selfEditedGroup', null);
+        let oldGD = resource.data.get('groupData', {});
+        let newGD = request.resource.data.get('groupData', {});
+        return g is string
+          && newGD.diff(oldGD).affectedKeys().hasOnly([g])
+          && (
+            // left the group
+            !(g in newGD)
+            // joined: starts with no assignment
+            || (!(g in oldGD)
+                && newGD[g].get('assignedPages', []).size() == 0
+                && newGD[g].get('previousAssignedPages', []).size() == 0)
+            // reading progress only
+            || ((g in oldGD) && isProgressOnlyEdit(oldGD[g], newGD[g]))
+          );
+      }
+
+      // Members record what they read; assignments are set by the group owner.
+      // Completed pages must stay within the assigned pages.
+      function isProgressOnlyEdit(o, n) {
+        return n.diff(o).affectedKeys().hasOnly([
+            'completedPages', 'completedAt', 'previousCompletedPages', 'previousCompletedAt',
+            'totalCompletedPages', 'approved', 'adminMessage'
+          ])
+          && !('adminMessage' in n)
+          && n.get('completedPages', []).hasOnly(n.get('assignedPages', []))
+          && n.get('previousCompletedPages', []).hasOnly(n.get('previousAssignedPages', []));
       }
 
       // A group owner may only change the part of a member's document that belongs to their group.
@@ -74,10 +109,15 @@ service cloud.firestore {
         let newIds = request.resource.data.get('groupIds', []).toSet();
         return isGroupOwner(g)
           && (g in oldIds || g in resource.data.get('groupData', {}) || resource.data.get('groupId', '') == g)
-          && changedKeys().hasOnly(['groupData', 'groupIds', 'groupId', 'isOnboarded', 'adminNotification', 'lastEditedGroup'])
+          && changedKeys().hasOnly(['groupData', 'groupIds', 'groupId', 'isOnboarded', 'lastEditedGroup'])
           && request.resource.data.get('groupData', {}).diff(resource.data.get('groupData', {})).affectedKeys().hasOnly([g])
           && oldIds.difference(newIds).hasOnly([g])
           && newIds.difference(oldIds).hasOnly([g]);
+      }
+
+      // Email, push subscriptions and names: only the user themselves (the server uses the Admin SDK)
+      match /private/{docId} {
+        allow read, write: if isOwner(userId);
       }
     }
 
@@ -102,18 +142,21 @@ service cloud.firestore {
     // Rules for groups collection.
     // members maps uid -> 'owner' | 'member' | 'pending'.
     match /groups/{groupId} {
-      // Authenticated users can read group details
-      allow read: if isAuthenticated();
+      // A group can be opened by its ID (invite links), but only your own groups can be listed
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated()
+        && (resource.data.createdBy == request.auth.uid
+            || resource.data.members[request.auth.uid] in ['owner', 'member', 'pending']);
 
       // Anyone can create a group they own, with themselves as the only member
       allow create: if isAuthenticated()
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.get('members', {}).keys().hasOnly([request.auth.uid]);
 
+      // Khatm counters are maintained by the server; members may only join (pending) or leave
       allow update: if isSuperAdmin()
         || (resource.data.createdBy == request.auth.uid && request.resource.data.createdBy == resource.data.createdBy)
-        || isSelfMembershipChange()
-        || isKhatmCounterUpdate();
+        || isSelfMembershipChange();
 
       allow delete: if isSuperAdmin() || resource.data.createdBy == request.auth.uid;
 
@@ -126,20 +169,18 @@ service cloud.firestore {
           && (!(request.auth.uid in newMembers) || newMembers[request.auth.uid] == 'pending');
       }
 
-      function isApprovedMember() {
-        let members = resource.data.get('members', {});
-        return isAuthenticated()
-          && request.auth.uid in members
-          && members[request.auth.uid] in ['owner', 'member'];
+      // Owner -> member messages: readable by the owner and that member only
+      match /messages/{memberId} {
+        allow read: if isOwner(memberId) || isGroupOwner(groupId);
+        allow create, delete: if isGroupOwner(groupId);
+        allow update: if isGroupOwner(groupId)
+          || (isOwner(memberId) && changedKeys().hasOnly(['read']));
       }
 
-      // Approved members record a completed khatm (the counter can only go up by one)
-      function isKhatmCounterUpdate() {
-        let oldCount = resource.data.get('completedKhatms', 0);
-        let newCount = request.resource.data.get('completedKhatms', 0);
-        return isApprovedMember()
-          && changedKeys().hasOnly(['completedKhatms', 'isCurrentKhatmCompleted'])
-          && (newCount == oldCount || newCount == oldCount + 1);
+      // Members' full names, visible to the group owner (other members only see nicknames)
+      match /profiles/{memberId} {
+        allow read: if isOwner(memberId) || isGroupOwner(groupId) || isSuperAdmin();
+        allow write: if isOwner(memberId);
       }
     }
   }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyRequestUser, isRateLimited } from "@/lib/serverAuth";
 import { ensureVapidConfigured, sendToSubscriptions } from "@/lib/pushServer";
 import { getAdminDb } from "@/lib/firebaseAdmin";
-import { getGroupInfo, getGroupPushTargets, isApprovedMember, removePushSubscriptions } from "@/lib/privateData";
+import { getGroupInfo, getGroupPushTargets, isApprovedMember, removePushSubscriptions, senderDisplayName } from "@/lib/privateData";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -41,9 +41,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const senderSnap = await db.collection("users").doc(uid).get();
-    const sender = senderSnap.data() || {};
-    const senderName = (sender.nickname || sender.name || "Bir iştirakçı") as string;
+    const senderName = await senderDisplayName(db, uid);
 
     const targets = await getGroupPushTargets(db, groupId, group, uid);
     const payload = JSON.stringify({

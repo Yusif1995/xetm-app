@@ -31,10 +31,15 @@ const STATUS_CHIP: Record<ParticipantStats["status"], { tone: "done" | "progress
   none: { tone: "neutral", text: "Təyin edilməyib" },
 };
 
-// Names: the group owner and the user themselves see full names, others see nicknames
-export function participantName(user: UserDoc, viewerUid: string | undefined, viewerIsOwner: boolean): string {
-  if (viewerIsOwner || user.uid === viewerUid) return user.name;
-  return user.nickname || "İştirakçı";
+// Names: you see your own name; full names of others come from the group's profiles,
+// which only the group owner can read. Everyone else sees nicknames.
+export function participantName(
+  user: UserDoc,
+  viewer: { uid: string; name?: string } | null,
+  fullNames: Record<string, string> = {}
+): string {
+  if (viewer && user.uid === viewer.uid) return viewer.name || user.nickname || "Sən";
+  return fullNames[user.uid] || user.nickname || "İştirakçı";
 }
 
 export function ParticipantRow({

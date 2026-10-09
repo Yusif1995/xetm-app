@@ -13,6 +13,7 @@ import {
   isUserApprovedInGroup,
   markMemberMessageRead
 } from "@/lib/db";
+import { useGroupFullNames, useMyGroupMessage } from "@/lib/useGroupData";
 import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
@@ -35,7 +36,7 @@ const WEEKDAYS = ["B.e.", "Ç.a.", "Ç.", "C.a.", "C.", "Ş.", "B."];
 const CHUNK_SIZE = 5;
 
 function DashboardContent() {
-  const { user, loading, refreshUser, activeGroupId, setActiveGroupId, activeGroup, logout } = useAuth();
+  const { user, loading, refreshUser, activeGroupId, setActiveGroupId, activeGroup, logout, isSuperAdmin } = useAuth();
   const [allUsers, setAllUsers] = useState<UserDoc[]>([]);
   const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [isMarking, setIsMarking] = useState(false);
@@ -46,6 +47,9 @@ function DashboardContent() {
   const [dailyHadith, setDailyHadith] = useState<DailyText | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [markingMessage, setMarkingMessage] = useState(false);
+  const canSeeNames = !!user && (isSuperAdmin || activeGroup?.createdBy === user.uid);
+  const fullNames = useGroupFullNames(activeGroupId, canSeeNames);
+  const ownerMessage = useMyGroupMessage(activeGroupId, user?.uid);
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -316,10 +320,10 @@ function DashboardContent() {
 
   const hijri = formatHijriAz(now);
   const dateLine = `${formatGregorianAz(now)}${hijri ? ` -- ${hijri}` : ""}`;
-  const firstName = user.firstName || user.name.split(" ")[0];
+  const displayName = user.name || user.nickname || "";
+  const firstName = user.firstName || displayName.split(" ")[0];
 
   // Unread message from the group owner
-  const ownerMessage = user.groupData?.[activeGroupId]?.adminMessage;
   const showOwnerMessage = !!ownerMessage?.text && !ownerMessage.read;
 
   const handleMessageRead = async () => {
@@ -374,14 +378,14 @@ function DashboardContent() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <Avatar name={user.name} />
+                  <Avatar name={displayName} />
                 )}
-                <span className="hidden md:inline text-sm font-semibold text-ink">{user.name}</span>
+                <span className="hidden md:inline text-sm font-semibold text-ink">{displayName}</span>
               </button>
               {profileOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white border border-line rounded-btn shadow-xl z-50 p-2">
                   <div className="px-3 py-2 border-b border-sand mb-1">
-                    <div className="text-sm font-bold truncate">{user.name}</div>
+                    <div className="text-sm font-bold truncate">{displayName}</div>
                     <div className="text-xs text-muted">{viewerIsOwner ? "Qrup sahibi" : "İştirakçı"}</div>
                   </div>
                   <Link href="/groups" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
@@ -575,7 +579,7 @@ function DashboardContent() {
                       compact
                       user={u}
                       groupId={activeGroupId}
-                      name={participantName(u, user.uid, viewerIsOwner)}
+                      name={participantName(u, user, fullNames)}
                       isSelf={u.uid === user.uid}
                       isOwner={u.uid === groupCreatedBy}
                     />

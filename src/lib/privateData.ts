@@ -56,26 +56,82 @@ export async function removePushSubscriptions(db: Firestore, uid: string, subscr
   );
 }
 
-// Move email / pushSubscriptions from the public user doc into the private doc.
-// Returns true if the user doc had anything to move.
+const PRIVATE_FIELDS = ["email", "pushSubscriptions", "name", "firstName", "lastName"] as const;
+
+// Move everything private off the public user doc:
+// - email, names and push subscriptions -> users/{uid}/private/profile
+// - full name -> groups/{gid}/profiles/{uid} for each group (readable by the group owner)
+// - owner messages in groupData[gid].adminMessage -> groups/{gid}/messages/{uid}
+// - the unused legacy adminNotification field is dropped
+// Returns true if the public doc had anything to move.
 export async function migrateUserPrivateData(db: Firestore, uid: string): Promise<boolean> {
   const userRef = db.collection("users").doc(uid);
+  const privateRef = userRef.collection("private").doc(PRIVATE_DOC);
   return db.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef);
+    const [snap, privateSnap] = await Promise.all([tx.get(userRef), tx.get(privateRef)]);
     if (!snap.exists) return false;
     const data = snap.data() || {};
-    const hasEmail = "email" in data;
-    const subs: string[] = Array.isArray(data.pushSubscriptions) ? data.pushSubscriptions : [];
-    if (!hasEmail && !("pushSubscriptions" in data)) return false;
+    const privateData = privateSnap.exists ? privateSnap.data() || {} : {};
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const privateUpdate: Record<string, any> = {};
-    if (hasEmail && data.email) privateUpdate.email = data.email;
-    if (subs.length > 0) privateUpdate.pushSubscriptions = FieldValue.arrayUnion(...subs);
-    if (Object.keys(privateUpdate).length > 0) {
-      tx.set(userRef.collection("private").doc(PRIVATE_DOC), privateUpdate, { merge: true });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const publicUpdate: Record<string, any> = {};
+
+    for (const field of PRIVATE_FIELDS) {
+      if (!(field in data)) continue;
+      publicUpdate[field] = FieldValue.delete();
+      const value = data[field];
+      if (field === "pushSubscriptions") {
+        if (Array.isArray(value) && value.length > 0) privateUpdate.pushSubscriptions = FieldValue.arrayUnion(...value);
+      } else if (typeof value === "string" && value && !privateData[field]) {
+        privateUpdate[field] = value;
+      }
     }
-    tx.update(userRef, { email: FieldValue.delete(), pushSubscriptions: FieldValue.delete() });
+    if ("adminNotification" in data) publicUpdate.adminNotification = FieldValue.delete();
+
+    const groupData = (data.groupData || {}) as Record<string, { adminMessage?: unknown }>;
+    for (const [groupId, entry] of Object.entries(groupData)) {
+      if (entry && typeof entry === "object" && "adminMessage" in entry) {
+        if (entry.adminMessage) {
+          tx.set(db.collection("groups").doc(groupId).collection("messages").doc(uid), entry.adminMessage as object);
+        }
+        publicUpdate[`groupData.${groupId}.adminMessage`] = FieldValue.delete();
+      }
+    }
+
+    const fullName = (privateData.name || data.name || "") as string;
+    const groupIds: string[] = Array.isArray(data.groupIds) ? data.groupIds : [];
+    if (fullName) {
+      for (const groupId of groupIds) {
+        tx.set(db.collection("groups").doc(groupId).collection("profiles").doc(uid), { name: fullName });
+      }
+    }
+
+    if (Object.keys(privateUpdate).length > 0) {
+      tx.set(privateRef, privateUpdate, { merge: true });
+    }
+    if (Object.keys(publicUpdate).length === 0) return false;
+    tx.update(userRef, publicUpdate);
     return true;
   });
+}
+
+// The AI assistant is for group owners and super admins
+export async function canUseAssistant(db: Firestore, uid: string): Promise<boolean> {
+  const [adminSnap, ownedSnap] = await Promise.all([
+    db.collection("admins").doc(uid).get(),
+    db.collection("groups").where("createdBy", "==", uid).limit(1).get(),
+  ]);
+  return adminSnap.exists || !ownedSnap.empty;
+}
+
+// Display name for push texts: nickname first (public), then the private full name
+export async function senderDisplayName(db: Firestore, uid: string): Promise<string> {
+  const userSnap = await db.collection("users").doc(uid).get();
+  const nickname = userSnap.data()?.nickname;
+  if (typeof nickname === "string" && nickname) return nickname;
+  const privateSnap = await db.collection("users").doc(uid).collection("private").doc(PRIVATE_DOC).get();
+  const name = privateSnap.data()?.name;
+  return typeof name === "string" && name ? name : "Bir iştirakçı";
 }

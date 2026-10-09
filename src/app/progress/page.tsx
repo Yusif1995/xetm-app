@@ -8,16 +8,19 @@ import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth";
 import { relativeTimeAz } from "@/lib/dates";
+import { useGroupFullNames } from "@/lib/useGroupData";
 import { ParticipantRow, participantName, computeJuzStates, JuzMap } from "@/components/GroupWidgets";
 import { Bar, Card, IconLink, LoadingScreen, PageHeader, btn, button } from "@/components/ui";
 
 export default function ProgressPage() {
-  const { user, activeGroupId, activeGroup } = useAuth();
+  const { user, activeGroupId, activeGroup, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [completedKhatms, setCompletedKhatms] = useState(0);
   const [loading, setLoading] = useState(true);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const canSeeNames = !!user && (isSuperAdmin || activeGroup?.createdBy === user.uid);
+  const fullNames = useGroupFullNames(activeGroupId, canSeeNames);
 
   // Members of the active group only
   useEffect(() => {
@@ -77,10 +80,10 @@ export default function ProgressPage() {
     (getUserGroupIds(u).includes(activeGroupId) || (groupCreatedBy && u.uid === groupCreatedBy))
     && isUserApprovedInGroup(u, activeGroupId, activeGroup)
   );
+  const nameOf = (u: UserDoc) => participantName(u, user, fullNames);
   const participants = [...filteredUsers].sort((a, b) =>
-    a.uid === groupCreatedBy ? -1 : b.uid === groupCreatedBy ? 1 : a.name.localeCompare(b.name)
+    a.uid === groupCreatedBy ? -1 : b.uid === groupCreatedBy ? 1 : nameOf(a).localeCompare(nameOf(b))
   );
-  const viewerIsOwner = !!groupCreatedBy && groupCreatedBy === user.uid;
 
   // Unique pages completed by the group out of 604 (only pages assigned to the reader)
   const completedPagesSet = new Set<number>();
@@ -112,7 +115,7 @@ export default function ProgressPage() {
         entry.count++;
         entry.time = Math.max(entry.time, time);
       } else {
-        activityMap.set(key, { name: participantName(u, user.uid, viewerIsOwner), count: 1, time });
+        activityMap.set(key, { name: nameOf(u), count: 1, time });
       }
     });
   });
@@ -186,7 +189,7 @@ export default function ProgressPage() {
                     key={u.uid}
                     user={u}
                     groupId={activeGroupId}
-                    name={participantName(u, user.uid, viewerIsOwner)}
+                    name={nameOf(u)}
                     isSelf={u.uid === user.uid}
                     isOwner={u.uid === groupCreatedBy}
                   />

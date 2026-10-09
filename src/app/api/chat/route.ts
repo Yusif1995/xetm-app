@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchQuran, searchHadiths } from "@/lib/rag";
 import { verifyRequestUser, isRateLimited } from "@/lib/serverAuth";
+import { getAdminDb } from "@/lib/firebaseAdmin";
+import { canUseAssistant } from "@/lib/privateData";
 
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyRequestUser(req);
     if (!uid) {
       return NextResponse.json({ error: "Giriş tələb olunur." }, { status: 401 });
+    }
+    const adminDb = getAdminDb();
+    if (!adminDb || !(await canUseAssistant(adminDb, uid))) {
+      return NextResponse.json({ error: "AI köməkçi yalnız qrup sahibləri üçündür." }, { status: 403 });
     }
     if (isRateLimited(`chat:${uid}`, 20, 10 * 60 * 1000)) {
       return NextResponse.json(

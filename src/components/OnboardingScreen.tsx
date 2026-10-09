@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { db } from "../lib/firebase";
-import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { createGroup, getGroupDoc, requestGroupMembership, UserDoc } from "../lib/db";
+import { doc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { createGroup, getGroupDoc, joinGroup, privateDocRef, publishProfileToGroups, UserDoc } from "../lib/db";
 import AuthShell from "./AuthShell";
 import { btn, inputCls } from "./ui";
 
@@ -44,23 +44,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
       setLoadingInvite(true);
       const updateInviteGroup = async () => {
         try {
-          const userRef = doc(db, "users", user.uid);
-          const hasGroupInIds = user.groupIds?.includes(inviteId);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const updates: any = {
-            groupId: inviteId
-          };
-          if (!hasGroupInIds) {
-            const { arrayUnion } = await import("firebase/firestore");
-            updates.groupIds = arrayUnion(inviteId);
-            updates[`groupData.${inviteId}.approved`] = false;
-            updates[`groupData.${inviteId}.assignedPages`] = [];
-            updates[`groupData.${inviteId}.completedPages`] = [];
-            updates[`groupData.${inviteId}.completedAt`] = {};
-            updates[`groupData.${inviteId}.totalCompletedPages`] = 0;
-          }
-          await updateDoc(userRef, updates);
-          await requestGroupMembership(user.uid, inviteId);
+          await joinGroup(user, inviteId);
         } catch (err) {
           console.error("Error linking invite group on onboarding screen:", err);
         } finally {
@@ -83,6 +67,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
           setLoadingInvite(false);
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInvited, user.groupId, user.uid, user.groupIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,6 +100,14 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
       }
 
       let newActiveGroupId = "";
+      const fullName = `${firstName.trim()} ${lastName.trim()}`;
+
+      // Names are private; only the nickname is on the public user doc
+      await setDoc(privateDocRef(user.uid), {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        name: fullName
+      }, { merge: true });
 
       if (!isInvited) {
         if (!groupName.trim()) {
@@ -123,13 +116,8 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
           return;
         }
 
-        // 1. Save profile
-        await updateDoc(userRef, {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          nickname: nickname.trim(),
-          name: `${firstName.trim()} ${lastName.trim()}`
-        });
+        // 1. Save the public nickname
+        await updateDoc(userRef, { nickname: nickname.trim() });
 
         // 2. Create the group (automatically links to user as creator and approves them)
         const newGroupId = await createGroup(groupName.trim(), user.uid);
@@ -140,15 +128,15 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
           groupId: newGroupId,
           isOnboarded: true
         });
+        await publishProfileToGroups(user.uid, fullName, [newGroupId]);
       } else {
         // Invited flow: user remains "user", and joins the group as pending approval
         await updateDoc(userRef, {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
           nickname: nickname.trim(),
-          name: `${firstName.trim()} ${lastName.trim()}`,
           isOnboarded: true
         });
+        // The group owner sees the full name of members who joined
+        await publishProfileToGroups(user.uid, fullName, user.groupIds || []);
         newActiveGroupId = user.groupId || "";
       }
 

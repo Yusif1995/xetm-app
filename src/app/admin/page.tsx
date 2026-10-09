@@ -25,7 +25,8 @@ import AppLayout from "@/components/AppLayout";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { JUZ_MAP, juzPages, pageRangesLabel } from "@/lib/quran";
-import { participantStats } from "@/components/GroupWidgets";
+import { participantStats, participantName } from "@/components/GroupWidgets";
+import { useGroupFullNames, useGroupMessages } from "@/lib/useGroupData";
 import { relativeTimeAz } from "@/lib/dates";
 import {
   Avatar, Bar, Card, Chip, IconLink, IconSparkle, IconTrash, LoadingScreen, PageHeader, btn, button, inputCls
@@ -72,6 +73,9 @@ export default function AdminPage() {
   const [migrationResult, setMigrationResult] = useState<string | null>(null);
 
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
+  const canManage = !!currentUser && (isSuperAdmin || activeGroup?.createdBy === currentUser.uid);
+  const fullNames = useGroupFullNames(activeGroupId, canManage);
+  const messages = useGroupMessages(activeGroupId, canManage);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
 
@@ -183,7 +187,8 @@ export default function AdminPage() {
     return null; // Guarded by middleware
   }
 
-  const isCreatorOfGroup = isSuperAdmin || (!!activeGroup && activeGroup.createdBy === currentUser.uid);
+  const isCreatorOfGroup = canManage;
+  const nameOf = (u: UserDoc) => participantName(u, currentUser, fullNames);
   const groupName = activeGroup?.name || "Qrup";
 
   const groupUsers = users.filter((u) =>
@@ -229,7 +234,7 @@ export default function AdminPage() {
   };
 
   const handleRejectUser = async (user: UserDoc) => {
-    if (window.confirm(`${user.name} adlı iştirakçının qoşulmaq istəyini rədd etmək istəyirsiniz?`)) {
+    if (window.confirm(`${nameOf(user)} adlı iştirakçının qoşulmaq istəyini rədd etmək istəyirsiniz?`)) {
       try {
         setLoading(true);
         await removeUserFromGroup(user, activeGroupId);
@@ -294,7 +299,7 @@ export default function AdminPage() {
 
   const openMessage = (user: UserDoc) => {
     setMessageTarget(user);
-    setMessageText(user.groupData?.[activeGroupId]?.adminMessage?.text || "");
+    setMessageText(messages[user.uid]?.text || "");
     setMessageError(null);
   };
 
@@ -316,7 +321,7 @@ export default function AdminPage() {
   };
 
   const handleRemoveUser = async (user: UserDoc) => {
-    if (window.confirm(`${user.name} adlı iştirakçını “${groupName}” qrupundan kənarlaşdırmaq istədiyinizə əminsiniz?`)) {
+    if (window.confirm(`${nameOf(user)} adlı iştirakçını “${groupName}” qrupundan kənarlaşdırmaq istədiyinizə əminsiniz?`)) {
       try {
         setLoading(true);
         await removeUserFromGroup(user, activeGroupId);
@@ -339,7 +344,7 @@ export default function AdminPage() {
     const userToAssign = users.find(u => u.uid === uid);
     const assignment = userToAssign ? getUserAssignment(userToAssign, activeGroupId) : null;
     if (userToAssign && assignment && assignment.assignedPages && assignment.assignedPages.length > 0) {
-      if (!window.confirm(`${userToAssign.name} adlı iştirakçının artıq mövcud təyinatı var. Onu silib bu Cüzlə əvəz etmək istəyirsiniz?`)) {
+      if (!window.confirm(`${nameOf(userToAssign)} adlı iştirakçının artıq mövcud təyinatı var. Onu silib bu Cüzlə əvəz etmək istəyirsiniz?`)) {
         return;
       }
     }
@@ -361,7 +366,7 @@ export default function AdminPage() {
   const handleRemoveJuzAssignment = async (user: UserDoc) => {
     const assignment = getUserAssignment(user, activeGroupId);
     const label = assignment.assignedJuz ? `Cüz ${assignment.assignedJuz}` : "səhifə";
-    if (window.confirm(`${user.name} adlı iştirakçının ${label} təyinatını ləğv etmək istəyirsiniz?`)) {
+    if (window.confirm(`${nameOf(user)} adlı iştirakçının ${label} təyinatını ləğv etmək istəyirsiniz?`)) {
       try {
         setLoading(true);
         await setAssignmentForUser(user.uid, [], "", "", undefined, activeGroupId);
@@ -492,7 +497,7 @@ export default function AdminPage() {
 
   const filteredUsers = activeGroupUsers.filter(
     (u) =>
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      nameOf(u).toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.nickname || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -542,8 +547,8 @@ export default function AdminPage() {
                   {pendingGroupUsers.map((u) => (
                     <div key={u.uid} className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-btn p-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <Avatar name={u.name} gold />
-                        <span className="text-[15px] font-bold truncate">{u.name}</span>
+                        <Avatar name={nameOf(u)} gold />
+                        <span className="text-[15px] font-bold truncate">{nameOf(u)}</span>
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => handleApproveUser(u.uid)} className={button("primary", "sm")}>Təsdiq et</button>
@@ -587,9 +592,9 @@ export default function AdminPage() {
                     return (
                       <div key={u.uid} className="flex flex-wrap items-center gap-3 md:gap-4 px-4 py-3.5 rounded-2xl bg-cream">
                         <div className="flex-[1_1_200px] flex items-center gap-3 min-w-0">
-                          <Avatar name={u.name} gold={u.uid !== currentUser.uid} />
+                          <Avatar name={nameOf(u)} gold={u.uid !== currentUser.uid} />
                           <div className="min-w-0">
-                            <div className="text-[15px] font-bold truncate">{u.name}</div>
+                            <div className="text-[15px] font-bold truncate">{nameOf(u)}</div>
                             <div className="text-xs text-muted">{s.completed} / {s.assigned} səhifə</div>
                           </div>
                         </div>
@@ -619,7 +624,7 @@ export default function AdminPage() {
                   })}
                   {unassignedUsers.length > 0 && (
                     <div className="text-sm text-muted">
-                      Cüz təyin edilməyənlər: {unassignedUsers.map((u) => u.name).join(", ")}
+                      Cüz təyin edilməyənlər: {unassignedUsers.map((u) => nameOf(u)).join(", ")}
                     </div>
                   )}
                 </div>
@@ -652,7 +657,7 @@ export default function AdminPage() {
                         <select value={pickedUid} onChange={(e) => setPickedUid(e.target.value)} className={inputCls}>
                           <option value="">İştirakçı seç...</option>
                           {activeGroupUsers.map((u) => (
-                            <option key={u.uid} value={u.uid}>{u.name}</option>
+                            <option key={u.uid} value={u.uid}>{nameOf(u)}</option>
                           ))}
                         </select>
                       </label>
@@ -705,7 +710,7 @@ export default function AdminPage() {
                     >
                       <option value="">Seçin...</option>
                       {activeGroupUsers.map(u => (
-                        <option key={u.uid} value={u.uid}>{u.name}</option>
+                        <option key={u.uid} value={u.uid}>{nameOf(u)}</option>
                       ))}
                     </select>
                   </label>
@@ -772,15 +777,15 @@ export default function AdminPage() {
                     return (
                       <div key={u.uid} className="flex flex-wrap items-center gap-3 py-3.5 border-t border-sand">
                         <div className="flex-[1_1_200px] flex items-center gap-3 min-w-0">
-                          <Avatar name={u.name} gold={!isSelf} />
+                          <Avatar name={nameOf(u)} gold={!isSelf} />
                           <div className="min-w-0">
-                            <div className="text-[15px] font-bold truncate">{u.name}</div>
+                            <div className="text-[15px] font-bold truncate">{nameOf(u)}</div>
                             <div className="text-xs text-muted">
                               {isOwnerRow ? "Qrup sahibi" : "İştirakçı"} · {s.juzLabel}
                             </div>
-                            {u.groupData?.[activeGroupId]?.adminMessage && (
+                            {messages[u.uid] && (
                               <div className="text-xs font-semibold text-goldtext">
-                                Mesaj {u.groupData[activeGroupId].adminMessage!.read ? "oxunub" : "hələ oxunmayıb"}
+                                Mesaj {messages[u.uid].read ? "oxunub" : "hələ oxunmayıb"}
                               </div>
                             )}
                           </div>
@@ -908,13 +913,13 @@ export default function AdminPage() {
             <div className="flex flex-col gap-1">
               <h3 className="m-0 font-display font-semibold text-2xl text-forest">Mesaj göndər</h3>
               <div className="text-sm text-muted">
-                {messageTarget.name} · {groupName}
+                {nameOf(messageTarget)} · {groupName}
               </div>
             </div>
-            {messageTarget.groupData?.[activeGroupId]?.adminMessage && (
+            {messages[messageTarget.uid] && (
               <div className="text-xs text-muted">
-                Əvvəlki mesaj {relativeTimeAz(new Date(messageTarget.groupData[activeGroupId].adminMessage!.sentAt).getTime())} göndərilib
-                {messageTarget.groupData[activeGroupId].adminMessage!.read ? " və oxunub." : ", hələ oxunmayıb."}
+                Əvvəlki mesaj {relativeTimeAz(new Date(messages[messageTarget.uid].sentAt).getTime())} göndərilib
+                {messages[messageTarget.uid].read ? " və oxunub." : ", hələ oxunmayıb."}
               </div>
             )}
             <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
@@ -935,7 +940,7 @@ export default function AdminPage() {
               <button type="submit" disabled={messageSending || !messageText.trim()} className={`${btn.primary} flex-1`}>
                 {messageSending ? "Göndərilir..." : "Göndər"}
               </button>
-              {messageTarget.groupData?.[activeGroupId]?.adminMessage && (
+              {messages[messageTarget.uid] && (
                 <button type="button" disabled={messageSending} onClick={() => submitMessage("")} className={btn.danger}>
                   Mesajı sil
                 </button>

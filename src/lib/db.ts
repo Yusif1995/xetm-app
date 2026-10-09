@@ -20,7 +20,7 @@ import {
 
 export interface UserDoc {
   uid: string;
-  name: string;
+  name?: string; // Private: filled in for the signed-in user from users/{uid}/private/profile
   email?: string; // Legacy: now stored in users/{uid}/private/profile
   photoURL: string;
   role: "admin" | "user"; // Legacy, ignored: super admins are listed in admins/{uid}
@@ -109,20 +109,15 @@ export function isGroupOwner(user: UserDoc | null, group: GroupDoc | null | unde
 }
 
 // Approval lives on the group doc (members map), which only the group owner can change.
-// Groups created before the members map existed fall back to the legacy per-user flag
-// until their owner logs in and the map is backfilled.
 export function isUserApprovedInGroup(user: UserDoc, groupId: string, group?: GroupDoc | null): boolean {
   const gId = groupId || "default";
   if (gId === "default") {
     return user.approved === true;
   }
-  if (group && group.id === gId) {
-    if (group.createdBy === user.uid) return true;
-    const status = group.members?.[user.uid];
-    if (status) return status === "owner" || status === "member";
-    if (group.membersBackfilled) return false;
-  }
-  return user.groupData?.[gId]?.approved === true;
+  if (!group || group.id !== gId) return false;
+  if (group.createdBy === user.uid) return true;
+  const status = group.members?.[user.uid];
+  return status === "owner" || status === "member";
 }
 
 export function getUserAssignment(user: UserDoc, groupId: string): UserAssignment {
@@ -198,6 +193,23 @@ export interface AppSettings {
   lastDailyUpdate?: string;
 }
 
+// Group data for a group the user has just joined (no assignment yet)
+function emptyGroupEntry() {
+  return {
+    approved: false,
+    assignedPages: [],
+    completedPages: [],
+    completedAt: {},
+    assignedJuz: null,
+    assignedJuzs: [],
+    previousAssignedPages: [],
+    previousCompletedPages: [],
+    previousStartDate: "",
+    previousEndDate: "",
+    totalCompletedPages: 0
+  };
+}
+
 function toUserDoc(uid: string, data: DocumentData): UserDoc {
   const totalCompletedPages = data.totalCompletedPages !== undefined
     ? data.totalCompletedPages
@@ -222,11 +234,12 @@ export async function getUserDoc(uid: string): Promise<UserDoc | null> {
   }
 }
 
-// Create a new user doc on first login (role is "user" by default)
+// Create a new user doc on first login (role is "user" by default).
+// Name and email go to the private doc; an invite is joined in a separate update.
 export async function createUserDoc(
-  uid: string, 
-  name: string, 
-  email: string, 
+  uid: string,
+  name: string,
+  email: string,
   photoURL: string,
   inviteGroupId?: string
 ): Promise<UserDoc> {
@@ -234,38 +247,14 @@ export async function createUserDoc(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const newUser: Record<string, any> = {
-    name: name || "Qonaq",
     photoURL: photoURL || "",
     role: "user",
-    groupId: inviteGroupId || "",
-    groupIds: inviteGroupId ? [inviteGroupId] : [],
-    assignedPages: [],
-    completedPages: [],
+    groupId: "",
+    groupIds: [],
     createdAt: serverTimestamp(),
     approved: false,
-    totalCompletedPages: 0,
     isOnboarded: false, // Onboarding completes on OnboardingScreen
   };
-
-  if (inviteGroupId) {
-    newUser.groupData = {
-      [inviteGroupId]: {
-        approved: false,
-        assignedPages: [],
-        completedPages: [],
-        completedAt: {},
-        assignmentStartDate: "",
-        assignmentEndDate: "",
-        assignedJuz: null,
-        assignedJuzs: [],
-        previousAssignedPages: [],
-        previousCompletedPages: [],
-        previousStartDate: "",
-        previousEndDate: "",
-        totalCompletedPages: 0
-      }
-    };
-  }
 
   // The existence check runs inside a transaction against the server, so an existing
   // account is never overwritten (a cached/offline read can no longer look like "no user").
@@ -277,16 +266,17 @@ export async function createUserDoc(
   });
   if (existing) return existing;
 
-  if (email) {
-    // Not critical for signing in; never let it block account creation
-    await setDoc(privateDocRef(uid), { email }, { merge: true }).catch((err) =>
-      console.error("Error saving private email:", err)
-    );
-  }
+  // Not critical for signing in; never let it block account creation
+  await setDoc(privateDocRef(uid), { email: email || "", name: name || "" }, { merge: true }).catch((err) =>
+    console.error("Error saving private profile:", err)
+  );
+
+  const created = { uid, ...newUser } as unknown as UserDoc;
   if (inviteGroupId) {
-    await requestGroupMembership(uid, inviteGroupId);
+    await joinGroup(created, inviteGroupId);
+    return (await getUserDoc(uid)) || created;
   }
-  return { uid, ...newUser } as unknown as UserDoc;
+  return created;
 }
 
 // Assign pages to a user using arrayUnion & arrayRemove
@@ -362,6 +352,7 @@ async function togglePages(
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updates: Record<string, any> = {
+      selfEditedGroup: effectiveGroupId,
       [`${prefix}${pagesField}`]: isCompleted ? arrayUnion(...changed) : arrayRemove(...changed),
       [`${prefix}totalCompletedPages`]: Math.max(0, assignment.totalCompletedPages + (isCompleted ? changed.length : -changed.length)),
     };
@@ -374,7 +365,7 @@ async function togglePages(
 
   if (changedPages.length === 0) return;
   if (!previous) {
-    await checkAndUpdateKhatmCompletion(effectiveGroupId);
+    refreshGroupProgress(effectiveGroupId);
   }
   if (isCompleted) {
     sendPushNotificationForCompletedPages(uid, changedPages, effectiveGroupId).catch((err) =>
@@ -393,45 +384,16 @@ export async function toggleCompletedPages(
   await togglePages(uid, pageNumbers, isCompleted, groupId, false);
 }
 
-// Check if the current Khatm (all 604 pages) is completed and update the group counters
-export async function checkAndUpdateKhatmCompletion(groupId?: string | null): Promise<void> {
-  try {
-    const effectiveGroupId = groupId || "default";
-    if (effectiveGroupId === "default") return; // The legacy system group is no longer used
-
-    const [users, group] = await Promise.all([getGroupMembers(effectiveGroupId), getGroupDoc(effectiveGroupId)]);
-    if (!group) return;
-    const groupUsers = users.filter(
-      (u) => getUserGroupIds(u).includes(effectiveGroupId) && isUserApprovedInGroup(u, effectiveGroupId, group)
-    );
-
-    // Calculate unique completed pages
-    const completedPagesSet = new Set<number>();
-    groupUsers.forEach((u) => {
-      const assignment = getUserAssignment(u, effectiveGroupId);
-      const assigned = assignment.assignedPages || [];
-      (assignment.completedPages || []).forEach((page) => {
-        if (page >= 1 && page <= 604 && assigned.includes(page)) {
-          completedPagesSet.add(page);
-        }
-      });
-    });
-
-    const isCompleted = completedPagesSet.size === 604;
-    const docRef = doc(db, "groups", effectiveGroupId);
-    if (isCompleted && !group.isCurrentKhatmCompleted) {
-      await updateDoc(docRef, {
-        completedKhatms: (group.completedKhatms || 0) + 1,
-        isCurrentKhatmCompleted: true
-      });
-    } else if (!isCompleted && group.isCurrentKhatmCompleted) {
-      await updateDoc(docRef, {
-        isCurrentKhatmCompleted: false
-      });
-    }
-  } catch (err) {
-    console.error("Error in checkAndUpdateKhatmCompletion:", err);
-  }
+// Ask the server to recompute the group's khatm counters (members cannot write them)
+export function refreshGroupProgress(groupId: string): void {
+  if (!groupId || groupId === "default") return;
+  auth.currentUser?.getIdToken()
+    .then((idToken) => fetch("/api/group-progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ groupId })
+    }))
+    .catch((err) => console.error("Error refreshing group progress:", err));
 }
 
 // Set assignment for a user manually
@@ -482,7 +444,7 @@ export async function distributeJuzToUsers(
   // Sort users stably by name, with UID as fallback to be deterministic, filtered by group and approved
   const activeUsers = users
     .filter((u) => getUserGroupIds(u).includes(effectiveGroupId) && isUserApprovedInGroup(u, effectiveGroupId, group))
-    .sort((a, b) => a.name.localeCompare(b.name) || a.uid.localeCompare(b.uid));
+    .sort((a, b) => (a.nickname || "").localeCompare(b.nickname || "") || a.uid.localeCompare(b.uid));
 
   if (activeUsers.length === 0) return;
 
@@ -712,19 +674,20 @@ export async function updateUserApproval(uid: string, approved: boolean, groupId
   });
 }
 
+export function messageDocRef(groupId: string, uid: string) {
+  return doc(db, "groups", groupId, "messages", uid);
+}
+
 // The group owner sends (or, with empty text, clears) a message to a member.
-// The message is stored on the member's doc for this group and pushed to their devices.
+// Only the owner and that member can read it; it is also pushed to the member's devices.
 export async function sendMemberMessage(uid: string, groupId: string, text: string): Promise<void> {
   const trimmed = text.trim();
-  const docRef = doc(db, "users", uid);
-  await updateDoc(docRef, {
-    [`groupData.${groupId}.adminMessage`]: trimmed
-      ? { text: trimmed, sentAt: new Date().toISOString(), read: false }
-      : deleteField(),
-    lastEditedGroup: groupId
-  });
+  if (!trimmed) {
+    await deleteDoc(messageDocRef(groupId, uid));
+    return;
+  }
+  await setDoc(messageDocRef(groupId, uid), { text: trimmed, sentAt: new Date().toISOString(), read: false });
 
-  if (!trimmed) return;
   try {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) return;
@@ -741,9 +704,7 @@ export async function sendMemberMessage(uid: string, groupId: string, text: stri
 
 // The member marks the owner's message in this group as read
 export async function markMemberMessageRead(uid: string, groupId: string): Promise<void> {
-  await updateDoc(doc(db, "users", uid), {
-    [`groupData.${groupId}.adminMessage.read`]: true
-  });
+  await updateDoc(messageDocRef(groupId, uid), { read: true });
 }
 
 // Toggle completion for pages in a previous assignment
@@ -819,9 +780,28 @@ export async function clearAllAssignments(groupId?: string | null): Promise<void
   await batch.commit();
 }
 
-// Private per-user data (email, push subscriptions); only the user can read it
-function privateDocRef(uid: string) {
+// Private per-user data (email, names, push subscriptions); only the user can read it
+export function privateDocRef(uid: string) {
   return doc(db, "users", uid, "private", "profile");
+}
+
+export interface PrivateProfile {
+  email?: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+// Publish the user's full name to each group they belong to, where only the group owner can read it
+export async function publishProfileToGroups(uid: string, name: string, groupIds: string[]): Promise<void> {
+  if (!name) return;
+  await Promise.all(
+    groupIds
+      .filter((g) => g && g !== "default")
+      .map((g) => setDoc(doc(db, "groups", g, "profiles", uid), { name }).catch((err) =>
+        console.error("Error publishing profile to group", g, err)
+      ))
+  );
 }
 
 export async function addPushSubscription(uid: string, subscription: string): Promise<void> {
@@ -832,20 +812,30 @@ export async function removePushSubscription(uid: string, subscription: string):
   await setDoc(privateDocRef(uid), { pushSubscriptions: arrayRemove(subscription) }, { merge: true });
 }
 
-// Move email / push subscriptions left on the public user doc into the private doc
+// Move email, names and push subscriptions left on the public user doc into the private doc
 export async function migrateOwnPrivateData(user: UserDoc): Promise<void> {
-  if (user.email === undefined && user.pushSubscriptions === undefined) return;
+  const legacyKeys = ["email", "pushSubscriptions", "name", "firstName", "lastName"] as const;
+  if (!legacyKeys.some((k) => user[k] !== undefined)) return;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const privateData: Record<string, any> = {};
   if (user.email) privateData.email = user.email;
+  if (user.name) privateData.name = user.name;
+  if (user.firstName) privateData.firstName = user.firstName;
+  if (user.lastName) privateData.lastName = user.lastName;
   if (user.pushSubscriptions && user.pushSubscriptions.length > 0) {
     privateData.pushSubscriptions = arrayUnion(...user.pushSubscriptions);
   }
   if (Object.keys(privateData).length > 0) {
     await setDoc(privateDocRef(user.uid), privateData, { merge: true });
   }
-  await updateDoc(doc(db, "users", user.uid), { email: deleteField(), pushSubscriptions: deleteField() });
+  if (user.name) {
+    await publishProfileToGroups(user.uid, user.name, user.groupIds || []);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const removals: Record<string, any> = {};
+  legacyKeys.forEach((k) => { removals[k] = deleteField(); });
+  await updateDoc(doc(db, "users", user.uid), removals);
 }
 
 // Ask the server to notify the other group members; it looks up recipients itself
@@ -960,29 +950,11 @@ export async function createGroup(name: string, createdBy: string): Promise<stri
   const creatorRef = fsDoc(db, "users", createdBy);
   await updateDoc(creatorRef, {
     groupIds: arrayUnion(docRef.id),
-    [`groupData.${docRef.id}.approved`]: true
+    [`groupData.${docRef.id}`]: { ...emptyGroupEntry(), approved: true },
+    selfEditedGroup: docRef.id
   });
 
   return docRef.id;
-}
-
-// Fetch all groups created by an admin
-export async function getGroupsCreatedBy(adminUid: string): Promise<GroupDoc[]> {
-  try {
-    const q = query(collection(db, "groups"));
-    const querySnapshot = await getDocs(q);
-    const groups: GroupDoc[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.createdBy === adminUid) {
-        groups.push({ id: doc.id, ...data } as GroupDoc);
-      }
-    });
-    return groups;
-  } catch (error) {
-    console.error("Error in getGroupsCreatedBy:", error);
-    return [];
-  }
 }
 
 // Ask to join a group: adds the user to the group's members map as pending.
@@ -1012,33 +984,17 @@ export async function restoreGroupMemberships(user: UserDoc): Promise<UserDoc> {
   const activeIsValid = !!user.groupId && groups.some((g) => g.id === user.groupId);
   if (missing.length === 0 && (activeIsValid || groups.length === 0)) return user;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updates: Record<string, any> = {};
-  if (missing.length > 0) {
-    updates.groupIds = arrayUnion(...missing.map((g) => g.id));
+  // Rules allow one group's data per write
+  for (const g of missing) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entry: Record<string, any> = { groupIds: arrayUnion(g.id), selfEditedGroup: g.id };
+    if (!user.groupData?.[g.id]) entry[`groupData.${g.id}`] = emptyGroupEntry();
+    await updateDoc(doc(db, "users", user.uid), entry);
   }
-  missing.forEach((g) => {
-    if (user.groupData?.[g.id]) return;
-    updates[`groupData.${g.id}`] = {
-      approved: false,
-      assignedPages: [],
-      completedPages: [],
-      completedAt: {},
-      assignedJuz: null,
-      assignedJuzs: [],
-      previousAssignedPages: [],
-      previousCompletedPages: [],
-      previousStartDate: "",
-      previousEndDate: "",
-      totalCompletedPages: 0
-    };
-  });
   if (!activeIsValid && groups.length > 0) {
     const preferred = groups.find((g) => g.members?.[user.uid] !== "pending") || groups[0];
-    updates.groupId = preferred.id;
+    await updateDoc(doc(db, "users", user.uid), { groupId: preferred.id });
   }
-
-  await updateDoc(doc(db, "users", user.uid), updates);
   return (await getUserDoc(user.uid)) || user;
 }
 
@@ -1052,22 +1008,16 @@ export async function joinGroup(user: UserDoc, groupId: string): Promise<void> {
   const updates: Record<string, any> = { groupId };
   if (!alreadyMember) {
     updates.groupIds = arrayUnion(groupId);
-    updates[`groupData.${groupId}`] = {
-      approved: false,
-      assignedPages: [],
-      completedPages: [],
-      completedAt: {},
-      assignedJuz: null,
-      assignedJuzs: [],
-      previousAssignedPages: [],
-      previousCompletedPages: [],
-      previousStartDate: "",
-      previousEndDate: "",
-      totalCompletedPages: 0
-    };
+  }
+  if (!user.groupData?.[groupId]) {
+    updates[`groupData.${groupId}`] = emptyGroupEntry();
+    updates.selfEditedGroup = groupId;
   }
   await updateDoc(docRef, updates);
   await requestGroupMembership(user.uid, groupId);
+  if (user.name) {
+    await publishProfileToGroups(user.uid, user.name, [groupId]);
+  }
 }
 
 // Remove a user from a group (used by the group owner to reject or remove a member)
@@ -1101,7 +1051,8 @@ export async function leaveGroup(user: UserDoc, groupId: string): Promise<void> 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userUpdates: Record<string, any> = {
     groupIds: remainingGroupIds,
-    [`groupData.${groupId}`]: deleteField()
+    [`groupData.${groupId}`]: deleteField(),
+    selfEditedGroup: groupId
   };
   if (user.groupId === groupId) {
     userUpdates.groupId = remainingGroupIds[0] || "";

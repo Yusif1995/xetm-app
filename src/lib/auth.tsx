@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -16,8 +16,11 @@ import {
   createUserDoc,
   restoreGroupMemberships,
   migrateOwnPrivateData,
+  joinGroup,
+  privateDocRef,
+  publishProfileToGroups,
+  type PrivateProfile,
   getGroupMembers,
-  requestGroupMembership,
   backfillGroupMembers,
   type UserDoc,
   type GroupDoc
@@ -45,6 +48,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserDoc | null>(null);
+  // Name / email live in users/{uid}/private/profile; merged into the user object for the UI
+  const [privateProfile, setPrivateProfile] = useState<PrivateProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeGroupId, setActiveGroupIdState] = useState<string>("");
   const [activeGroup, setActiveGroup] = useState<GroupDoc | null>(null);
@@ -70,6 +75,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, activeGroupId]);
+
+  useEffect(() => {
+    setPrivateProfile(null);
+    if (!user?.uid) return;
+    const unsub = onSnapshot(privateDocRef(user.uid), (snap) => {
+      setPrivateProfile(snap.exists() ? (snap.data() as PrivateProfile) : {});
+    }, (err) => console.error("Error loading private profile:", err));
+    return () => unsub();
+  }, [user?.uid]);
+
+  const mergedUser = useMemo<UserDoc | null>(() => {
+    if (!user) return null;
+    if (!privateProfile) return user;
+    return {
+      ...user,
+      name: privateProfile.name || user.name,
+      firstName: privateProfile.firstName || user.firstName,
+      lastName: privateProfile.lastName || user.lastName,
+      email: privateProfile.email || user.email,
+    };
+  }, [user, privateProfile]);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -118,29 +144,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const hasGroupInIds = userDoc.groupIds?.includes(inviteGroupId);
     const needsActiveGroupIdUpdate = !userDoc.groupId || userDoc.groupId === "default" || !userDoc.isOnboarded;
     
-    if (!hasGroupInIds || (needsActiveGroupIdUpdate && userDoc.groupId !== inviteGroupId)) {
-      const { doc: fsDoc, updateDoc, arrayUnion } = await import("firebase/firestore");
-      const userRef = fsDoc(db, "users", firebaseUser.uid);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updates: any = {};
-      
-      if (!hasGroupInIds) {
-        updates.groupIds = arrayUnion(inviteGroupId);
-        updates[`groupData.${inviteGroupId}.approved`] = false;
-        updates[`groupData.${inviteGroupId}.assignedPages`] = [];
-        updates[`groupData.${inviteGroupId}.completedPages`] = [];
-        updates[`groupData.${inviteGroupId}.completedAt`] = {};
-        updates[`groupData.${inviteGroupId}.totalCompletedPages`] = 0;
-      }
-      
-      if (needsActiveGroupIdUpdate) {
-        updates.groupId = inviteGroupId;
-      }
-      
-      await updateDoc(userRef, updates);
-      await requestGroupMembership(firebaseUser.uid, inviteGroupId);
-      const updatedDoc = await getUserDoc(firebaseUser.uid);
-      return updatedDoc || userDoc;
+    if (!hasGroupInIds) {
+      await joinGroup(userDoc, inviteGroupId);
+      return (await getUserDoc(firebaseUser.uid)) || userDoc;
+    }
+    if (needsActiveGroupIdUpdate && userDoc.groupId !== inviteGroupId) {
+      const { doc: fsDoc, updateDoc } = await import("firebase/firestore");
+      await updateDoc(fsDoc(db, "users", firebaseUser.uid), { groupId: inviteGroupId });
+      return (await getUserDoc(firebaseUser.uid)) || userDoc;
     }
     return userDoc;
   };
@@ -183,6 +194,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       await migrateOwnPrivateData(userDoc);
+      const priv = await getDoc(privateDocRef(userDoc.uid));
+      const name = (priv.exists() ? priv.data().name : "") || userDoc.name || "";
+      await publishProfileToGroups(userDoc.uid, name, userDoc.groupIds || []);
     } catch (err) {
       console.error("Error moving private data:", err);
     }
@@ -295,14 +309,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const missingGroupIds = ownedGroups.map((g) => g.id).filter((id) => !currentGroupIds.includes(id));
         if (missingGroupIds.length > 0) {
           console.log("Self-healing missing groups for owner:", missingGroupIds);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const updates: Record<string, any> = {
-            groupIds: arrayUnion(...missingGroupIds)
-          };
-          missingGroupIds.forEach(id => {
-            updates[`groupData.${id}.approved`] = true;
-          });
-          await updateDoc(fsDoc(db, "users", user.uid), updates);
+          // Rules allow one group's data per write
+          for (const id of missingGroupIds) {
+            await updateDoc(fsDoc(db, "users", user.uid), {
+              groupIds: arrayUnion(id),
+              [`groupData.${id}.approved`]: true,
+              selfEditedGroup: id
+            });
+          }
         }
 
         for (const group of ownedGroups) {
@@ -368,7 +382,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, refreshUser, activeGroupId, setActiveGroupId, activeGroup, activeGroupLoaded, isSuperAdmin }}>
+    <AuthContext.Provider value={{ user: mergedUser, loading, loginWithGoogle, logout, refreshUser, activeGroupId, setActiveGroupId, activeGroup, activeGroupLoaded, isSuperAdmin }}>
       {children}
     </AuthContext.Provider>
   );
