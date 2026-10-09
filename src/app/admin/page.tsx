@@ -29,7 +29,7 @@ import { participantStats, participantName } from "@/components/GroupWidgets";
 import { useGroupFullNames, useGroupMessages } from "@/lib/useGroupData";
 import { relativeTimeAz } from "@/lib/dates";
 import {
-  Avatar, Bar, Card, Chip, IconLink, IconSparkle, IconTrash, LoadingScreen, PageHeader, btn, button, inputCls
+  Avatar, Bar, Card, Chip, DateInput, IconLink, IconSparkle, IconTrash, LoadingScreen, PageHeader, btn, button, inputCls
 } from "@/components/ui";
 
 export default function AdminPage() {
@@ -574,13 +574,13 @@ export default function AdminPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-4">
-                  <label className="flex-[1_1_200px] flex flex-col gap-2 text-sm font-semibold text-ink">
+                  <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-2 text-sm font-semibold text-ink">
                     Başlama tarixi
-                    <input type="date" value={groupStartDate} onChange={(e) => setGroupStartDate(e.target.value)} className={inputCls} />
+                    <DateInput value={groupStartDate} onChange={(e) => setGroupStartDate(e.target.value)} />
                   </label>
-                  <label className="flex-[1_1_200px] flex flex-col gap-2 text-sm font-semibold text-ink">
+                  <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-2 text-sm font-semibold text-ink">
                     Bitmə tarixi
-                    <input type="date" value={groupEndDate} onChange={(e) => setGroupEndDate(e.target.value)} className={inputCls} />
+                    <DateInput value={groupEndDate} onChange={(e) => setGroupEndDate(e.target.value)} />
                   </label>
                 </div>
 
@@ -726,13 +726,13 @@ export default function AdminPage() {
                     />
                   </label>
                   <div className="flex flex-wrap gap-4">
-                    <label className="flex-[1_1_160px] flex flex-col gap-2 text-sm font-semibold text-ink">
+                    <label className="flex-[1_1_160px] min-w-0 flex flex-col gap-2 text-sm font-semibold text-ink">
                       Başlama tarixi
-                      <input type="date" required value={startDateInput} onChange={(e) => setStartDateInput(e.target.value)} className={inputCls} />
+                      <DateInput required value={startDateInput} onChange={(e) => setStartDateInput(e.target.value)} />
                     </label>
-                    <label className="flex-[1_1_160px] flex flex-col gap-2 text-sm font-semibold text-ink">
+                    <label className="flex-[1_1_160px] min-w-0 flex flex-col gap-2 text-sm font-semibold text-ink">
                       Bitmə tarixi
-                      <input type="date" required value={endDateInput} onChange={(e) => setEndDateInput(e.target.value)} className={inputCls} />
+                      <DateInput required value={endDateInput} onChange={(e) => setEndDateInput(e.target.value)} />
                     </label>
                   </div>
                   {assignError && <div className="text-sm font-semibold text-danger">{assignError}</div>}

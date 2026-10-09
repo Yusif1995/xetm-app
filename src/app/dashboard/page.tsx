@@ -349,30 +349,30 @@ function DashboardContent() {
     <AppLayout activeTab="dashboard">
       <div className="flex flex-col gap-5 md:gap-7">
 
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-col gap-1.5 min-w-0">
+        <header className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-1.5 min-w-0 flex-1">
             <h1 className="m-0 font-display font-bold text-[28px] md:text-[40px] leading-[1.1] text-forest">
               Xoş gördük, {firstName}
             </h1>
             <div className="text-[13px] md:text-[15px] text-muted">{dateLine}</div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <button
               type="button"
               onClick={handleEnablePush}
               aria-label="Bildirişləri aktiv et"
               title="Bildirişləri aktiv et"
-              className="relative w-12 h-12 rounded-full border border-[#E3DBC7] bg-white text-forest flex items-center justify-center hover:bg-sand transition-colors"
+              className="relative w-11 h-11 md:w-12 md:h-12 rounded-full border border-[#E3DBC7] bg-white text-forest flex items-center justify-center hover:bg-sand transition-colors"
             >
               <IconBell size={22} />
-              <span className="absolute top-2.5 right-[11px] w-[9px] h-[9px] rounded-full bg-accent border-2 border-white" />
+              <span className="absolute top-2 right-2.5 md:top-2.5 md:right-[11px] w-[9px] h-[9px] rounded-full bg-accent border-2 border-white" />
             </button>
             <div className="relative" ref={profileRef}>
               <button
                 type="button"
                 onClick={() => setProfileOpen(!profileOpen)}
                 aria-expanded={profileOpen}
-                className="flex items-center gap-3 p-1 md:pr-4 rounded-full bg-white border border-[#E3DBC7] hover:bg-sand transition-colors"
+                className="flex items-center gap-3 p-0.5 md:p-1 md:pr-4 rounded-full bg-white border border-[#E3DBC7] hover:bg-sand transition-colors"
               >
                 {user.photoURL ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -383,7 +383,7 @@ function DashboardContent() {
                 <span className="hidden md:inline text-sm font-semibold text-ink">{displayName}</span>
               </button>
               {profileOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-line rounded-btn shadow-xl z-50 p-2">
+                <div className="absolute right-0 top-full mt-2 w-[min(15rem,calc(100vw-2.5rem))] bg-white border border-line rounded-btn shadow-xl z-50 p-2 text-ink">
                   <div className="px-3 py-2 border-b border-sand mb-1">
                     <div className="text-sm font-bold truncate">{displayName}</div>
                     <div className="text-xs text-muted">{viewerIsOwner ? "Qrup sahibi" : "İştirakçı"}</div>

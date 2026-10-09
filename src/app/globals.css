@@ -52,3 +52,26 @@ body {
 .pb-safe {
   padding-bottom: max(14px, env(safe-area-inset-bottom));
 }
+
+/* Native date inputs: no intrinsic width / centred text on iOS; whole field opens the picker */
+input.date-input {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 48px;
+}
+input.date-input::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+input.date-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}

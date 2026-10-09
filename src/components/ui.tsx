@@ -1,5 +1,5 @@
 // Shared UI primitives for the Xətm App design system (stroke icons, avatar, progress, chips).
-import type { ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode } from "react";
 
 type IconProps = { size?: number; className?: string };
 
@@ -57,6 +57,9 @@ export const IconTrash = (p: IconProps) => (
 );
 export const IconLayers = (p: IconProps) => (
   <Svg {...p}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></Svg>
+);
+export const IconCalendar = (p: IconProps) => (
+  <Svg {...p}><rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9.5h18M8 3v3M16 3v3" /></Svg>
 );
 export const IconSparkle = (p: IconProps) => (
   <Svg {...p}><path d="M12 3l1.9 5.8a2 2 0 001.3 1.3L21 12l-5.8 1.9a2 2 0 00-1.3 1.3L12 21l-1.9-5.8a2 2 0 00-1.3-1.3L3 12l5.8-1.9a2 2 0 001.3-1.3z" /></Svg>
@@ -234,3 +237,18 @@ export const btn = {
 
 export const inputCls =
   "min-h-[48px] w-full box-border px-3.5 rounded-xl border border-field bg-white text-[15px] text-ink focus:outline-none focus:border-forest";
+
+// Date field with a calendar icon. iOS Safari gives native date inputs an intrinsic width and
+// centred text; the date-input class (globals.css) resets that so the field fits its column.
+export function DateInput({ className = "", ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  return (
+    <div className="relative w-full min-w-0">
+      <IconCalendar size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none z-10" />
+      <input
+        type="date"
+        {...props}
+        className={`date-input min-h-[48px] w-full box-border pl-10 pr-3.5 rounded-xl border border-field bg-white text-[15px] text-ink focus:outline-none focus:border-forest ${className}`}
+      />
+    </div>
+  );
+}
