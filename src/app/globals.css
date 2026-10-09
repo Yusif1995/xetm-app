@@ -30,81 +30,12 @@ body {
   min-height: 100vh;
 }
 
-/* Dark login page fallback styles */
-.islamic-bg {
-  background: radial-gradient(circle at center, #072213 0%, #030e07 100%);
-  color: #fdf6e3;
-}
-
-.islamic-card {
-  background: rgba(12, 46, 27, 0.85);
-  border: 4px double rgba(201, 168, 76, 0.85);
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(201, 168, 76, 0.08);
-  position: relative;
-  backdrop-filter: blur(8px);
-  color: #fdf6e3;
-}
-
-.islamic-card-inner {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
-  border: 1px solid rgba(201, 168, 76, 0.25);
-  border-radius: 12px;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.islamic-pattern {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  opacity: 0.04;
-  pointer-events: none;
-  background-image: radial-gradient(circle at center, #c9a84c 1.5px, transparent 1.5px);
-  background-size: 32px 32px;
-}
-
 /* Light Card styles matching the mockup */
 .card-premium {
   background-color: var(--card-bg);
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 1.5rem;
-}
-
-/* Custom progress styling for light cream theme */
-.light-progress-container {
-  background: #EAE3D5;
-  border-radius: 9999px;
-  padding: 2px;
-  overflow: hidden;
-  width: 100%;
-}
-
-.light-progress-fill {
-  background: linear-gradient(90deg, var(--primary-green), var(--secondary-green));
-  border-radius: 9999px;
-  height: 8px;
-  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Sidebar pattern overlays */
-.sidebar-pattern {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  opacity: 0.02;
-  pointer-events: none;
-  background-image: radial-gradient(circle at center, #FFFFFF 1px, transparent 1px);
-  background-size: 24px 24px;
 }
 
 /* Animation helpers */

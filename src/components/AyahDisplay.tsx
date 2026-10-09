@@ -23,7 +23,7 @@ const DEFAULT_ITEMS: Item[] = [
     type: "ayah"
   },
   {
-    text: "إِنَّ اللَّهَ مَعَ الصَّABِرِينَ",
+    text: "إِنَّ اللَّهَ مَعَ الصَّابِرِينَ",
     translation: "Şübhəsiz ki, Allah səbr edənlərlədir.",
     source: "Bəqərə surəsi, 153-cü ayə",
     type: "ayah"
@@ -74,36 +74,26 @@ export default function AyahDisplay() {
 
   if (!item) {
     return (
-      <div className="flex justify-center items-center py-8">
-        <div className="animate-pulse flex space-x-2">
-          <div className="h-2 w-2 bg-[#c9a84c] rounded-full"></div>
-          <div className="h-2 w-2 bg-[#c9a84c] rounded-full"></div>
-          <div className="h-2 w-2 bg-[#c9a84c] rounded-full"></div>
-        </div>
+      <div className="flex gap-2 py-6" aria-label="Yüklənir">
+        <span className="h-2 w-2 bg-gold rounded-full animate-pulse" />
+        <span className="h-2 w-2 bg-gold rounded-full animate-pulse" />
+        <span className="h-2 w-2 bg-gold rounded-full animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="text-center p-6 bg-[#1a5c38]/10 rounded-xl border border-[#c9a84c]/20 max-w-xl mx-auto shadow-inner">
-      <span className="inline-block px-3 py-1 mb-4 text-xs font-semibold uppercase tracking-wider text-[#c9a84c] border border-[#c9a84c]/30 rounded-full bg-[#1a5c38]/5">
-        {item.type === "ayah" ? "Ayə" : "Hədis"}
-      </span>
-      
-      {/* Arabic text with custom font */}
-      <p className="text-2xl md:text-3xl leading-loose font-amiri text-[#fdf6e3] mb-4 direction-rtl select-none tracking-wide text-right md:text-center">
-        {item.text}
-      </p>
-
-      {/* Translation */}
-      <p className="text-sm md:text-base italic text-[#fdf6e3]/80 font-light leading-relaxed mb-3">
-        &quot;{item.translation}&quot;
-      </p>
-
-      {/* Source */}
-      <p className="text-xs text-[#c9a84c] font-medium tracking-wide">
-        — {item.source}
-      </p>
-    </div>
+    <figure className="m-0 rounded-card border border-[rgba(226,184,92,0.35)] bg-tile p-5 md:p-6 flex flex-col gap-3">
+      <figcaption className="text-[13px] font-bold text-gold">
+        {item.type === "ayah" ? "Günün ayəsi" : "Günün hədisi"}
+      </figcaption>
+      {item.text && (
+        <blockquote dir="rtl" lang="ar" className="m-0 font-amiri text-[26px] md:text-[30px] leading-[1.8] text-cream text-right">
+          {item.text}
+        </blockquote>
+      )}
+      <p className="m-0 text-[15px] leading-relaxed text-cream/90">{item.translation}</p>
+      <div className="text-[13px] text-onforest">{item.source}</div>
+    </figure>
   );
 }
