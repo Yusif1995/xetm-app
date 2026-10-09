@@ -22,7 +22,7 @@ import {
   type GroupDoc
 } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { JUZ_MAP, juzPages, pageRangesLabel } from "@/lib/quran";
 import { participantStats } from "@/components/GroupWidgets";
@@ -66,6 +66,10 @@ export default function AdminPage() {
   const [messageText, setMessageText] = useState("");
   const [messageSending, setMessageSending] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
+
+  // Super admin: one-off move of everyone's email / push subscriptions into private docs
+  const [migrating, setMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<string | null>(null);
 
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -450,6 +454,27 @@ export default function AdminPage() {
     }
   };
 
+  const handleMigratePrivate = async () => {
+    setMigrating(true);
+    setMigrationResult(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/admin/migrate-private", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken || ""}` },
+      });
+      const data = await res.json();
+      setMigrationResult(res.ok
+        ? `Hazırdır: ${data.total} istifadəçidən ${data.migrated} nəfərin məlumatı köçürüldü.`
+        : `Xəta: ${data.error || res.status}`);
+    } catch (err) {
+      console.error("Migration error:", err);
+      setMigrationResult("Xəta baş verdi.");
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSettingsLoading(true);
@@ -468,7 +493,7 @@ export default function AdminPage() {
   const filteredUsers = activeGroupUsers.filter(
     (u) =>
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase())
+      (u.nickname || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const assignedRows = activeGroupUsers.filter((u) => getUserAssignment(u, activeGroupId).assignedPages.length > 0 || juzsOf(u).length > 0);
@@ -820,6 +845,19 @@ export default function AdminPage() {
                 <div className="text-[13px] text-muted">{totalUniqueCompleted} / 604 səhifə · {activeGroupUsers.length} iştirakçı</div>
                 <Link href="/groups" className="text-sm font-semibold text-forest underline underline-offset-4">Yeni qrup yarat</Link>
               </Card>
+
+              {isSuperAdmin && (
+                <Card>
+                  <h2 className="m-0 text-[15px] font-bold text-muted">Məxfilik (super admin)</h2>
+                  <div className="text-sm leading-relaxed text-muted">
+                    Bütün istifadəçilərin e-poçt və bildiriş abunələrini gizli bölməyə köçürür. Bir dəfə işə salmaq kifayətdir.
+                  </div>
+                  <button type="button" onClick={handleMigratePrivate} disabled={migrating} className={btn.outline}>
+                    {migrating ? "Köçürülür..." : "Məlumatları köçür"}
+                  </button>
+                  {migrationResult && <div className="text-sm font-semibold text-forest">{migrationResult}</div>}
+                </Card>
+              )}
 
               <section className="bg-mint rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
                 <h2 className="m-0 font-display font-semibold text-lg md:text-[22px] text-forest">AI köməkçi</h2>

@@ -21,7 +21,7 @@ import {
 export interface UserDoc {
   uid: string;
   name: string;
-  email: string;
+  email?: string; // Legacy: now stored in users/{uid}/private/profile
   photoURL: string;
   role: "admin" | "user"; // Legacy, ignored: super admins are listed in admins/{uid}
   firstName?: string;
@@ -46,7 +46,7 @@ export interface UserDoc {
   previousCompletedPages?: number[];
   previousStartDate?: string;
   previousEndDate?: string;
-  pushSubscriptions?: string[];
+  pushSubscriptions?: string[]; // Legacy: now stored in users/{uid}/private/profile
   totalCompletedPages?: number;
   groupData?: Record<string, {
     approved?: boolean;
@@ -235,7 +235,6 @@ export async function createUserDoc(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const newUser: Record<string, any> = {
     name: name || "Qonaq",
-    email: email || "",
     photoURL: photoURL || "",
     role: "user",
     groupId: inviteGroupId || "",
@@ -278,6 +277,12 @@ export async function createUserDoc(
   });
   if (existing) return existing;
 
+  if (email) {
+    // Not critical for signing in; never let it block account creation
+    await setDoc(privateDocRef(uid), { email }, { merge: true }).catch((err) =>
+      console.error("Error saving private email:", err)
+    );
+  }
   if (inviteGroupId) {
     await requestGroupMembership(uid, inviteGroupId);
   }
@@ -814,57 +819,50 @@ export async function clearAllAssignments(groupId?: string | null): Promise<void
   await batch.commit();
 }
 
+// Private per-user data (email, push subscriptions); only the user can read it
+function privateDocRef(uid: string) {
+  return doc(db, "users", uid, "private", "profile");
+}
+
 export async function addPushSubscription(uid: string, subscription: string): Promise<void> {
-  const docRef = doc(db, "users", uid);
-  await updateDoc(docRef, {
-    pushSubscriptions: arrayUnion(subscription)
-  });
+  await setDoc(privateDocRef(uid), { pushSubscriptions: arrayUnion(subscription) }, { merge: true });
 }
 
 export async function removePushSubscription(uid: string, subscription: string): Promise<void> {
-  const docRef = doc(db, "users", uid);
-  await updateDoc(docRef, {
-    pushSubscriptions: arrayRemove(subscription)
-  });
+  await setDoc(privateDocRef(uid), { pushSubscriptions: arrayRemove(subscription) }, { merge: true });
 }
 
-// Client-side helper to query other users' subscriptions and trigger Next.js push API
+// Move email / push subscriptions left on the public user doc into the private doc
+export async function migrateOwnPrivateData(user: UserDoc): Promise<void> {
+  if (user.email === undefined && user.pushSubscriptions === undefined) return;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const privateData: Record<string, any> = {};
+  if (user.email) privateData.email = user.email;
+  if (user.pushSubscriptions && user.pushSubscriptions.length > 0) {
+    privateData.pushSubscriptions = arrayUnion(...user.pushSubscriptions);
+  }
+  if (Object.keys(privateData).length > 0) {
+    await setDoc(privateDocRef(user.uid), privateData, { merge: true });
+  }
+  await updateDoc(doc(db, "users", user.uid), { email: deleteField(), pushSubscriptions: deleteField() });
+}
+
+// Ask the server to notify the other group members; it looks up recipients itself
 export async function sendPushNotificationForCompletedPages(
-  senderUid: string, 
+  _senderUid: string,
   pageNumbers: number[],
   groupId?: string | null
 ): Promise<void> {
   try {
-    const effectiveGroupId = groupId || "default";
-    const users = await getGroupMembers(effectiveGroupId);
-    let senderName = "Bir iştirakçı";
-    const subscriptions: string[] = [];
-
-    users.forEach((userData) => {
-      if (userData.uid === senderUid) {
-        senderName = userData.nickname || userData.name || "Bir iştirakçı";
-      } else {
-        const userGroups = getUserGroupIds(userData);
-        if (userGroups.includes(effectiveGroupId)) {
-          const userSubs: string[] = userData.pushSubscriptions || [];
-          subscriptions.push(...userSubs);
-        }
-      }
-    });
-
-    if (subscriptions.length === 0) return;
-
+    if (!groupId || groupId === "default") return;
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) return;
 
     await fetch("/api/send-push", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({
-        senderName,
-        pageNumbers,
-        subscriptions
-      })
+      body: JSON.stringify({ groupId, pageNumbers })
     });
   } catch (err) {
     console.error("Error in sendPushNotificationForCompletedPages:", err);

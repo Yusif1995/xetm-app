@@ -15,6 +15,7 @@ import {
   fetchUserDoc,
   createUserDoc,
   restoreGroupMemberships,
+  migrateOwnPrivateData,
   getGroupMembers,
   requestGroupMembership,
   backfillGroupMembers,
@@ -179,6 +180,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userDoc = await restoreGroupMemberships(userDoc);
     } catch (err) {
       console.error("Error restoring group memberships:", err);
+    }
+    try {
+      await migrateOwnPrivateData(userDoc);
+    } catch (err) {
+      console.error("Error moving private data:", err);
     }
     return userDoc;
   };

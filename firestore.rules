@@ -40,17 +40,31 @@ service cloud.firestore {
       // Authenticated users can view other members' progress
       allow read: if isAuthenticated();
 
-      // New users always start as plain, unapproved users
+      // New users always start as plain, unapproved users; private data goes to private/profile
       allow create: if isOwner(userId)
         && request.resource.data.get('role', 'user') == 'user'
-        && request.resource.data.get('approved', false) == false;
+        && request.resource.data.get('approved', false) == false
+        && !request.resource.data.keys().hasAny(['email', 'pushSubscriptions']);
 
-      // Users edit their own document but never their role or legacy approval flag
-      allow update: if (isOwner(userId) && !changedKeys().hasAny(['role', 'approved']))
+      // Users edit their own document but never their role or legacy approval flag.
+      // email / pushSubscriptions may only be removed from here (they live in private/profile).
+      allow update: if (isOwner(userId)
+          && !changedKeys().hasAny(['role', 'approved'])
+          && privateFieldRemovedOrUntouched('email')
+          && privateFieldRemovedOrUntouched('pushSubscriptions'))
         || isSuperAdmin()
         || isGroupOwnerEdit();
 
+      function privateFieldRemovedOrUntouched(field) {
+        return !changedKeys().hasAny([field]) || !(field in request.resource.data);
+      }
+
       allow delete: if isOwner(userId) || isSuperAdmin();
+
+      // Email and push subscriptions: only the user themselves (the server uses the Admin SDK)
+      match /private/{docId} {
+        allow read, write: if isOwner(userId);
+      }
 
       // A group owner may only change the part of a member's document that belongs to their group.
       // The client names that group in lastEditedGroup.

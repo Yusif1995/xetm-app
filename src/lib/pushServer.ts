@@ -18,8 +18,13 @@ export function ensureVapidConfigured(): boolean {
 }
 
 // Sends the payload to every subscription (JSON strings); failures are logged, not thrown.
-// Returns the number of subscriptions attempted.
-export async function sendToSubscriptions(subscriptions: string[], payload: string): Promise<number> {
+// Returns how many were attempted and which subscriptions are gone for good (404/410),
+// so callers can delete them.
+export async function sendToSubscriptions(
+  subscriptions: string[],
+  payload: string
+): Promise<{ attempted: number; expired: string[] }> {
+  const expired: string[] = [];
   const notifications: Promise<unknown>[] = [];
 
   subscriptions.forEach((subStr) => {
@@ -27,14 +32,19 @@ export async function sendToSubscriptions(subscriptions: string[], payload: stri
       const subscription = JSON.parse(subStr);
       notifications.push(
         webpush.sendNotification(subscription, payload).catch((err) => {
-          console.error("Error sending push notification to endpoint:", err.statusCode);
+          if (err.statusCode === 404 || err.statusCode === 410) {
+            expired.push(subStr);
+          } else {
+            console.error("Error sending push notification to endpoint:", err.statusCode);
+          }
         })
       );
     } catch (e) {
       console.error("Failed to parse push subscription JSON:", e);
+      expired.push(subStr);
     }
   });
 
   await Promise.all(notifications);
-  return notifications.length;
+  return { attempted: notifications.length, expired };
 }

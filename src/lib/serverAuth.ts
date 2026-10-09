@@ -17,14 +17,6 @@ export async function verifyRequestUser(req: NextRequest): Promise<string | null
   return idToken ? verifyIdToken(idToken) : null;
 }
 
-// Verified uid plus the raw token, for routes that read Firestore as the caller
-export async function verifyRequestUserWithToken(req: NextRequest): Promise<{ uid: string; idToken: string } | null> {
-  const idToken = bearerToken(req);
-  if (!idToken) return null;
-  const uid = await verifyIdToken(idToken);
-  return uid ? { uid, idToken } : null;
-}
-
 async function verifyIdToken(idToken: string): Promise<string | null> {
   const now = Date.now();
   const cached = tokenCache.get(idToken);
@@ -70,20 +62,3 @@ export function isRateLimited(key: string, limit: number, windowMs: number): boo
   return bucket.count > limit;
 }
 
-export interface FirestoreValue {
-  stringValue?: string;
-  arrayValue?: { values?: FirestoreValue[] };
-  mapValue?: { fields?: Record<string, FirestoreValue> };
-}
-
-// Read a Firestore document through the REST API as the calling user, so their security rules apply.
-// Returns the document's fields, or null if it is missing or not readable.
-export async function readFirestoreDoc(path: string, idToken: string): Promise<Record<string, FirestoreValue> | null> {
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  if (!projectId) return null;
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.fields || {};
-}

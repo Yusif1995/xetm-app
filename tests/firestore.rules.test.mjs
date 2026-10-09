@@ -297,6 +297,29 @@ describe("member messages", () => {
   });
 });
 
+describe("private data", () => {
+  test("only the user can read and write their private doc", async () => {
+    await assertSucceeds(setDoc(doc(dbAs(MEMBER), "users", MEMBER, "private", "profile"), { email: "m@x.az", pushSubscriptions: ["s"] }));
+    await assertSucceeds(getDoc(doc(dbAs(MEMBER), "users", MEMBER, "private", "profile")));
+    await assertFails(getDoc(doc(dbAs(OWNER), "users", MEMBER, "private", "profile")));
+    await assertFails(getDoc(doc(dbAs(SUPER), "users", MEMBER, "private", "profile")));
+    await assertFails(setDoc(doc(dbAs(OWNER), "users", MEMBER, "private", "profile"), { pushSubscriptions: ["evil"] }));
+  });
+
+  test("email and push subscriptions cannot be put on the public user doc", async () => {
+    await assertFails(setDoc(doc(dbAs("newbie"), "users", "newbie"), userDoc([], { email: "n@x.az" })));
+    await assertFails(updateDoc(doc(dbAs(MEMBER), "users", MEMBER), { pushSubscriptions: ["s"] }));
+    await assertFails(updateDoc(doc(dbAs(MEMBER), "users", MEMBER), { email: "m@x.az" }));
+  });
+
+  test("user can remove legacy email / subscriptions from the public doc", async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      updateDoc(doc(ctx.firestore(), "users", MEMBER), { email: "m@x.az", pushSubscriptions: ["s"] })
+    );
+    await assertSucceeds(updateDoc(doc(dbAs(MEMBER), "users", MEMBER), { email: deleteField(), pushSubscriptions: deleteField() }));
+  });
+});
+
 describe("hadiths", () => {
   test("anyone can read hadiths, only super admin writes", async () => {
     await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), "hadiths", "h1")));
