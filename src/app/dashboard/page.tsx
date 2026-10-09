@@ -305,7 +305,7 @@ function DashboardContent() {
   });
 
   const hijri = formatHijriAz(now);
-  const dateLine = `${formatGregorianAz(now)}${hijri ? ` · ${hijri}` : ""}`;
+  const dateLine = `${formatGregorianAz(now)}${hijri ? ` -- ${hijri}` : ""}`;
   const firstName = user.firstName || user.name.split(" ")[0];
 
   const handleEnablePush = async () => {

@@ -6,7 +6,7 @@ const AZ_MONTHS = [
 ];
 
 const HIJRI_MONTHS = [
-  "Məhərrəm", "Səfər", "Rəbiüləvvəl", "Rəbiüssani", "Cəmadiyələvvəl", "Cəmadiyəlaxır",
+  "Məhərrəm", "Səfər", "Rəbiül-Əvvəl", "Rəbiüs-Sani", "Cəmadiyələvvəl", "Cəmadiyəlaxır",
   "Rəcəb", "Şaban", "Ramazan", "Şəvval", "Zilqədə", "Zilhiccə",
 ];
 
@@ -16,17 +16,19 @@ export function formatGregorianAz(date: Date, withYear = true): string {
   return withYear ? `${base} ${date.getFullYear()}` : base;
 }
 
-// "28 Rəbiüssani" (Umm al-Qura calendar). Empty string if the runtime lacks the calendar.
+// "28 Rəbiüs-Sani 1448" (Umm al-Qura calendar). Empty string if the runtime lacks the calendar.
 export function formatHijriAz(date: Date): string {
   try {
     const parts = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", {
       day: "numeric",
       month: "numeric",
+      year: "numeric",
     }).formatToParts(date);
     const day = parts.find((p) => p.type === "day")?.value;
     const month = Number(parts.find((p) => p.type === "month")?.value);
+    const year = (parts.find((p) => p.type === "year")?.value || "").replace(/\D/g, "");
     if (!day || !month || month < 1 || month > 12) return "";
-    return `${day} ${HIJRI_MONTHS[month - 1]}`;
+    return `${day} ${HIJRI_MONTHS[month - 1]}${year ? ` ${year}` : ""}`;
   } catch {
     return "";
   }
