@@ -41,6 +41,10 @@ const FALLBACK_RESPONSE: DailyResponse = {
 let cachedItem: { date: string; data: DailyResponse } | null = null;
 // Shared in-flight generation so concurrent requests trigger a single Gemini call
 let inflight: { date: string; promise: Promise<DailyResponse> } | null = null;
+// After a failed generation (e.g. exhausted Gemini credits) serve the fallback for a while
+// instead of calling Gemini again on every page load
+const FAILURE_BACKOFF_MS = 30 * 60 * 1000;
+let lastFailureAt = 0;
 
 export async function GET() {
   // Get current date in Baku timezone (YYYY-MM-DD)
@@ -56,6 +60,10 @@ export async function GET() {
     return NextResponse.json(FALLBACK_RESPONSE);
   }
 
+  if (Date.now() - lastFailureAt < FAILURE_BACKOFF_MS) {
+    return NextResponse.json(FALLBACK_RESPONSE);
+  }
+
   if (!inflight || inflight.date !== todayStr) {
     const promise = generateDailyItem(apiKey);
     inflight = { date: todayStr, promise };
@@ -63,7 +71,9 @@ export async function GET() {
       .then((data) => {
         cachedItem = { date: todayStr, data };
       })
-      .catch(() => {})
+      .catch(() => {
+        lastFailureAt = Date.now();
+      })
       .finally(() => {
         if (inflight?.promise === promise) inflight = null;
       });
