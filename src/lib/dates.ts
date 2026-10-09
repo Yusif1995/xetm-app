@@ -6,7 +6,7 @@ const AZ_MONTHS = [
 ];
 
 const HIJRI_MONTHS = [
-  "Məhərrəm", "Səfər", "Rəbiül-Əvvəl", "Rəbiüs-Sani", "Cəmadiyələvvəl", "Cəmadiyəlaxır",
+  "Məhərrəm", "Səfər", "Rəbiül-Əvvəl", "Rəbiüs-Sani", "Cəmadiyəl-Əvvəl", "Cəmadiyəl-Axır",
   "Rəcəb", "Şaban", "Ramazan", "Şəvval", "Zilqədə", "Zilhiccə",
 ];
 
