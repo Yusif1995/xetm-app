@@ -2,28 +2,28 @@
 
 import { useAuth } from "@/lib/auth";
 import {
-  toggleCompletedPages,
+  toggleAssignmentPages,
   type UserDoc,
   type AppSettings,
   getGroupDoc,
   joinGroup,
   type GroupDoc,
   getUserGroupIds,
-  getUserAssignment,
   isUserApprovedInGroup,
   markMemberMessageRead
 } from "@/lib/db";
-import { useGroupFullNames, useMyGroupMessage } from "@/lib/useGroupData";
-import { useEffect, useState, useMemo, useRef, Suspense } from "react";
+import { useGroupAssignments, useGroupFullNames, useMyGroupMessage } from "@/lib/useGroupData";
+import { khatmSummaries, memberStats, openAssignmentsOf } from "@/lib/khatm";
+import { useEffect, useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { useSearchParams } from "next/navigation";
-import { surahForPage, pageRangesLabel } from "@/lib/quran";
+import { khatmLabel, pageRangesLabel, surahForPage } from "@/lib/quran";
 import { formatGregorianAz, formatHijriAz, relativeTimeAz } from "@/lib/dates";
 import { enablePushFromUserGesture } from "@/lib/push";
-import { ParticipantRow, participantName } from "@/components/GroupWidgets";
+import { memberShare, ParticipantRow, participantName } from "@/components/GroupWidgets";
 import { Avatar, Bar, Card, IconBell, IconLogout, LoadingScreen, ProgressRing, btn } from "@/components/ui";
 
 interface DailyText {
@@ -36,9 +36,8 @@ const WEEKDAYS = ["B.e.", "Ç.a.", "Ç.", "C.a.", "C.", "Ş.", "B."];
 const CHUNK_SIZE = 5;
 
 function DashboardContent() {
-  const { user, loading, refreshUser, activeGroupId, setActiveGroupId, activeGroup, logout, isSuperAdmin } = useAuth();
+  const { user, loading, activeGroupId, setActiveGroupId, activeGroup, logout, isSuperAdmin } = useAuth();
   const [allUsers, setAllUsers] = useState<UserDoc[]>([]);
-  const [completedPagesState, setCompletedPagesState] = useState<number[]>([]);
   const [isMarking, setIsMarking] = useState(false);
   const [togglingPage, setTogglingPage] = useState<number | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -50,6 +49,8 @@ function DashboardContent() {
   const canSeeNames = !!user && (isSuperAdmin || activeGroup?.createdBy === user.uid);
   const fullNames = useGroupFullNames(activeGroupId, canSeeNames);
   const ownerMessage = useMyGroupMessage(activeGroupId, user?.uid);
+  const approvedHere = !!user && (isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup));
+  const { assignments } = useGroupAssignments(activeGroupId, approvedHere);
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -128,17 +129,6 @@ function DashboardContent() {
     window.history.replaceState({}, "", "/dashboard");
   };
 
-  const activeAssignment = useMemo(
-    () => user ? getUserAssignment(user, activeGroupId) : null,
-    [user, activeGroupId]
-  );
-
-  const completedPagesKey = JSON.stringify(activeAssignment?.completedPages || []);
-  useEffect(() => {
-    setCompletedPagesState(activeAssignment?.completedPages || []);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [completedPagesKey]);
-
   // Members of the active group only
   useEffect(() => {
     if (!user || !activeGroupId) {
@@ -206,64 +196,50 @@ function DashboardContent() {
   // Show yourself first
   const participants = [...filteredUsers].sort((a, b) => (a.uid === user.uid ? -1 : b.uid === user.uid ? 1 : 0));
 
-  const assignedPages = activeAssignment?.assignedPages || [];
-  const sortedPages = [...assignedPages].sort((a, b) => a - b);
-  const myCompleted = sortedPages.filter((p) => completedPagesState.includes(p)).length;
-
-  // Previous round must be finished before the new pages unlock
-  const prevAssigned = activeAssignment?.previousAssignedPages || [];
-  const prevCompleted = activeAssignment?.previousCompletedPages || [];
-  const prevRemaining = prevAssigned.filter((p) => !prevCompleted.includes(p)).length;
-  const hasUncompletedPrev = prevRemaining > 0;
+  // Juz the member still has to read, oldest first. Only the oldest one can be marked;
+  // the others wait until it is finished.
+  const myOpen = openAssignmentsOf(assignments, user.uid);
+  const current = myOpen[0] || null;
+  const sortedPages = current ? [...current.pages].sort((a, b) => a - b) : [];
+  const completedPages = current?.completedPages || [];
+  const myCompleted = completedPages.length;
 
   // Next 5-page chunk to mark
   const chunks: number[][] = [];
   for (let i = 0; i < sortedPages.length; i += CHUNK_SIZE) {
     chunks.push(sortedPages.slice(i, i + CHUNK_SIZE));
   }
-  const activeChunk = chunks.find(chunk => !chunk.every(page => completedPagesState.includes(page))) || [];
-  const nextPage = sortedPages.find((p) => !completedPagesState.includes(p));
+  const activeChunk = chunks.find(chunk => !chunk.every(page => completedPages.includes(page))) || [];
+  const nextPage = sortedPages.find((p) => !completedPages.includes(p));
   const remaining = sortedPages.length - myCompleted;
 
-  // Group stats (unique pages out of 604)
-  const groupCompletedSet = new Set<number>();
-  filteredUsers.forEach((u) => {
-    const a = getUserAssignment(u, activeGroupId);
-    const assigned = a.assignedPages || [];
-    (a.completedPages || []).forEach((p) => {
-      if (p >= 1 && p <= 604 && assigned.includes(p)) groupCompletedSet.add(p);
-    });
-  });
-  const groupCount = groupCompletedSet.size;
-  const groupRatio = groupCount / 604;
+  // Group khatm progress: the oldest khatm that is not finished yet
+  const summaries = khatmSummaries(assignments);
+  const completedKhatms = summaries.filter((k) => k.completedAt).length;
+  const currentKhatm = summaries.find((k) => !k.completedAt) || summaries[summaries.length - 1] || null;
+  const groupRatio = currentKhatm ? currentKhatm.pagesRead / currentKhatm.totalPages : 0;
 
-  const juzs = activeAssignment?.assignedJuzs?.length
-    ? activeAssignment.assignedJuzs
-    : activeAssignment?.assignedJuz ? [activeAssignment.assignedJuz] : [];
-  const targetTitle = sortedPages.length === 0
-    ? "Hələ səhifə təyin edilməyib"
-    : `${juzs.length > 0 ? `Cüz ${juzs.join(", ")} · ` : ""}Səhifə ${pageRangesLabel(sortedPages)}`;
+  // This member's share in each khatm
+  const mine = memberStats(assignments, user.uid);
 
-  let remainingText = "Qrup sahibi cüzləri bölüşdürən kimi səhifələrin burada görünəcək.";
-  if (sortedPages.length > 0) {
+  const targetTitle = current
+    ? `Cüz ${current.juz} · Səhifə ${pageRangesLabel(sortedPages)}`
+    : mine.juzDone.length > 0 ? "Hamısı oxunub" : "Hələ cüz təyin edilməyib";
+
+  let remainingText = "Qrup sahibi cüzləri bölüşdürən kimi oxuyacağın cüz burada görünəcək.";
+  if (current) {
     remainingText = remaining > 0
-      ? `Qalıb ${remaining} səhifə. Növbəti: səhifə ${nextPage}.`
-      : "Bütün səhifələrini oxudun. Allah qəbul etsin.";
+      ? `${khatmLabel(current.khatm)} · qalıb ${remaining} səhifə. Növbəti: səhifə ${nextPage}.`
+      : "Bu cüzü bitirdin. Allah qəbul etsin.";
+  } else if (mine.juzDone.length > 0) {
+    remainingText = "Sənə verilən bütün cüzləri bitirdin. Növbəti bölgüdə yeni cüz alacaqsan.";
   }
 
   const handleMarkAsComplete = async () => {
-    if (activeChunk.length === 0 || isMarking || hasUncompletedPrev) return;
+    if (!current || activeChunk.length === 0 || isMarking) return;
     setIsMarking(true);
     try {
-      await toggleCompletedPages(user.uid, activeChunk, true, activeGroupId);
-      setCompletedPagesState(prev => {
-        const next = [...prev];
-        activeChunk.forEach(p => {
-          if (!next.includes(p)) next.push(p);
-        });
-        return next;
-      });
-      await refreshUser();
+      await toggleAssignmentPages(activeGroupId, current.id, activeChunk, true);
     } catch (err) {
       console.error("Error marking chunk as completed:", err);
     } finally {
@@ -272,13 +248,10 @@ function DashboardContent() {
   };
 
   const handleTogglePage = async (page: number) => {
-    if (togglingPage !== null || hasUncompletedPrev) return;
-    const isCompleted = !completedPagesState.includes(page);
+    if (!current || togglingPage !== null) return;
     setTogglingPage(page);
     try {
-      await toggleCompletedPages(user.uid, [page], isCompleted, activeGroupId);
-      setCompletedPagesState(prev => isCompleted ? [...prev, page] : prev.filter(p => p !== page));
-      await refreshUser();
+      await toggleAssignmentPages(activeGroupId, current.id, [page], !completedPages.includes(page));
     } catch (err) {
       console.error("Error toggling page:", err);
     } finally {
@@ -287,10 +260,9 @@ function DashboardContent() {
   };
 
   // Reading streak (consecutive days with a completion, ending today or yesterday)
-  const readTimes = [
-    ...Object.values(activeAssignment?.completedAt || {}),
-    ...Object.values(activeAssignment?.previousCompletedAt || {}),
-  ];
+  const readTimes = assignments
+    .filter((a) => a.uid === user.uid)
+    .flatMap((a) => Object.values(a.completedAt || {}));
   const readDays = new Set(readTimes.map((t) => new Date(t).toDateString()));
   const getStreak = () => {
     const oneDay = 24 * 60 * 60 * 1000;
@@ -442,13 +414,9 @@ function DashboardContent() {
                   <h2 id="hedef" className="m-0 font-display font-semibold text-2xl md:text-[32px] leading-[1.15]">{targetTitle}</h2>
                   <div className="text-[13px] md:text-[15px] text-onforest leading-relaxed">{remainingText}</div>
                 </div>
-                {sortedPages.length > 0 && (
+                {current && (
                   <div className="flex flex-wrap gap-3">
-                    {hasUncompletedPrev ? (
-                      <Link href="/readings" className={btn.gold}>
-                        Əvvəlki tapşırığı bitir ({prevRemaining} səhifə)
-                      </Link>
-                    ) : activeChunk.length > 0 ? (
+                    {activeChunk.length > 0 ? (
                       <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={btn.gold}>
                         {isMarking
                           ? "Qeyd edilir..."
@@ -462,8 +430,13 @@ function DashboardContent() {
                     <div className="hidden md:block"><Link href="/readings" className={btn.ghostDark}>Səhifələrimə bax</Link></div>
                   </div>
                 )}
+                {myOpen.length > 1 && (
+                  <Link href="/readings" className="text-[13px] font-semibold text-gold underline underline-offset-4">
+                    Növbədə daha {myOpen.length - 1} cüz var — bu cüzü bitirəndə açılacaq
+                  </Link>
+                )}
               </div>
-              {sortedPages.length > 0 && (
+              {current && (
                 <>
                   <div className="hidden md:block"><ProgressRing value={myCompleted} total={sortedPages.length} /></div>
                   <div className="md:hidden"><ProgressRing value={myCompleted} total={sortedPages.length} size={88} caption={`/ ${sortedPages.length}`} /></div>
@@ -472,24 +445,22 @@ function DashboardContent() {
             </section>
 
             {/* My pages */}
-            {sortedPages.length > 0 && (
+            {current && (
               <Card>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="m-0 text-base md:text-lg font-bold text-forest">Mənim səhifələrim</h2>
-                  <div className="text-xs md:text-[13px] text-muted">
-                    {hasUncompletedPrev ? "Əvvəlki tapşırıq bitənə qədər kilidlidir" : "Oxuduğun səhifəyə toxun, işarələnsin"}
-                  </div>
+                  <h2 className="m-0 text-base md:text-lg font-bold text-forest">Cüz {current.juz} · {khatmLabel(current.khatm)}</h2>
+                  <div className="text-xs md:text-[13px] text-muted">Oxuduğun səhifəyə toxun, işarələnsin</div>
                 </div>
                 <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(56px,1fr))] gap-2">
                   {sortedPages.map((p) => {
-                    const isDone = completedPagesState.includes(p);
+                    const isDone = completedPages.includes(p);
                     const isNext = p === nextPage;
                     return (
                       <button
                         key={p}
                         type="button"
                         onClick={() => handleTogglePage(p)}
-                        disabled={hasUncompletedPrev || togglingPage !== null}
+                        disabled={togglingPage !== null}
                         aria-pressed={isDone}
                         aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}`}
                         className={`min-h-[44px] md:min-h-[48px] rounded-xl font-bold text-[15px] box-border transition-colors disabled:cursor-not-allowed ${
@@ -498,7 +469,7 @@ function DashboardContent() {
                             : isNext
                               ? "bg-white text-forest border-2 border-accent"
                               : "bg-white text-muted border border-[#D9D1BE]"
-                        } ${togglingPage === p ? "opacity-50" : ""} ${hasUncompletedPrev ? "opacity-60" : ""}`}
+                        } ${togglingPage === p ? "opacity-50" : ""}`}
                       >
                         {p}
                       </button>
@@ -529,16 +500,50 @@ function DashboardContent() {
           {/* Right column */}
           <div className="flex-[1_1_320px] min-w-0 flex flex-col gap-5 md:gap-7">
             <Card>
-              <h2 className="m-0 text-[15px] font-bold text-muted">Qrup xətmi</h2>
+              <h2 className="m-0 text-[15px] font-bold text-muted">
+                Qrup xətmi{currentKhatm ? ` · ${khatmLabel(currentKhatm.khatm)}` : ""}
+              </h2>
               <div className="flex items-baseline gap-2">
-                <div className="font-display font-bold text-[44px] leading-none text-forest">{groupCount}</div>
+                <div className="font-display font-bold text-[44px] leading-none text-forest">{currentKhatm?.pagesRead || 0}</div>
                 <div className="text-[15px] text-muted">/ 604 səhifə</div>
               </div>
               <Bar ratio={groupRatio} height={12} />
               <div className="text-[13px] text-muted">
-                {activeGroup?.name ? `${activeGroup.name} · ` : ""}ümumi gedişatın {Math.round(groupRatio * 100)}%-i
-                {(settings?.completedKhatms || 0) > 0 && ` · ${settings?.completedKhatms} xətm tamamlanıb`}
+                {currentKhatm ? `${currentKhatm.done} / 30 cüz oxunub` : "Hələ bölgü olmayıb"}
+                {completedKhatms > 0 && ` · ${completedKhatms} xətm tamamlanıb`}
               </div>
+            </Card>
+
+            <Card>
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="m-0 text-[15px] font-bold text-muted">Mənim payım</h2>
+                <Link href="/analytics" className="text-[13px] font-semibold text-forest underline underline-offset-4">Analitika</Link>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <MiniStat value={mine.pagesRead} label="səhifə" />
+                <MiniStat value={mine.juzDone.length} label="cüz bitib" />
+                <MiniStat value={mine.personalKhatms} label="şəxsi xətm" />
+              </div>
+              {mine.perKhatm.length === 0 ? (
+                <p className="m-0 text-sm text-muted">Hələ cüz almamısan.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {mine.perKhatm.slice(-3).reverse().map((k) => (
+                    <div key={k.khatm} className="flex items-start justify-between gap-3 text-sm">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-ink">{khatmLabel(k.khatm)}</div>
+                        <div className="text-xs text-muted truncate">
+                          {k.juz.length > 0 ? `Cüz ${k.juz.join(", ")}` : "Ötürülmüş cüz"}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-bold text-forest">{k.juz.length} cüz</div>
+                        <div className="text-xs text-muted">{k.pagesRead} səhifə</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             <Card>
@@ -577,8 +582,7 @@ function DashboardContent() {
                     <ParticipantRow
                       key={u.uid}
                       compact
-                      user={u}
-                      groupId={activeGroupId}
+                      share={memberShare(assignments, u.uid)}
                       name={participantName(u, user, fullNames)}
                       isSelf={u.uid === user.uid}
                       isOwner={u.uid === groupCreatedBy}
@@ -586,7 +590,7 @@ function DashboardContent() {
                   ))}
                 </div>
               )}
-              {nextPage && sortedPages.length > 0 && (
+              {nextPage && current && (
                 <div className="text-xs text-muted">Növbəti səhifən: {surahForPage(nextPage)}</div>
               )}
             </Card>
@@ -610,6 +614,15 @@ function DashboardContent() {
         </div>
       )}
     </AppLayout>
+  );
+}
+
+function MiniStat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="rounded-xl bg-cream py-2.5">
+      <div className="font-display font-bold text-2xl leading-none text-forest">{value}</div>
+      <div className="text-[11px] text-muted mt-1">{label}</div>
+    </div>
   );
 }
 

@@ -84,3 +84,18 @@ export function pageRangesLabel(pages: number[]): string {
   ranges.push(start === end ? `${start}` : `${start}–${end}`);
   return ranges.join(", ");
 }
+
+// Azerbaijani ordinal suffix: 1-ci, 3-cü, 6-cı, 9-cu, 10-cu, 40-cı, 100-cü ...
+export function ordinalAz(n: number): string {
+  const lastDigit: Record<number, string> = { 1: "ci", 2: "ci", 3: "cü", 4: "cü", 5: "ci", 6: "cı", 7: "ci", 8: "ci", 9: "cu" };
+  const tens: Record<number, string> = { 10: "cu", 20: "ci", 30: "cu", 40: "cı", 50: "ci", 60: "cı", 70: "ci", 80: "ci", 90: "cı" };
+  let suffix = "ci";
+  if (n % 10 !== 0) suffix = lastDigit[n % 10];
+  else if (n % 100 !== 0) suffix = tens[n % 100];
+  else if (n % 1000 !== 0) suffix = "cü";
+  return `${n}-${suffix}`;
+}
+
+export function khatmLabel(khatm: number): string {
+  return `${ordinalAz(khatm)} xətm`;
+}

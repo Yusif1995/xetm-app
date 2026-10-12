@@ -12,6 +12,7 @@ import {
   IconGroup,
   IconShield,
   IconLayers,
+  IconChart,
   IconLogout,
   IconChevronDown,
   LoadingScreen,
@@ -20,10 +21,10 @@ import {
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  activeTab: "dashboard" | "readings" | "progress" | "stats" | "groups" | "admin" | "ai";
+  activeTab: "dashboard" | "readings" | "progress" | "stats" | "groups" | "analytics" | "admin" | "ai";
 }
 
-type NavKey = "dashboard" | "readings" | "progress" | "admin" | "groups";
+type NavKey = "dashboard" | "readings" | "progress" | "analytics" | "admin" | "groups";
 
 // Map every screen to the navigation item it belongs to
 const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
@@ -32,6 +33,7 @@ const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
   progress: "progress",
   stats: "progress",
   groups: "groups",
+  analytics: "analytics",
   admin: "admin",
   ai: "admin",
 };
@@ -74,14 +76,17 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
     { key: "dashboard", href: "/dashboard", label: "Bu gün", short: "Bu gün", icon: <IconToday /> },
     { key: "readings", href: "/readings", label: "Səhifələrim", short: "Səhifələrim", icon: <IconBook /> },
     { key: "progress", href: "/progress", label: "Qrup", short: "Qrup", icon: <IconGroup /> },
+    { key: "analytics", href: "/analytics", label: "Analitika", short: "Analitika", icon: <IconChart /> },
   ];
   if (canManageGroup) {
     navItems.push({ key: "admin", href: "/admin", label: "İnzibatçı paneli", short: "Admin", icon: <IconShield /> });
   }
-  // On mobile, members without admin rights get "Qruplarım" as the fourth tab
+  // Mobile tab bar keeps four tabs: analytics is reached from the "Qrup" screen there,
+  // and members without admin rights get "Qruplarım" as the fourth tab
+  const mobileBase = navItems.filter((i) => i.key !== "analytics");
   const mobileItems = canManageGroup
-    ? navItems
-    : [...navItems, { key: "groups" as NavKey, href: "/groups", label: "Qruplarım", short: "Qruplarım", icon: <IconLayers /> }];
+    ? mobileBase
+    : [...mobileBase, { key: "groups" as NavKey, href: "/groups", label: "Qruplarım", short: "Qruplarım", icon: <IconLayers /> }];
 
   return (
     <div className="min-h-screen bg-cream text-ink md:flex">

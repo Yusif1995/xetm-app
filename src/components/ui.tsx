@@ -58,6 +58,9 @@ export const IconTrash = (p: IconProps) => (
 export const IconLayers = (p: IconProps) => (
   <Svg {...p}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></Svg>
 );
+export const IconChart = (p: IconProps) => (
+  <Svg {...p}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></Svg>
+);
 export const IconCalendar = (p: IconProps) => (
   <Svg {...p}><rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9.5h18M8 3v3M16 3v3" /></Svg>
 );

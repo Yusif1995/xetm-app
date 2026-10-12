@@ -395,6 +395,52 @@ describe("names and private data", () => {
   });
 });
 
+describe("juz assignments", () => {
+  const pages = Array.from({ length: 20 }, (_, i) => 21 + i);
+  const assignment = {
+    uid: MEMBER, khatm: 1, juz: 2, distribution: 1, pages, completedPages: [], completedAt: {},
+    done: false, doneAt: null, startDate: "2026-10-01", endDate: "2026-10-07", createdAt: "2026-10-01T00:00:00Z",
+  };
+  const ref = (uid, id = "a1") => doc(dbAs(uid), "groups", G, "assignments", id);
+  const seed = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "groups", G, "assignments", "a1"), assignment));
+
+  test("only the group owner creates, transfers and removes assignments", async () => {
+    await assertSucceeds(setDoc(ref(OWNER), assignment));
+    await assertFails(setDoc(ref(MEMBER, "a2"), assignment));
+    await assertSucceeds(updateDoc(ref(OWNER), { uid: OWNER, previousHolders: [{ uid: MEMBER, pagesRead: 0 }] }));
+    await assertFails(deleteDoc(ref(MEMBER)));
+    await assertSucceeds(deleteDoc(ref(OWNER)));
+  });
+
+  test("approved members can read; outsiders and pending users cannot", async () => {
+    await seed();
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), "groups", G), { [`members.${STRANGER}`]: "pending" }));
+    await assertSucceeds(getDocs(collection(dbAs(MEMBER), "groups", G, "assignments")));
+    await assertSucceeds(getDocs(collection(dbAs(OWNER), "groups", G, "assignments")));
+    await assertFails(getDocs(collection(dbAs(STRANGER), "groups", G, "assignments")));
+    await assertFails(getDoc(ref(STRANGER)));
+  });
+
+  test("holder records reading within the juz pages", async () => {
+    await seed();
+    await assertSucceeds(updateDoc(ref(MEMBER), { completedPages: arrayUnion(21, 22), "completedAt.21": "t", "completedAt.22": "t" }));
+    await assertFails(updateDoc(ref(MEMBER), { completedPages: arrayUnion(300) }));
+  });
+
+  test("holder cannot change the juz, the holder, or fake done", async () => {
+    await seed();
+    await assertFails(updateDoc(ref(MEMBER), { juz: 5 }));
+    await assertFails(updateDoc(ref(MEMBER), { uid: STRANGER }));
+    await assertFails(updateDoc(ref(MEMBER), { done: true, doneAt: "t" }));
+    await assertSucceeds(updateDoc(ref(MEMBER), { completedPages: pages, done: true, doneAt: "t" }));
+  });
+
+  test("other members cannot record reading on someone else's juz", async () => {
+    await seed();
+    await assertFails(updateDoc(ref(STRANGER), { completedPages: arrayUnion(21) }));
+  });
+});
+
 describe("hadiths", () => {
   test("anyone can read hadiths, only super admin writes", async () => {
     await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), "hadiths", "h1")));

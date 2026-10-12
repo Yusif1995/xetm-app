@@ -7,13 +7,14 @@ import {
   getGroupMembers,
   getGroupSettings,
   setGroupSettings,
-  setAssignmentForUser,
-  distributeJuzToUsers,
-  clearAllAssignments,
+  distributeJuz,
+  assignJuzManually,
+  transferAssignment,
+  removeAssignment,
+  resetGroupAssignments,
   sendMemberMessage,
   updateUserApproval,
   getUserGroupIds,
-  getUserAssignment,
   deleteGroup,
   isUserApprovedInGroup,
   removeUserFromGroup,
@@ -24,9 +25,10 @@ import {
 import AppLayout from "@/components/AppLayout";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
-import { JUZ_MAP, juzPages, pageRangesLabel } from "@/lib/quran";
-import { participantStats, participantName } from "@/components/GroupWidgets";
-import { useGroupFullNames, useGroupMessages } from "@/lib/useGroupData";
+import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
+import { memberShare, participantName } from "@/components/GroupWidgets";
+import { useGroupAssignments, useGroupFullNames, useGroupMessages } from "@/lib/useGroupData";
+import { khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
 import { relativeTimeAz } from "@/lib/dates";
 import {
   Avatar, Bar, Card, Chip, DateInput, IconLink, IconSparkle, IconTrash, LoadingScreen, PageHeader, btn, button, inputCls
@@ -37,15 +39,6 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Manual page assignment form
-  const [selectedUser, setSelectedUser] = useState<UserDoc | null>(null);
-  const [pagesInput, setPagesInput] = useState("");
-  const [startDateInput, setStartDateInput] = useState("");
-  const [endDateInput, setEndDateInput] = useState("");
-  const [assignError, setAssignError] = useState<string | null>(null);
-  const [assignSuccess, setAssignSuccess] = useState(false);
-  const [assignLoading, setAssignLoading] = useState(false);
 
   // Auto distribution
   const [autoLoading, setAutoLoading] = useState(false);
@@ -61,6 +54,9 @@ export default function AdminPage() {
   const [groupEndDate, setGroupEndDate] = useState("");
   const [pickedJuz, setPickedJuz] = useState<number | null>(null);
   const [pickedUid, setPickedUid] = useState("");
+  // Transfer an unfinished juz to another member
+  const [transferFor, setTransferFor] = useState<string | null>(null);
+  const [transferUid, setTransferUid] = useState("");
 
   // Message to a member
   const [messageTarget, setMessageTarget] = useState<UserDoc | null>(null);
@@ -76,6 +72,7 @@ export default function AdminPage() {
   const canManage = !!currentUser && (isSuperAdmin || activeGroup?.createdBy === currentUser.uid);
   const fullNames = useGroupFullNames(activeGroupId, canManage);
   const messages = useGroupMessages(activeGroupId, canManage);
+  const { assignments } = useGroupAssignments(activeGroupId, canManage);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
 
@@ -168,16 +165,14 @@ export default function AdminPage() {
     return () => unsubGroups();
   }, [currentUser]);
 
-  // Set default group dates based on current assignments if available
+  // Default dates for the next distribution: today .. one week later
   useEffect(() => {
-    const groupUsers = users.filter(u => getUserGroupIds(u).includes(activeGroupId));
-    const assignedUser = groupUsers.find(u => getUserAssignment(u, activeGroupId).assignmentStartDate);
-    if (assignedUser) {
-      const assignment = getUserAssignment(assignedUser, activeGroupId);
-      if (!groupStartDate) setGroupStartDate(assignment.assignmentStartDate || "");
-      if (!groupEndDate) setGroupEndDate(assignment.assignmentEndDate || "");
-    }
-  }, [users, activeGroupId, groupStartDate, groupEndDate]);
+    const today = new Date();
+    const inAWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setGroupStartDate((v) => v || iso(today));
+    setGroupEndDate((v) => v || iso(inAWeek));
+  }, [activeGroupId]);
 
   if (authLoading || loading || !activeGroupLoaded) {
     return <LoadingScreen text="İnzibatçı paneli yüklənir..." />;
@@ -198,27 +193,16 @@ export default function AdminPage() {
   const activeGroupUsers = groupUsers.filter((u) => isUserApprovedInGroup(u, activeGroupId, activeGroup));
   const pendingGroupUsers = groupUsers.filter((u) => !isUserApprovedInGroup(u, activeGroupId, activeGroup));
 
-  // Unique pages completed by the group out of 604
-  const completedPagesSet = new Set<number>();
-  activeGroupUsers.forEach((u) => {
-    const assignment = getUserAssignment(u, activeGroupId);
-    const assigned = assignment.assignedPages || [];
-    const completed = assignment.completedPages || [];
-    completed.forEach((page) => {
-      if (page >= 1 && page <= 604 && assigned.includes(page)) {
-        completedPagesSet.add(page);
-      }
-    });
-  });
-  const totalUniqueCompleted = completedPagesSet.size;
-
-  // Juz ownership in the active group
-  const juzsOf = (u: UserDoc): number[] => {
-    const a = getUserAssignment(u, activeGroupId);
-    return a.assignedJuzs && a.assignedJuzs.length > 0 ? a.assignedJuzs : a.assignedJuz ? [a.assignedJuz] : [];
-  };
-  const takenJuz = new Set<number>(activeGroupUsers.flatMap(juzsOf));
-  const freeJuz = Array.from({ length: 30 }, (_, i) => i + 1).filter((j) => !takenJuz.has(j));
+  // Khatm progress from the juz assignments
+  const summaries = khatmSummaries(assignments);
+  const completedKhatms = summaries.filter((k) => k.completedAt).length;
+  const currentKhatm = summaries.find((k) => !k.completedAt) || null;
+  const totalUniqueCompleted = currentKhatm?.pagesRead || 0;
+  const { khatm: assigningKhatm, free: freeJuz } = openKhatmForAssignment(assignments);
+  const openOf = (uid: string) => openAssignmentsOf(assignments, uid);
+  const membersWithOpen = activeGroupUsers.filter((u) => openOf(u.uid).length > 0);
+  const membersWithoutOpen = activeGroupUsers.filter((u) => openOf(u.uid).length === 0);
+  const memberByUid = (uid: string) => users.find((u) => u.uid === uid);
 
   const handleApproveUser = async (uid: string) => {
     try {
@@ -283,11 +267,11 @@ export default function AdminPage() {
   };
 
   const handleClearAll = async () => {
-    if (window.confirm("Bütün iştirakçıların səhifə təyinatlarını və arxiv tarixçələrini tamamilə sıfırlamaq (təmizləmək) istəyirsiniz?")) {
+    if (window.confirm("Bütün cüz təyinatları, oxuma tarixçəsi və xətm sayğacı silinəcək və sayma sıfırdan başlayacaq. Davam edilsin?")) {
       try {
         setLoading(true);
-        await clearAllAssignments(activeGroupId);
-        await loadData();
+        await resetGroupAssignments(activeGroupId);
+        setAutoMessage("Bütün təyinatlar silindi.");
       } catch (err) {
         console.error("Error clearing assignments:", err);
         alert("Təmizləmə zamanı xəta baş verdi.");
@@ -340,21 +324,16 @@ export default function AdminPage() {
       alert("Zəhmət olmasa, əvvəlcə başlama və bitmə tarixlərini seçin.");
       return;
     }
-
-    const userToAssign = users.find(u => u.uid === uid);
-    const assignment = userToAssign ? getUserAssignment(userToAssign, activeGroupId) : null;
-    if (userToAssign && assignment && assignment.assignedPages && assignment.assignedPages.length > 0) {
-      if (!window.confirm(`${nameOf(userToAssign)} adlı iştirakçının artıq mövcud təyinatı var. Onu silib bu Cüzlə əvəz etmək istəyirsiniz?`)) {
-        return;
-      }
+    const member = memberByUid(uid);
+    if (member && openOf(uid).length >= MAX_OPEN_ASSIGNMENTS &&
+        !window.confirm(`${nameOf(member)} adlı iştirakçının artıq ${openOf(uid).length} bitməmiş cüzü var. Yenə də cüz verilsin?`)) {
+      return;
     }
-
     try {
       setLoading(true);
-      await setAssignmentForUser(uid, juzPages(juzNum), groupStartDate, groupEndDate, juzNum, activeGroupId);
+      await assignJuzManually(activeGroupId, uid, assigningKhatm, juzNum, groupStartDate, groupEndDate);
       setPickedJuz(null);
       setPickedUid("");
-      await loadData();
     } catch (err) {
       console.error("Error assigning juz:", err);
       alert("Cüz təyinatı zamanı xəta baş verdi.");
@@ -363,97 +342,53 @@ export default function AdminPage() {
     }
   };
 
-  const handleRemoveJuzAssignment = async (user: UserDoc) => {
-    const assignment = getUserAssignment(user, activeGroupId);
-    const label = assignment.assignedJuz ? `Cüz ${assignment.assignedJuz}` : "səhifə";
-    if (window.confirm(`${nameOf(user)} adlı iştirakçının ${label} təyinatını ləğv etmək istəyirsiniz?`)) {
-      try {
-        setLoading(true);
-        await setAssignmentForUser(user.uid, [], "", "", undefined, activeGroupId);
-        await loadData();
-      } catch (err) {
-        console.error("Error removing juz assignment:", err);
-        alert("Təyinatı silərkən xəta baş verdi.");
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  const parsePagesString = (input: string): number[] => {
-    const result: number[] = [];
-    for (let part of input.split(",")) {
-      part = part.trim();
-      if (part.includes("-")) {
-        const [startStr, endStr] = part.split("-");
-        const start = parseInt(startStr.trim(), 10);
-        const end = parseInt(endStr.trim(), 10);
-        if (!isNaN(start) && !isNaN(end) && start <= end) {
-          for (let i = start; i <= end; i++) {
-            if (i >= 1 && i <= 604) result.push(i);
-          }
-        }
-      } else {
-        const page = parseInt(part, 10);
-        if (!isNaN(page) && page >= 1 && page <= 604) result.push(page);
-      }
-    }
-    return Array.from(new Set(result)).sort((a, b) => a - b);
-  };
-
-  const handleSelectUser = (user: UserDoc) => {
-    setSelectedUser(user);
-    setAssignSuccess(false);
-    setAssignError(null);
-    const assignment = getUserAssignment(user, activeGroupId);
-    setStartDateInput(assignment.assignmentStartDate || "");
-    setEndDateInput(assignment.assignmentEndDate || "");
-    setPagesInput(pageRangesLabel(assignment.assignedPages || []).replace(/–/g, "-"));
-  };
-
-  const handleAssignSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedUser) return;
-
-    setAssignLoading(true);
-    setAssignError(null);
-    setAssignSuccess(false);
-
+  const handleRemoveAssignment = async (a: Assignment) => {
+    const member = memberByUid(a.uid);
+    if (!window.confirm(`${member ? nameOf(member) : "İştirakçı"} adlı iştirakçının Cüz ${a.juz} (${khatmLabel(a.khatm)}) təyinatı ləğv edilsin? Oxunmuş səhifələri də silinəcək.`)) return;
     try {
-      const newPages = parsePagesString(pagesInput);
-      await setAssignmentForUser(selectedUser.uid, newPages, startDateInput, endDateInput, undefined, activeGroupId);
-      setAssignSuccess(true);
-      setSelectedUser(null);
-      setPagesInput("");
-      setStartDateInput("");
-      setEndDateInput("");
-      await loadData();
+      await removeAssignment(activeGroupId, a.id);
     } catch (err) {
-      console.error(err);
-      setAssignError("Səhifələr təyin edilərkən xəta baş verdi.");
-    } finally {
-      setAssignLoading(false);
+      console.error("Error removing assignment:", err);
+      alert("Təyinatı silərkən xəta baş verdi.");
     }
   };
 
-  // "Bərabər böl": distribute juz to every approved member using the dates above
+  const handleTransfer = async (a: Assignment) => {
+    if (!transferUid) return;
+    try {
+      await transferAssignment(activeGroupId, a, transferUid);
+      setTransferFor(null);
+      setTransferUid("");
+    } catch (err) {
+      console.error("Error transferring assignment:", err);
+      alert("Cüzü ötürərkən xəta baş verdi.");
+    }
+  };
+
+  // Random distribution: one juz per member who is not behind
   const handleAutoDistribute = async () => {
     if (!groupStartDate || !groupEndDate) {
       alert("Zəhmət olmasa, əvvəlcə başlama və bitmə tarixlərini seçin.");
       return;
     }
-    if (!window.confirm("Bütün aktiv iştirakçılara növbəti cüzlər paylanacaq və cari oxunma vəziyyəti arxivə keçəcək. Davam edilsin?")) {
+    if (!window.confirm(`Hər iştirakçıya təsadüfi bir cüz veriləcək. ${MAX_OPEN_ASSIGNMENTS} bitməmiş cüzü olan iştirakçılara bu bölgüdə cüz verilmir. Davam edilsin?`)) {
       return;
     }
     setAutoLoading(true);
     setAutoMessage(null);
     try {
-      await distributeJuzToUsers(groupStartDate, groupEndDate, activeGroupId);
-      setAutoMessage("Cüzlər iştirakçılara bölündü.");
-      await loadData();
+      const r = await distributeJuz(activeGroupId, activeGroupUsers.map((u) => u.uid), groupStartDate, groupEndDate);
+      const skippedNames = r.skipped.map((uid) => {
+        const m = memberByUid(uid);
+        return m ? nameOf(m) : "İştirakçı";
+      });
+      setAutoMessage(
+        `${ordinalAz(r.distribution)} bölgü: ${r.assigned} cüz paylandı.` +
+        (skippedNames.length > 0 ? ` Geri qaldığı üçün cüz verilmədi: ${skippedNames.join(", ")}.` : "")
+      );
     } catch (err) {
       console.error(err);
-      setAutoMessage("Avtomatik paylanma zamanı xəta baş verdi.");
+      setAutoMessage("Paylanma zamanı xəta baş verdi.");
     } finally {
       setAutoLoading(false);
     }
@@ -501,8 +436,6 @@ export default function AdminPage() {
       (u.nickname || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const assignedRows = activeGroupUsers.filter((u) => getUserAssignment(u, activeGroupId).assignedPages.length > 0 || juzsOf(u).length > 0);
-  const unassignedUsers = activeGroupUsers.filter((u) => !assignedRows.includes(u));
   const pct = Math.round((totalUniqueCompleted / 604) * 100);
 
   return (
@@ -561,8 +494,8 @@ export default function AdminPage() {
 
               {/* Status */}
               <section aria-label="Qrupun vəziyyəti" className="grid grid-cols-3 md:flex md:flex-wrap gap-2.5 md:gap-5">
-                <StatTile label="Tamamlanan xətm" mobileLabel="Xətm" value={String(settings.completedKhatms || 0)} />
-                <StatTile label="Cari xətmin səhifələri" mobileLabel="Oxunan" value={String(totalUniqueCompleted)} suffix="/ 604" />
+                <StatTile label="Tamamlanan xətm" mobileLabel="Xətm" value={String(completedKhatms)} />
+                <StatTile label={currentKhatm ? `${khatmLabel(currentKhatm.khatm)} · oxunan` : "Cari xətm · oxunan"} mobileLabel="Oxunan" value={String(totalUniqueCompleted)} suffix="/ 604" />
                 <StatTile label="Cari xətm faizi" mobileLabel="Gedişat" value={`${pct}%`} gold />
               </section>
 
@@ -570,7 +503,11 @@ export default function AdminPage() {
               <Card className="md:!p-7 !gap-[22px]">
                 <div className="flex flex-col gap-1">
                   <h2 className="m-0 text-base md:text-xl font-bold text-forest">Cüz bölgüsü</h2>
-                  <div className="text-sm leading-relaxed text-muted">Quranın 30 cüzünü iştirakçılara təyin et və xətmin tarix aralığını seç.</div>
+                  <div className="text-sm leading-relaxed text-muted">
+                    Hər bölgüdə hər iştirakçıya təsadüfi bir cüz düşür; cüzlər bitəndə növbəti xətmə keçilir.
+                    {MAX_OPEN_ASSIGNMENTS} bitməmiş cüzü olan iştirakçıya yeni cüz verilmir.
+                    {activeGroup?.lastDistribution && ` Son bölgü: ${ordinalAz(activeGroup.lastDistribution.number)}.`}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-4">
@@ -584,54 +521,75 @@ export default function AdminPage() {
                   </label>
                 </div>
 
-                {/* Assigned members */}
-                <div className="flex flex-col gap-3">
-                  {assignedRows.map((u) => {
-                    const juzs = juzsOf(u);
-                    const s = participantStats(u, activeGroupId);
+                <div className="flex flex-wrap gap-3">
+                  <button type="button" onClick={handleAutoDistribute} disabled={autoLoading || activeGroupUsers.length === 0} className={button("primary", "lg")}>
+                    {autoLoading ? "Paylanır..." : "Cüzləri payla"}
+                  </button>
+                  <button type="button" onClick={handleClearAll} className={button("outline", "lg")}>
+                    Sıfırla
+                  </button>
+                </div>
+                {autoMessage && <div className="text-sm font-semibold text-done">{autoMessage}</div>}
+
+                {/* Unfinished juz per member */}
+                <div className="flex flex-col gap-3 pt-4 border-t border-sand">
+                  <div className="text-sm font-semibold text-ink">Oxunmaqda olan cüzlər</div>
+                  {membersWithOpen.length === 0 && (
+                    <p className="m-0 text-sm text-muted">Hazırda bitməmiş cüz yoxdur.</p>
+                  )}
+                  {membersWithOpen.map((u) => {
+                    const open = openOf(u.uid);
                     return (
-                      <div key={u.uid} className="flex flex-wrap items-center gap-3 md:gap-4 px-4 py-3.5 rounded-2xl bg-cream">
-                        <div className="flex-[1_1_200px] flex items-center gap-3 min-w-0">
+                      <div key={u.uid} className="flex flex-col gap-2.5 px-4 py-3.5 rounded-2xl bg-cream">
+                        <div className="flex items-center gap-3 min-w-0">
                           <Avatar name={nameOf(u)} gold={u.uid !== currentUser.uid} />
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="text-[15px] font-bold truncate">{nameOf(u)}</div>
-                            <div className="text-xs text-muted">{s.completed} / {s.assigned} səhifə</div>
+                            <div className="text-xs text-muted">{open.length} bitməmiş cüz</div>
                           </div>
+                          {open.length >= MAX_OPEN_ASSIGNMENTS && <Chip tone="pending">Geri qalır</Chip>}
                         </div>
-                        <div className="flex-[2_1_240px] flex flex-wrap items-center gap-1.5">
-                          {juzs.length > 0 ? juzs.map((j) => (
-                            <button
-                              key={j}
-                              type="button"
-                              onClick={() => handleRemoveJuzAssignment(u)}
-                              title="Təyinatı ləğv et"
-                              className="min-w-[44px] min-h-[36px] px-3 rounded-[10px] bg-forest text-cream font-bold text-sm inline-flex items-center justify-center gap-1.5 hover:bg-[#16503c]"
-                            >
-                              Cüz {j} <span aria-hidden="true" className="opacity-70">×</span>
-                            </button>
-                          )) : (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveJuzAssignment(u)}
-                              className="min-h-[36px] px-3 rounded-[10px] bg-forest text-cream font-bold text-sm"
-                            >
-                              Səhifə {pageRangesLabel(getUserAssignment(u, activeGroupId).assignedPages)} ×
-                            </button>
-                          )}
-                        </div>
+                        {open.map((a) => (
+                          <div key={a.id} className="flex flex-col gap-2 bg-white rounded-xl px-3 py-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-sm">
+                                <span className="font-bold text-forest">Cüz {a.juz}</span>
+                                <span className="text-muted"> · {khatmLabel(a.khatm)} · {a.completedPages.length} / {a.pages.length} səhifə</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => { setTransferFor(transferFor === a.id ? null : a.id); setTransferUid(""); }} className={button("outline", "sm")}>Ötür</button>
+                                <button type="button" onClick={() => handleRemoveAssignment(a)} className={button("danger", "sm")}>Ləğv et</button>
+                              </div>
+                            </div>
+                            {transferFor === a.id && (
+                              <div className="flex flex-wrap items-end gap-2">
+                                <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-1.5 text-xs font-semibold text-ink">
+                                  Kimə ötürülsün? Oxunmuş səhifələr {nameOf(u)} adına qalır.
+                                  <select value={transferUid} onChange={(e) => setTransferUid(e.target.value)} className={inputCls}>
+                                    <option value="">İştirakçı seç...</option>
+                                    {activeGroupUsers.filter((m) => m.uid !== u.uid).map((m) => (
+                                      <option key={m.uid} value={m.uid}>{nameOf(m)}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <button type="button" disabled={!transferUid} onClick={() => handleTransfer(a)} className={btn.primary}>Ötür</button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     );
                   })}
-                  {unassignedUsers.length > 0 && (
+                  {membersWithoutOpen.length > 0 && (
                     <div className="text-sm text-muted">
-                      Cüz təyin edilməyənlər: {unassignedUsers.map((u) => nameOf(u)).join(", ")}
+                      Hazırda cüzü olmayanlar: {membersWithoutOpen.map((u) => nameOf(u)).join(", ")}
                     </div>
                   )}
                 </div>
 
-                {/* Free juz */}
-                <div className="flex flex-col gap-2.5">
-                  <div className="text-sm font-semibold text-ink">Təyin edilməyib · {freeJuz.length} cüz</div>
+                {/* Free juz of the khatm being handed out */}
+                <div className="flex flex-col gap-2.5 pt-4 border-t border-sand">
+                  <div className="text-sm font-semibold text-ink">{khatmLabel(assigningKhatm)} · təyin edilməyib · {freeJuz.length} cüz</div>
                   <div className="grid grid-cols-6 md:grid-cols-[repeat(auto-fill,minmax(52px,1fr))] gap-1.5">
                     {freeJuz.map((j) => (
                       <button
@@ -652,8 +610,8 @@ export default function AdminPage() {
                   </div>
                   {pickedJuz !== null && (
                     <div className="flex flex-wrap items-end gap-3 p-4 rounded-2xl bg-mint">
-                      <label className="flex-[1_1_220px] flex flex-col gap-2 text-sm font-semibold text-ink">
-                        Cüz {pickedJuz} ({JUZ_MAP[pickedJuz]?.surah}) kimə təyin edilsin?
+                      <label className="flex-[1_1_220px] min-w-0 flex flex-col gap-2 text-sm font-semibold text-ink">
+                        Cüz {pickedJuz} ({khatmLabel(assigningKhatm)}, {JUZ_MAP[pickedJuz]?.surah}) kimə təyin edilsin?
                         <select value={pickedUid} onChange={(e) => setPickedUid(e.target.value)} className={inputCls}>
                           <option value="">İştirakçı seç...</option>
                           {activeGroupUsers.map((u) => (
@@ -661,95 +619,13 @@ export default function AdminPage() {
                           ))}
                         </select>
                       </label>
-                      <button
-                        type="button"
-                        disabled={!pickedUid}
-                        onClick={() => handleAssignJuz(pickedUid, pickedJuz)}
-                        className={btn.primary}
-                      >
+                      <button type="button" disabled={!pickedUid} onClick={() => handleAssignJuz(pickedUid, pickedJuz)} className={btn.primary}>
                         Təyin et
                       </button>
                       <button type="button" onClick={() => setPickedJuz(null)} className={btn.outline}>Ləğv et</button>
                     </div>
                   )}
                 </div>
-
-                <div className="flex flex-wrap gap-3 pt-4 border-t border-sand">
-                  <button type="button" onClick={handleAutoDistribute} disabled={autoLoading} className={button("primary", "lg")}>
-                    {autoLoading ? "Bölünür..." : "Bərabər böl"}
-                  </button>
-                  <button type="button" onClick={handleClearAll} className={button("outline", "lg")}>
-                    Sıfırla
-                  </button>
-                </div>
-                {autoMessage && <div className="text-sm font-semibold text-done">{autoMessage}</div>}
-              </Card>
-
-              {/* Manual page assignment */}
-              <Card>
-                <div className="flex flex-col gap-1">
-                  <h2 className="m-0 text-base md:text-lg font-bold text-forest">Səhifə aralığı təyin et</h2>
-                  <div className="text-sm text-muted">Cüzdən fərqli səhifə təyin etmək üçün (məs. 1-20, 35, 40-50).</div>
-                </div>
-                <form onSubmit={handleAssignSubmit} className="flex flex-col gap-4">
-                  <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
-                    İştirakçı
-                    <select
-                      value={selectedUser?.uid || ""}
-                      onChange={(e) => {
-                        const selected = activeGroupUsers.find(u => u.uid === e.target.value);
-                        if (selected) {
-                          handleSelectUser(selected);
-                        } else {
-                          setSelectedUser(null);
-                          setPagesInput("");
-                        }
-                      }}
-                      required
-                      className={inputCls}
-                    >
-                      <option value="">Seçin...</option>
-                      {activeGroupUsers.map(u => (
-                        <option key={u.uid} value={u.uid}>{nameOf(u)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
-                    Səhifələr
-                    <input
-                      type="text"
-                      required
-                      value={pagesInput}
-                      onChange={(e) => setPagesInput(e.target.value)}
-                      placeholder="Məsələn: 1-20, 35, 40-50"
-                      className={`${inputCls} font-mono`}
-                    />
-                  </label>
-                  <div className="flex flex-wrap gap-4">
-                    <label className="flex-[1_1_160px] min-w-0 flex flex-col gap-2 text-sm font-semibold text-ink">
-                      Başlama tarixi
-                      <DateInput required value={startDateInput} onChange={(e) => setStartDateInput(e.target.value)} />
-                    </label>
-                    <label className="flex-[1_1_160px] min-w-0 flex flex-col gap-2 text-sm font-semibold text-ink">
-                      Bitmə tarixi
-                      <DateInput required value={endDateInput} onChange={(e) => setEndDateInput(e.target.value)} />
-                    </label>
-                  </div>
-                  {assignError && <div className="text-sm font-semibold text-danger">{assignError}</div>}
-                  {assignSuccess && <div className="text-sm font-semibold text-done">Səhifələr uğurla təyin edildi.</div>}
-                  <div className="flex flex-wrap gap-3">
-                    <button type="submit" disabled={assignLoading || !selectedUser} className={btn.primary}>
-                      {assignLoading ? "Yadda saxlanılır..." : "Təyin et"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedUser(null); setPagesInput(""); setStartDateInput(""); setEndDateInput(""); }}
-                      className={btn.outline}
-                    >
-                      Təmizlə
-                    </button>
-                  </div>
-                </form>
               </Card>
 
               {/* Members */}
@@ -771,7 +647,7 @@ export default function AdminPage() {
                   <p className="m-0 text-sm text-muted py-4">Heç bir iştirakçı tapılmadı.</p>
                 ) : (
                   filteredUsers.map((u) => {
-                    const s = participantStats(u, activeGroupId);
+                    const s = memberShare(assignments, u.uid);
                     const isSelf = u.uid === currentUser.uid;
                     const isOwnerRow = u.uid === groupCreatedBy;
                     return (
@@ -781,7 +657,7 @@ export default function AdminPage() {
                           <div className="min-w-0">
                             <div className="text-[15px] font-bold truncate">{nameOf(u)}</div>
                             <div className="text-xs text-muted">
-                              {isOwnerRow ? "Qrup sahibi" : "İştirakçı"} · {s.juzLabel}
+                              {isOwnerRow ? "Qrup sahibi" : "İştirakçı"} · {s.label}
                             </div>
                             {messages[u.uid] && (
                               <div className="text-xs font-semibold text-goldtext">
@@ -791,7 +667,7 @@ export default function AdminPage() {
                           </div>
                         </div>
                         <div className="flex-[1_1_140px] flex flex-col gap-1">
-                          <div className="text-xs text-muted">{s.completed} / {s.assigned} səhifə</div>
+                          <div className="text-xs text-muted">{s.done} / {s.total} səhifə · {s.finished} cüz bitib</div>
                           <Bar ratio={s.ratio} color={s.status === "done" ? "done" : "accent"} />
                         </div>
                         {isOwnerRow && <Chip tone="owner">Qrup sahibi</Chip>}

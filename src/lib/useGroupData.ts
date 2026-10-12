@@ -4,7 +4,8 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
-import { messageDocRef, type GroupMessage } from "./db";
+import { assignmentsCol, messageDocRef, type GroupMessage } from "./db";
+import type { Assignment } from "./khatm.ts";
 
 // Full names of the group's members; only the group owner (or a super admin) may read them
 export function useGroupFullNames(groupId: string, enabled: boolean): Record<string, string> {
@@ -53,4 +54,24 @@ export function useMyGroupMessage(groupId: string, uid: string | undefined): Gro
     return () => unsub();
   }, [groupId, uid]);
   return message;
+}
+
+// Live juz assignments of the group (approved members only)
+export function useGroupAssignments(groupId: string, enabled: boolean): { assignments: Assignment[]; loaded: boolean } {
+  const [state, setState] = useState<{ assignments: Assignment[]; loaded: boolean }>({ assignments: [], loaded: false });
+  useEffect(() => {
+    setState({ assignments: [], loaded: false });
+    if (!enabled || !groupId || groupId === "default") {
+      setState({ assignments: [], loaded: true });
+      return;
+    }
+    const unsub = onSnapshot(assignmentsCol(groupId), (snap) => {
+      setState({ assignments: snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment)), loaded: true });
+    }, (err) => {
+      console.error("Error loading assignments:", err);
+      setState({ assignments: [], loaded: true });
+    });
+    return () => unsub();
+  }, [groupId, enabled]);
+  return state;
 }

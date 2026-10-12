@@ -26,6 +26,14 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid;
     }
 
+    // Group creator or an approved member of the group
+    function isApprovedGroupMember(groupId) {
+      let g = get(/databases/$(database)/documents/groups/$(groupId)).data;
+      return isAuthenticated()
+        && (g.createdBy == request.auth.uid
+            || g.get('members', {}).get(request.auth.uid, '') in ['owner', 'member']);
+    }
+
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
@@ -175,6 +183,25 @@ service cloud.firestore {
         allow create, delete: if isGroupOwner(groupId);
         allow update: if isGroupOwner(groupId)
           || (isOwner(memberId) && changedKeys().hasOnly(['read']));
+      }
+
+      // One record per juz handed out (khatm, juz, distribution, holder, reading progress).
+      // Approved members can see the group's assignments; the owner creates, transfers and removes
+      // them; the holder may only record reading, within the juz pages, and "done" must match.
+      match /assignments/{assignmentId} {
+        allow read: if isApprovedGroupMember(groupId) || isSuperAdmin();
+        allow create, delete: if isGroupOwner(groupId);
+        allow update: if isGroupOwner(groupId) || isHolderProgressUpdate();
+
+        function isHolderProgressUpdate() {
+          let n = request.resource.data;
+          let o = resource.data;
+          return isAuthenticated()
+            && o.uid == request.auth.uid
+            && n.diff(o).affectedKeys().hasOnly(['completedPages', 'completedAt', 'done', 'doneAt'])
+            && n.completedPages.hasOnly(o.pages)
+            && n.done == (n.completedPages.size() == o.pages.size());
+        }
       }
 
       // Members' full names, visible to the group owner (other members only see nicknames)

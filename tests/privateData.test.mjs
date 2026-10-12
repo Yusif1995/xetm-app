@@ -97,38 +97,35 @@ describe("full privacy migration", () => {
 });
 
 describe("khatm counters", () => {
-  const pages = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+  const pagesOf = (juz) => Array.from({ length: juz === 30 ? 24 : 20 }, (_, i) => (juz - 1) * 20 + 1 + i);
+  const add = (id, khatm, juz, done) => db.doc(`groups/${G}/assignments/${id}`).set({
+    uid: "m1", khatm, juz, distribution: 1, pages: pagesOf(juz),
+    completedPages: done ? pagesOf(juz) : [], completedAt: {}, done, doneAt: done ? `2026-10-${String(juz % 28 + 1).padStart(2, "0")}T10:00:00Z` : null,
+    startDate: "", endDate: "", createdAt: "2026-10-01T00:00:00Z",
+  });
 
   beforeEach(async () => {
-    await db.doc(`groups/${G}`).set({
-      name: "Dost", createdBy: "owner", members: { owner: "owner", m1: "member", p1: "pending" },
-      completedKhatms: 2, isCurrentKhatmCompleted: false,
-    });
+    await db.doc(`groups/${G}`).set({ name: "Dost", createdBy: "owner", members: { owner: "owner", m1: "member" }, completedKhatms: 0 });
   });
 
-  test("counts only approved members' assigned pages", async () => {
-    await db.doc("users/owner").set({ groupIds: [G], groupData: { [G]: { assignedPages: pages(1, 10), completedPages: pages(1, 10) } } });
-    // pending member's pages and pages outside the assignment do not count
-    await db.doc("users/p1").set({ groupIds: [G], groupData: { [G]: { assignedPages: pages(11, 20), completedPages: pages(11, 20) } } });
-    await db.doc("users/m1").set({ groupIds: [G], groupData: { [G]: { assignedPages: pages(21, 22), completedPages: [21, 500] } } });
+  test("a khatm counts only when all 30 of its juz are read", async () => {
+    for (let j = 1; j <= 30; j++) await add(`k1-${j}`, 1, j, j !== 17);
+    let r = await recomputeKhatm(db, G);
+    assert.equal(r.completedKhatms, 0);
 
-    const r = await recomputeKhatm(db, G);
-    assert.equal(r.completedPages, 11);
-    assert.equal(r.isCurrentKhatmCompleted, false);
-    assert.equal((await db.doc(`groups/${G}`).get()).data().completedKhatms, 2);
+    await add("k1-17", 1, 17, true);
+    r = await recomputeKhatm(db, G);
+    assert.equal(r.completedKhatms, 1);
+    assert.ok(r.khatmCompletedAt["1"]);
+    assert.equal((await db.doc(`groups/${G}`).get()).data().completedKhatms, 1);
   });
 
-  test("a full khatm is counted once, and resets when pages are unmarked", async () => {
-    await db.doc("users/owner").set({ groupIds: [G], groupData: { [G]: { assignedPages: pages(1, 302), completedPages: pages(1, 302) } } });
-    await db.doc("users/m1").set({ groupIds: [G], groupData: { [G]: { assignedPages: pages(303, 604), completedPages: pages(303, 604) } } });
-
-    assert.equal((await recomputeKhatm(db, G)).completedKhatms, 3);
-    assert.equal((await recomputeKhatm(db, G)).completedKhatms, 3); // not counted twice
-
-    await db.doc("users/m1").update({ [`groupData.${G}.completedPages`]: pages(303, 603) });
+  test("a second khatm in progress does not change the count", async () => {
+    for (let j = 1; j <= 30; j++) await add(`k1-${j}`, 1, j, true);
+    for (let j = 1; j <= 9; j++) await add(`k2-${j}`, 2, j, true);
     const r = await recomputeKhatm(db, G);
-    assert.equal(r.isCurrentKhatmCompleted, false);
-    assert.equal(r.completedKhatms, 3);
+    assert.equal(r.completedKhatms, 1);
+    assert.deepEqual(Object.keys(r.khatmCompletedAt), ["1"]);
   });
 });
 
