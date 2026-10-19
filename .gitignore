@@ -37,3 +37,7 @@ next-env.d.ts
 
 # firebase emulator logs
 firestore-debug.log
+
+# Impeccable (local design tooling and critique archive)
+.claude/
+.impeccable/
