@@ -84,7 +84,7 @@ export function ParticipantRow({
           </div>
           <Chip tone={chip.tone}>{chip.text}</Chip>
         </div>
-        <Bar ratio={share.ratio} color={barColor} />
+        <Bar ratio={share.ratio} color={barColor} label={`${name}: oxuduğu səhifələr`} />
       </div>
     );
   }
@@ -106,7 +106,7 @@ export function ParticipantRow({
           <span>{share.done} / {share.total} səhifə</span>
           <span className="font-bold text-ink">{Math.round(share.ratio * 100)}%</span>
         </div>
-        <Bar ratio={share.ratio} color={barColor} />
+        <Bar ratio={share.ratio} color={barColor} label={`${name}: oxuduğu səhifələr`} />
       </div>
       <Chip tone={chip.tone}>{chip.text}</Chip>
     </div>

@@ -14,7 +14,7 @@ import {
 } from "@/lib/db";
 import { useGroupAssignments, useGroupFullNames, useMyGroupMessage } from "@/lib/useGroupData";
 import { khatmSummaries, memberStats, openAssignmentsOf } from "@/lib/khatm";
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useCallback, useEffect, useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
@@ -22,9 +22,9 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { useSearchParams } from "next/navigation";
 import { khatmLabel, pageRangesLabel, surahForPage } from "@/lib/quran";
 import { formatGregorianAz, formatHijriAz, relativeTimeAz } from "@/lib/dates";
-import { enablePushFromUserGesture } from "@/lib/push";
+import { enablePushFromUserGesture, isPushSupported } from "@/lib/push";
 import { memberShare, ParticipantRow, participantName } from "@/components/GroupWidgets";
-import { Avatar, Bar, Card, IconBell, IconLogout, LoadingScreen, ProgressRing, btn } from "@/components/ui";
+import { Avatar, Bar, Card, IconBell, IconCheck, IconLogout, LoadingScreen, ProgressRing, btn } from "@/components/ui";
 
 interface DailyText {
   text: string;
@@ -33,7 +33,15 @@ interface DailyText {
 }
 
 const WEEKDAYS = ["B.e.", "Ç.a.", "Ç.", "C.a.", "C.", "Ş.", "B."];
+const WEEKDAY_NAMES = ["Bazar ertəsi", "Çərşənbə axşamı", "Çərşənbə", "Cümə axşamı", "Cümə", "Şənbə", "Bazar"];
 const CHUNK_SIZE = 5;
+const UNDO_MS = 6000;
+// Participants shown on "Bu gün"; the full list lives on the group screen
+const PARTICIPANT_LIMIT = 6;
+
+// Last write that failed, kept so the member can retry it from the hero
+type FailedWrite = { message: string; retry: () => Promise<void> };
+type Undo = { assignmentId: string; pages: number[]; label: string };
 
 function DashboardContent() {
   const { user, loading, activeGroupId, setActiveGroupId, activeGroup, logout, isSuperAdmin } = useAuth();
@@ -46,12 +54,35 @@ function DashboardContent() {
   const [dailyHadith, setDailyHadith] = useState<DailyText | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [markingMessage, setMarkingMessage] = useState(false);
+  const [failedWrite, setFailedWrite] = useState<FailedWrite | null>(null);
+  const [undo, setUndo] = useState<Undo | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pushGranted, setPushGranted] = useState(true);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const inviteDialogRef = useRef<HTMLDivElement>(null);
   const canSeeNames = !!user && (isSuperAdmin || activeGroup?.createdBy === user.uid);
   const fullNames = useGroupFullNames(activeGroupId, canSeeNames);
   const ownerMessage = useMyGroupMessage(activeGroupId, user?.uid);
   const approvedHere = !!user && (isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup));
-  const { assignments } = useGroupAssignments(activeGroupId, approvedHere);
+  const { assignments, loaded: assignmentsLoaded } = useGroupAssignments(activeGroupId, approvedHere);
   const profileRef = useRef<HTMLDivElement>(null);
+
+  // The bell only carries a dot while notifications are still off
+  useEffect(() => {
+    setPushGranted(!isPushSupported() || Notification.permission === "granted");
+  }, []);
+
+  useEffect(() => () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+  }, []);
+
+  const closeProfile = useCallback(() => {
+    setProfileOpen(false);
+    profileButtonRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     async function fetchDaily() {
@@ -78,15 +109,22 @@ function DashboardContent() {
     fetchDaily();
   }, []);
 
-  // Close the profile menu on outside click
+  // Close the profile menu on outside click or Esc
   useEffect(() => {
     if (!profileOpen) return;
     const onClick = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeProfile();
+    };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [profileOpen]);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [profileOpen, closeProfile]);
 
   const searchParams = useSearchParams();
   const [inviteGroup, setInviteGroup] = useState<GroupDoc | null>(null);
@@ -113,6 +151,7 @@ function DashboardContent() {
 
   const handleJoinGroup = async () => {
     if (!user || !inviteGroup) return;
+    setJoinError(null);
     try {
       await joinGroup(user, inviteGroup.id);
       setActiveGroupId(inviteGroup.id);
@@ -121,13 +160,42 @@ function DashboardContent() {
       window.location.reload();
     } catch (err) {
       console.error("Error joining group:", err);
+      setJoinError("Qrupa qoşulmaq alınmadı. İnterneti yoxla və yenidən cəhd et.");
     }
   };
 
-  const handleCancelInvite = () => {
+  const handleCancelInvite = useCallback(() => {
     setShowInviteModal(false);
+    setJoinError(null);
     window.history.replaceState({}, "", "/dashboard");
-  };
+  }, []);
+
+  // Invite dialog: focus the first action, keep Tab inside, close on Esc
+  useEffect(() => {
+    if (!showInviteModal) return;
+    const dialog = inviteDialogRef.current;
+    dialog?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleCancelInvite();
+        return;
+      }
+      if (e.key !== "Tab" || !dialog) return;
+      const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>("button"));
+      if (buttons.length === 0) return;
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [showInviteModal, handleCancelInvite]);
 
   // Members of the active group only
   useEffect(() => {
@@ -228,35 +296,85 @@ function DashboardContent() {
 
   let remainingText = "Qrup sahibi cüzləri bölüşdürən kimi oxuyacağın cüz burada görünəcək.";
   if (current) {
-    remainingText = remaining > 0
-      ? `${khatmLabel(current.khatm)} · qalıb ${remaining} səhifə. Növbəti: səhifə ${nextPage}.`
+    remainingText = remaining > 0 && nextPage
+      ? `${khatmLabel(current.khatm)} · qalıb ${remaining} səhifə. Növbəti: səhifə ${nextPage}, ${surahForPage(nextPage)}.`
       : "Bu cüzü bitirdin. Allah qəbul etsin.";
   } else if (mine.juzDone.length > 0) {
     remainingText = "Sənə verilən bütün cüzləri bitirdin. Növbəti bölgüdə yeni cüz alacaqsan.";
   }
 
+  const rangeLabel = (pages: number[]) =>
+    `${pages[0]}${pages.length > 1 ? `–${pages[pages.length - 1]}` : ""}`;
+
+  const clearUndo = () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = null;
+    setUndo(null);
+  };
+
+  // Writes go through here so a failure is shown in the hero with a retry, never only logged
+  const runWrite = async (write: () => Promise<void>, failMessage: string) => {
+    setFailedWrite(null);
+    try {
+      await write();
+      return true;
+    } catch (err) {
+      console.error(failMessage, err);
+      setFailedWrite({ message: failMessage, retry: write });
+      setAnnouncement(failMessage);
+      return false;
+    }
+  };
+
   const handleMarkAsComplete = async () => {
     if (!current || activeChunk.length === 0 || isMarking) return;
+    const assignmentId = current.id;
+    const pages = activeChunk.filter((p) => !completedPages.includes(p));
+    const label = rangeLabel(activeChunk);
     setIsMarking(true);
-    try {
-      await toggleAssignmentPages(activeGroupId, current.id, activeChunk, true);
-    } catch (err) {
-      console.error("Error marking chunk as completed:", err);
-    } finally {
-      setIsMarking(false);
+    clearUndo();
+    const ok = await runWrite(
+      () => toggleAssignmentPages(activeGroupId, assignmentId, activeChunk, true),
+      `Səhifə ${label} qeyd olunmadı. İnterneti yoxla və yenidən cəhd et.`
+    );
+    setIsMarking(false);
+    if (ok && pages.length > 0) {
+      setAnnouncement(`Səhifə ${label} oxunmuş kimi qeyd olundu.`);
+      setUndo({ assignmentId, pages, label });
+      undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS);
     }
+  };
+
+  const handleUndo = async () => {
+    if (!undo) return;
+    const { assignmentId, pages, label } = undo;
+    clearUndo();
+    const ok = await runWrite(
+      () => toggleAssignmentPages(activeGroupId, assignmentId, pages, false),
+      `Səhifə ${label} geri qaytarılmadı. Yenidən cəhd et.`
+    );
+    if (ok) setAnnouncement(`Səhifə ${label} yenidən oxunmamış oldu.`);
   };
 
   const handleTogglePage = async (page: number) => {
     if (!current || togglingPage !== null) return;
+    const assignmentId = current.id;
+    const markRead = !completedPages.includes(page);
     setTogglingPage(page);
-    try {
-      await toggleAssignmentPages(activeGroupId, current.id, [page], !completedPages.includes(page));
-    } catch (err) {
-      console.error("Error toggling page:", err);
-    } finally {
-      setTogglingPage(null);
-    }
+    clearUndo();
+    const ok = await runWrite(
+      () => toggleAssignmentPages(activeGroupId, assignmentId, [page], markRead),
+      `Səhifə ${page} yadda saxlanmadı. İnterneti yoxla və yenidən cəhd et.`
+    );
+    setTogglingPage(null);
+    if (ok) setAnnouncement(`Səhifə ${page} ${markRead ? "oxunmuş" : "oxunmamış"} kimi qeyd olundu.`);
+  };
+
+  const handleRetry = async () => {
+    if (!failedWrite) return;
+    const { retry, message } = failedWrite;
+    const ok = await runWrite(retry, message);
+    if (ok) setAnnouncement("Yadda saxlanıldı.");
   };
 
   // Reading streak (consecutive days with a completion, ending today or yesterday)
@@ -291,7 +409,7 @@ function DashboardContent() {
   });
 
   const hijri = formatHijriAz(now);
-  const dateLine = `${formatGregorianAz(now)}${hijri ? ` -- ${hijri}` : ""}`;
+  const dateLine = `${formatGregorianAz(now)}${hijri ? ` · ${hijri}` : ""}`;
   const displayName = user.name || user.nickname || "";
   const firstName = user.firstName || displayName.split(" ")[0];
 
@@ -304,27 +422,38 @@ function DashboardContent() {
       await markMemberMessageRead(user.uid, activeGroupId);
     } catch (err) {
       console.error("Error marking message as read:", err);
+      setNotice("Mesaj oxunmuş kimi qeyd olunmadı. Yenidən cəhd et.");
     } finally {
       setMarkingMessage(false);
     }
   };
 
   const handleEnablePush = async () => {
-    alert(await enablePushFromUserGesture(user.uid));
+    setNotice(await enablePushFromUserGesture(user.uid));
+    if (isPushSupported()) setPushGranted(Notification.permission === "granted");
   };
+
+  const visibleParticipants = participants.slice(0, PARTICIPANT_LIMIT);
+  const hiddenParticipants = participants.length - visibleParticipants.length;
 
   // Daily ayah/hadith: generated item first, group settings as plain-text fallback
   const ayahFallback = settings?.currentAyah || "";
   const hadithFallback = settings?.currentHadith || "";
 
+  const hasDaily = !!(dailyAyah || dailyHadith || ayahFallback || hadithFallback);
+  const hasAyah = !!(dailyAyah || ayahFallback);
+  const hasHadith = !!(dailyHadith || hadithFallback);
+  const khatmTotalPages = currentKhatm?.totalPages || 604;
+
   return (
     <AppLayout activeTab="dashboard">
       <div className="flex flex-col gap-5 md:gap-7">
+        <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
 
         <header className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-1.5 min-w-0 flex-1">
             <h1 className="m-0 font-display font-bold text-[28px] md:text-[40px] leading-[1.1] text-forest">
-              Xoş gördük, {firstName}
+              {firstName ? `Xoş gördük, ${firstName}` : "Xoş gördük"}
             </h1>
             <div className="text-[13px] md:text-[15px] text-muted">{dateLine}</div>
           </div>
@@ -332,18 +461,23 @@ function DashboardContent() {
             <button
               type="button"
               onClick={handleEnablePush}
-              aria-label="Bildirişləri aktiv et"
-              title="Bildirişləri aktiv et"
+              aria-label={pushGranted ? "Bildirişlər aktivdir" : "Bildirişləri aktiv et"}
+              title={pushGranted ? "Bildirişlər aktivdir" : "Bildirişləri aktiv et"}
               className="relative w-11 h-11 md:w-12 md:h-12 rounded-full border border-[#E3DBC7] bg-white text-forest flex items-center justify-center hover:bg-sand transition-colors"
             >
               <IconBell size={22} />
-              <span className="absolute top-2 right-2.5 md:top-2.5 md:right-[11px] w-[9px] h-[9px] rounded-full bg-accent border-2 border-white" />
+              {!pushGranted && (
+                <span className="absolute top-2 right-2.5 md:top-2.5 md:right-[11px] w-[9px] h-[9px] rounded-full bg-accent border-2 border-white" />
+              )}
             </button>
             <div className="relative" ref={profileRef}>
               <button
+                ref={profileButtonRef}
                 type="button"
                 onClick={() => setProfileOpen(!profileOpen)}
                 aria-expanded={profileOpen}
+                aria-haspopup="menu"
+                aria-label={`Profil menyusu: ${displayName || "hesabın"}`}
                 className="flex items-center gap-3 p-0.5 md:p-1 md:pr-4 rounded-full bg-white border border-[#E3DBC7] hover:bg-sand transition-colors"
               >
                 {user.photoURL ? (
@@ -364,6 +498,7 @@ function DashboardContent() {
                     Qruplarım
                   </Link>
                   <button
+                    type="button"
                     onClick={logout}
                     className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-sm font-semibold text-danger rounded-xl hover:bg-red-50"
                   >
@@ -375,6 +510,19 @@ function DashboardContent() {
             </div>
           </div>
         </header>
+
+        {notice && (
+          <div className="flex items-start justify-between gap-3 rounded-btn bg-mint px-4 py-3 text-sm text-forest">
+            <p className="m-0 leading-relaxed">{notice}</p>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="shrink-0 min-h-[32px] px-2 -my-1 rounded-lg font-semibold underline underline-offset-4 hover:bg-white/60"
+            >
+              Bağla
+            </button>
+          </div>
+        )}
 
         {showOwnerMessage && ownerMessage && (
           <section
@@ -392,57 +540,114 @@ function DashboardContent() {
                 <p className="m-0 text-[15px] leading-relaxed text-ink whitespace-pre-line break-words">{ownerMessage.text}</p>
               </div>
             </div>
-            <button type="button" onClick={handleMessageRead} disabled={markingMessage} className={`${btn.primary} w-full md:w-auto`}>
-              {markingMessage ? "..." : "Oxudum"}
+            <button type="button" onClick={handleMessageRead} disabled={markingMessage} className={`${btn.outline} bg-white w-full md:w-auto`}>
+              {markingMessage ? "Qeyd edilir..." : "Mesajı oxudum"}
             </button>
+          </section>
+        )}
+
+        {/* Ayah + hadith: the frame for the day's reading */}
+        {hasDaily && (
+          <section aria-label="Günün ayəsi və hədisi" className="flex flex-wrap gap-x-10 gap-y-5 px-1 md:px-2">
+            {hasAyah && <DailyFigure caption="Günün ayəsi" item={dailyAyah} fallback={ayahFallback} />}
+            {hasHadith && (
+              <>
+                <div className="hidden md:flex flex-[1_1_280px] min-w-0">
+                  <DailyFigure caption="Günün hədisi" item={dailyHadith} fallback={hadithFallback} />
+                </div>
+                <details className="md:hidden w-full group">
+                  <summary className="list-none cursor-pointer text-[13px] font-bold text-goldtext min-h-[44px] flex items-center gap-2">
+                    Günün hədisi
+                    <span className="font-semibold text-muted group-open:hidden">· oxumaq üçün toxun</span>
+                  </summary>
+                  <DailyFigure caption="" item={dailyHadith} fallback={hadithFallback} />
+                </details>
+              </>
+            )}
           </section>
         )}
 
         <div className="flex flex-wrap gap-5 md:gap-7 items-start">
 
-          {/* Left column */}
+          {/* Left column: today's reading */}
           <div className="flex-[999_1_520px] min-w-0 flex flex-col gap-5 md:gap-7">
 
             {/* Hero */}
-            <section
-              aria-labelledby="hedef"
-              className="bg-forest text-cream rounded-[22px] md:rounded-hero p-[22px] md:p-8 flex flex-wrap items-center justify-between gap-4 md:gap-7"
-            >
-              <div className="flex-[1_1_220px] flex flex-col gap-4 md:gap-[18px] min-w-0">
-                <div className="flex flex-col gap-1.5 md:gap-2">
-                  <div className="text-xs md:text-[13px] font-semibold text-gold">Bugünkü hədəfin</div>
-                  <h2 id="hedef" className="m-0 font-display font-semibold text-2xl md:text-[32px] leading-[1.15]">{targetTitle}</h2>
-                  <div className="text-[13px] md:text-[15px] text-onforest leading-relaxed">{remainingText}</div>
+            {!assignmentsLoaded && approvedHere ? (
+              <section
+                aria-label="Bugünkü hədəfin yüklənir"
+                aria-busy="true"
+                className="bg-forest text-cream rounded-[22px] md:rounded-hero p-[22px] md:p-8 flex flex-col gap-4"
+              >
+                <div className="text-xs md:text-[13px] font-semibold text-gold">Bugünkü hədəfin</div>
+                <div className="h-8 md:h-9 w-3/4 max-w-sm rounded-lg bg-white/10 animate-pulse" />
+                <div className="h-4 w-1/2 max-w-xs rounded bg-white/10 animate-pulse" />
+                <div className="h-[52px] w-56 rounded-btn bg-white/10 animate-pulse" />
+              </section>
+            ) : (
+              <section
+                aria-labelledby="hedef"
+                className="bg-forest text-cream rounded-[22px] md:rounded-hero p-[22px] md:p-8 flex flex-wrap items-center justify-between gap-4 md:gap-7"
+              >
+                <div className="flex-[1_1_220px] flex flex-col gap-4 md:gap-[18px] min-w-0">
+                  <div className="flex flex-col gap-1.5 md:gap-2">
+                    <div className="text-xs md:text-[13px] font-semibold text-gold">Bugünkü hədəfin</div>
+                    <h2 id="hedef" className="m-0 font-display font-semibold text-2xl md:text-[32px] leading-[1.15]">{targetTitle}</h2>
+                    <div className="text-[13px] md:text-[15px] text-onforest leading-relaxed">{remainingText}</div>
+                  </div>
+                  {current && (
+                    <div className="flex flex-wrap gap-3">
+                      {activeChunk.length > 0 ? (
+                        <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={`${btn.gold} w-full sm:w-auto`}>
+                          {isMarking ? "Qeyd edilir..." : `Oxudum: səhifə ${rangeLabel(activeChunk)}`}
+                        </button>
+                      ) : (
+                        <div className="min-h-[52px] px-5 rounded-btn border border-gold/50 text-gold font-bold text-base flex items-center gap-2.5">
+                          <IconCheck size={20} />
+                          Tamamlandı. Allah qəbul etsin
+                        </div>
+                      )}
+                      <div className="hidden md:block"><Link href="/readings" className={btn.ghostDark}>Səhifələrimə bax</Link></div>
+                    </div>
+                  )}
+                  {undo && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] md:text-sm text-onforest">
+                      <span>Səhifə {undo.label} qeyd olundu.</span>
+                      <button
+                        type="button"
+                        onClick={handleUndo}
+                        className="min-h-[36px] px-2 -mx-2 rounded-lg font-bold text-gold underline underline-offset-4 hover:bg-white/5"
+                      >
+                        Geri al
+                      </button>
+                    </div>
+                  )}
+                  {failedWrite && (
+                    <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-btn bg-[rgba(246,180,162,0.14)] border border-exit/40 px-3.5 py-2.5 text-[13px] md:text-sm text-cream">
+                      <span className="flex-[1_1_200px]">{failedWrite.message}</span>
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        className="min-h-[36px] px-3 rounded-lg font-bold text-exit border border-exit/50 hover:bg-white/5"
+                      >
+                        Yenidən cəhd et
+                      </button>
+                    </div>
+                  )}
+                  {myOpen.length > 1 && (
+                    <Link href="/readings" className="text-[13px] font-semibold text-gold underline underline-offset-4">
+                      Növbədə daha {myOpen.length - 1} cüz var — bu cüzü bitirəndə açılacaq
+                    </Link>
+                  )}
                 </div>
                 {current && (
-                  <div className="flex flex-wrap gap-3">
-                    {activeChunk.length > 0 ? (
-                      <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={btn.gold}>
-                        {isMarking
-                          ? "Qeyd edilir..."
-                          : `Oxudum: səhifə ${activeChunk[0]}${activeChunk.length > 1 ? `–${activeChunk[activeChunk.length - 1]}` : ""}`}
-                      </button>
-                    ) : (
-                      <div className="min-h-[52px] px-6 rounded-btn bg-[rgba(226,184,92,0.16)] text-gold font-bold text-base flex items-center">
-                        Tamamlandı. Allah qəbul etsin
-                      </div>
-                    )}
-                    <div className="hidden md:block"><Link href="/readings" className={btn.ghostDark}>Səhifələrimə bax</Link></div>
-                  </div>
+                  <>
+                    <div className="hidden md:block"><ProgressRing value={myCompleted} total={sortedPages.length} /></div>
+                    <div className="md:hidden"><ProgressRing value={myCompleted} total={sortedPages.length} size={88} caption={`/ ${sortedPages.length}`} /></div>
+                  </>
                 )}
-                {myOpen.length > 1 && (
-                  <Link href="/readings" className="text-[13px] font-semibold text-gold underline underline-offset-4">
-                    Növbədə daha {myOpen.length - 1} cüz var — bu cüzü bitirəndə açılacaq
-                  </Link>
-                )}
-              </div>
-              {current && (
-                <>
-                  <div className="hidden md:block"><ProgressRing value={myCompleted} total={sortedPages.length} /></div>
-                  <div className="md:hidden"><ProgressRing value={myCompleted} total={sortedPages.length} size={88} caption={`/ ${sortedPages.length}`} /></div>
-                </>
-              )}
-            </section>
+              </section>
+            )}
 
             {/* My pages */}
             {current && (
@@ -451,7 +656,7 @@ function DashboardContent() {
                   <h2 className="m-0 text-base md:text-lg font-bold text-forest">Cüz {current.juz} · {khatmLabel(current.khatm)}</h2>
                   <div className="text-xs md:text-[13px] text-muted">Oxuduğun səhifəyə toxun, işarələnsin</div>
                 </div>
-                <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(56px,1fr))] gap-2">
+                <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(56px,1fr))] gap-2.5">
                   {sortedPages.map((p) => {
                     const isDone = completedPages.includes(p);
                     const isNext = p === nextPage;
@@ -463,12 +668,12 @@ function DashboardContent() {
                         disabled={togglingPage !== null}
                         aria-pressed={isDone}
                         aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}`}
-                        className={`min-h-[44px] md:min-h-[48px] rounded-xl font-bold text-[15px] box-border transition-colors disabled:cursor-not-allowed ${
+                        className={`min-h-[48px] rounded-xl font-bold text-[15px] box-border transition-colors disabled:cursor-not-allowed ${
                           isDone
                             ? "bg-forest text-cream border border-forest"
                             : isNext
                               ? "bg-white text-forest border-2 border-accent"
-                              : "bg-white text-muted border border-[#D9D1BE]"
+                              : "bg-white text-muted border border-[#B5AA8E]"
                         } ${togglingPage === p ? "opacity-50" : ""}`}
                       >
                         {p}
@@ -479,83 +684,47 @@ function DashboardContent() {
                 <div className="flex flex-wrap gap-5 text-[13px] text-muted">
                   <span className="inline-flex items-center gap-2"><span className="w-3.5 h-3.5 rounded bg-forest" />Oxunub</span>
                   <span className="inline-flex items-center gap-2"><span className="w-3.5 h-3.5 rounded bg-white border-2 border-accent box-border" />Növbəti</span>
-                  <span className="inline-flex items-center gap-2"><span className="w-3.5 h-3.5 rounded bg-white border border-[#D9D1BE] box-border" />Gözləyir</span>
+                  <span className="inline-flex items-center gap-2"><span className="w-3.5 h-3.5 rounded bg-white border border-[#B5AA8E] box-border" />Gözləyir</span>
                 </div>
               </Card>
             )}
-
-            {/* Ayah + hadith */}
-            {(dailyAyah || dailyHadith || ayahFallback || hadithFallback) && (
-              <section aria-label="Günün ayəsi və hədisi" className="bg-white border border-line rounded-card p-5 md:p-7 flex flex-wrap gap-8">
-                {(dailyAyah || ayahFallback) && (
-                  <DailyFigure caption="Günün ayəsi" item={dailyAyah} fallback={ayahFallback} />
-                )}
-                {(dailyHadith || hadithFallback) && (
-                  <DailyFigure caption="Günün hədisi" item={dailyHadith} fallback={hadithFallback} />
-                )}
-              </section>
-            )}
           </div>
 
-          {/* Right column */}
+          {/* Right column: the group */}
           <div className="flex-[1_1_320px] min-w-0 flex flex-col gap-5 md:gap-7">
             <Card>
-              <h2 className="m-0 text-[15px] font-bold text-muted">
+              <h2 className="m-0 text-[15px] font-bold text-forest">
                 Qrup xətmi{currentKhatm ? ` · ${khatmLabel(currentKhatm.khatm)}` : ""}
               </h2>
               <div className="flex items-baseline gap-2">
-                <div className="font-display font-bold text-[44px] leading-none text-forest">{currentKhatm?.pagesRead || 0}</div>
-                <div className="text-[15px] text-muted">/ 604 səhifə</div>
+                <div className="font-display font-bold text-[34px] leading-none text-forest">{currentKhatm?.pagesRead || 0}</div>
+                <div className="text-[15px] text-muted">/ {khatmTotalPages} səhifə</div>
               </div>
-              <Bar ratio={groupRatio} height={12} />
+              <Bar ratio={groupRatio} height={12} label="Qrup xətminin irəliləyişi" />
               <div className="text-[13px] text-muted">
                 {currentKhatm ? `${currentKhatm.done} / 30 cüz oxunub` : "Hələ bölgü olmayıb"}
                 {completedKhatms > 0 && ` · ${completedKhatms} xətm tamamlanıb`}
               </div>
+              <Link href="/analytics" className="text-[13px] font-semibold text-forest underline underline-offset-4 self-start">
+                Mənim payım: {mine.pagesRead} səhifə, {mine.juzDone.length} cüz
+              </Link>
             </Card>
 
             <Card>
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 className="m-0 text-[15px] font-bold text-muted">Mənim payım</h2>
-                <Link href="/analytics" className="text-[13px] font-semibold text-forest underline underline-offset-4">Analitika</Link>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <MiniStat value={mine.pagesRead} label="səhifə" />
-                <MiniStat value={mine.juzDone.length} label="cüz bitib" />
-                <MiniStat value={mine.personalKhatms} label="şəxsi xətm" />
-              </div>
-              {mine.perKhatm.length === 0 ? (
-                <p className="m-0 text-sm text-muted">Hələ cüz almamısan.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {mine.perKhatm.slice(-3).reverse().map((k) => (
-                    <div key={k.khatm} className="flex items-start justify-between gap-3 text-sm">
-                      <div className="min-w-0">
-                        <div className="font-semibold text-ink">{khatmLabel(k.khatm)}</div>
-                        <div className="text-xs text-muted truncate">
-                          {k.juz.length > 0 ? `Cüz ${k.juz.join(", ")}` : "Ötürülmüş cüz"}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-bold text-forest">{k.juz.length} cüz</div>
-                        <div className="text-xs text-muted">{k.pagesRead} səhifə</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            <Card>
-              <h2 className="m-0 text-[15px] font-bold text-muted">Ardıcıl gün</h2>
+              <h2 className="m-0 text-[15px] font-bold text-forest">Ardıcıl gün</h2>
               <div className="flex items-baseline gap-2">
-                <div className="font-display font-bold text-[44px] leading-none text-forest">{userStreak}</div>
+                <div className="font-display font-bold text-[34px] leading-none text-forest">{userStreak}</div>
                 <div className="text-[15px] text-muted">gün</div>
               </div>
-              <div className="grid grid-cols-7 gap-1.5 text-center text-xs text-muted">
-                {week.map((d) => (
-                  <div key={d.label} className={`flex flex-col items-center gap-1.5 ${d.isToday ? "font-bold text-forest" : ""}`}>
+              <ul className="m-0 p-0 list-none grid grid-cols-7 gap-1.5 text-center text-xs text-muted">
+                {week.map((d, i) => (
+                  <li
+                    key={d.label}
+                    aria-label={`${WEEKDAY_NAMES[i]}: ${d.read ? "oxunub" : d.future ? "hələ gəlməyib" : "oxunmayıb"}${d.isToday ? ", bu gün" : ""}`}
+                    className={`flex flex-col items-center gap-1.5 ${d.isToday ? "font-bold text-forest" : ""}`}
+                  >
                     <span
+                      aria-hidden="true"
                       className={`w-7 h-7 rounded-full box-border ${
                         d.read
                           ? "bg-forest"
@@ -563,22 +732,25 @@ function DashboardContent() {
                             ? "bg-white border-2 border-accent"
                             : d.future
                               ? "bg-sand"
-                              : "bg-white border border-[#D9D1BE]"
+                              : "bg-white border border-[#B5AA8E]"
                       }`}
                     />
-                    {d.label}
-                  </div>
+                    <span aria-hidden="true">{d.label}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </Card>
 
             <Card>
-              <h2 className="m-0 text-[15px] font-bold text-muted">İştirakçılar</h2>
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="m-0 text-[15px] font-bold text-forest">İştirakçılar</h2>
+                {participants.length > 0 && <span className="text-[13px] text-muted">{participants.length} nəfər</span>}
+              </div>
               {participants.length === 0 ? (
                 <p className="m-0 text-sm text-muted">Hələ iştirakçı yoxdur.</p>
               ) : (
                 <div className="flex flex-col gap-[18px]">
-                  {participants.map((u) => (
+                  {visibleParticipants.map((u) => (
                     <ParticipantRow
                       key={u.uid}
                       compact
@@ -590,25 +762,36 @@ function DashboardContent() {
                   ))}
                 </div>
               )}
-              {nextPage && current && (
-                <div className="text-xs text-muted">Növbəti səhifən: {surahForPage(nextPage)}</div>
+              {hiddenParticipants > 0 && (
+                <Link href="/progress" className="text-[13px] font-semibold text-forest underline underline-offset-4 self-start">
+                  Hamısına bax (daha {hiddenParticipants} nəfər)
+                </Link>
               )}
             </Card>
           </div>
         </div>
       </div>
 
-      {/* Invite modal */}
+      {/* Invite dialog */}
       {showInviteModal && inviteGroup && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-line rounded-hero p-6 md:p-8 w-full max-w-md flex flex-col gap-4 text-center">
-            <h3 className="m-0 font-display font-semibold text-2xl text-forest">Qrup dəvəti</h3>
-            <p className="m-0 text-sm leading-relaxed text-muted">
-              Siz <strong className="text-ink">“{inviteGroup.name}”</strong> qrupuna dəvət aldınız. Bu qrupa qoşulmaq istəyirsiniz?
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleCancelInvite}>
+          <div
+            ref={inviteDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-title"
+            aria-describedby="invite-text"
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-line rounded-hero p-6 md:p-8 w-full max-w-md flex flex-col gap-4 text-center"
+          >
+            <h3 id="invite-title" className="m-0 font-display font-semibold text-2xl text-forest">Qrup dəvəti</h3>
+            <p id="invite-text" className="m-0 text-sm leading-relaxed text-muted">
+              Sən <strong className="text-ink">“{inviteGroup.name}”</strong> qrupuna dəvət almısan. Qoşulmaq istəyirsən?
             </p>
+            {joinError && <p role="alert" className="m-0 text-sm font-semibold text-danger">{joinError}</p>}
             <div className="flex gap-2.5">
-              <button onClick={handleJoinGroup} className={`${btn.primary} flex-1`}>Qoşul</button>
-              <button onClick={handleCancelInvite} className={`${btn.outline} flex-1`}>İmtina et</button>
+              <button type="button" onClick={handleJoinGroup} className={`${btn.primary} flex-1`}>Qoşul</button>
+              <button type="button" onClick={handleCancelInvite} className={`${btn.outline} flex-1`}>İmtina et</button>
             </div>
           </div>
         </div>
@@ -617,27 +800,18 @@ function DashboardContent() {
   );
 }
 
-function MiniStat({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="rounded-xl bg-cream py-2.5">
-      <div className="font-display font-bold text-2xl leading-none text-forest">{value}</div>
-      <div className="text-[11px] text-muted mt-1">{label}</div>
-    </div>
-  );
-}
-
 function DailyFigure({ caption, item, fallback }: { caption: string; item: DailyText | null; fallback: string }) {
   return (
-    <figure className="flex-[1_1_280px] m-0 flex flex-col gap-3 min-w-0">
-      <figcaption className="text-[13px] font-bold text-goldtext">{caption}</figcaption>
+    <figure className="flex-[1_1_280px] m-0 flex flex-col gap-2.5 min-w-0">
+      {caption && <figcaption className="text-[13px] font-bold text-goldtext">{caption}</figcaption>}
       {item ? (
         <>
           {item.text && (
-            <blockquote dir="rtl" lang="ar" className="m-0 font-amiri text-[26px] md:text-[32px] leading-[1.8] text-forest text-right">
+            <blockquote dir="rtl" lang="ar" className="m-0 font-amiri text-[24px] md:text-[28px] leading-[1.8] text-forest text-right">
               {item.text}
             </blockquote>
           )}
-          <p className="m-0 text-[15px] leading-relaxed text-ink">{item.translation}</p>
+          <p className="m-0 max-w-[65ch] text-[15px] leading-relaxed text-ink">{item.translation}</p>
           <div className="text-[13px] text-muted">{item.source}</div>
         </>
       ) : (

@@ -138,11 +138,17 @@ export function Bar({
   color = "forest",
   height = 8,
   dark = false,
-}: { ratio: number; color?: "forest" | "accent" | "done" | "gold"; height?: number; dark?: boolean }) {
+  label,
+}: { ratio: number; color?: "forest" | "accent" | "done" | "gold"; height?: number; dark?: boolean; label?: string }) {
   const fill = { forest: "bg-forest", accent: "bg-accent", done: "bg-done", gold: "bg-gold" }[color];
   const pct = Math.max(0, Math.min(1, ratio)) * 100;
   return (
     <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(pct)}
       className={`rounded-full overflow-hidden ${dark ? "bg-[rgba(247,243,234,0.16)]" : "bg-track"}`}
       style={{ height }}
     >
@@ -239,7 +245,7 @@ export const btn = {
 };
 
 export const inputCls =
-  "min-h-[48px] w-full box-border px-3.5 rounded-xl border border-field bg-white text-[15px] text-ink focus:outline-none focus:border-forest";
+  "min-h-[48px] w-full box-border px-3.5 rounded-xl border border-field bg-white text-base text-ink focus:outline-none focus:border-forest";
 
 // Date field with a calendar icon. iOS Safari gives native date inputs an intrinsic width and
 // centred text; the date-input class (globals.css) resets that so the field fits its column.
@@ -250,7 +256,7 @@ export function DateInput({ className = "", ...props }: Omit<InputHTMLAttributes
       <input
         type="date"
         {...props}
-        className={`date-input min-h-[48px] w-full box-border pl-10 pr-3.5 rounded-xl border border-field bg-white text-[15px] text-ink focus:outline-none focus:border-forest ${className}`}
+        className={`date-input min-h-[48px] w-full box-border pl-10 pr-3.5 rounded-xl border border-field bg-white text-base text-ink focus:outline-none focus:border-forest ${className}`}
       />
     </div>
   );
