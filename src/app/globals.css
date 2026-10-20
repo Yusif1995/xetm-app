@@ -78,6 +78,28 @@ body {
   .rise-in { animation: none; }
 }
 
+/* Add-to-home-screen guide: a ring pulsing out from the spot to tap */
+@keyframes tap-pulse {
+  from { transform: scale(1); opacity: 0.7; }
+  to { transform: scale(1.7); opacity: 0; }
+}
+.tap-pulse {
+  animation: tap-pulse 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+/* Framed controls breathe instead of growing, so the frame never covers nearby text */
+@keyframes tap-pulse-soft {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.45; }
+}
+.tap-pulse-soft {
+  stroke-width: 7;
+  animation: tap-pulse-soft 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tap-pulse { animation: none; opacity: 0; }
+  .tap-pulse-soft { animation: none; opacity: 0; }
+}
+
 /* Animation helpers */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

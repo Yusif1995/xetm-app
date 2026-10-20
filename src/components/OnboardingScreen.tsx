@@ -5,6 +5,7 @@ import { db } from "../lib/firebase";
 import { doc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { createGroup, getGroupDoc, joinGroup, privateDocRef, publishProfileToGroups, UserDoc } from "../lib/db";
 import AuthShell from "./AuthShell";
+import { parseInviteId } from "../lib/invite";
 import { btn, inputCls } from "./ui";
 
 interface OnboardingScreenProps {
@@ -23,7 +24,16 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isInvited = user.groupId && user.groupId !== "default";
+  // Without an invite the member chooses: join with a link (default) or start their own group
+  const [mode, setMode] = useState<"join" | "create">("join");
+  const [inviteLink, setInviteLink] = useState("");
+  const [pendingInviteId, setPendingInviteId] = useState("");
+
+  // Invited = linked to a group in any way: through the link now, or an earlier join request.
+  // Invited members are never asked to create a group.
+  const isInvited = !!pendingInviteId
+    || (!!user.groupId && user.groupId !== "default")
+    || (user.groupIds?.length ?? 0) > 0;
 
   useEffect(() => {
     const getInviteId = () => {
@@ -40,6 +50,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
     };
 
     const inviteId = getInviteId();
+    if (inviteId) setPendingInviteId(inviteId);
     if (inviteId && user.groupId !== inviteId) {
       setLoadingInvite(true);
       const updateInviteGroup = async () => {
@@ -109,7 +120,21 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
         name: fullName
       }, { merge: true });
 
-      if (!isInvited) {
+      // No invite yet, but the member pasted one: join that group first, then finish as invited
+      let joinedNow = "";
+      if (!isInvited && mode === "join") {
+        const id = parseInviteId(inviteLink);
+        const group = id ? await getGroupDoc(id) : null;
+        if (!group) {
+          setError("Dəvət linki tanınmadı. Qrup sahibindən aldığın linki tam şəkildə yapışdır.");
+          setSubmitting(false);
+          return;
+        }
+        await joinGroup(user, group.id);
+        joinedNow = group.id;
+      }
+
+      if (!isInvited && !joinedNow) {
         if (!groupName.trim()) {
           setError("Zəhmət olmasa yaradılacaq yeni xətm qrupunun adını daxil edin.");
           setSubmitting(false);
@@ -136,8 +161,9 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
           isOnboarded: true
         });
         // The group owner sees the full name of members who joined
-        await publishProfileToGroups(user.uid, fullName, user.groupIds || []);
-        newActiveGroupId = user.groupId || "";
+        const groups = Array.from(new Set([...(user.groupIds || []), ...(joinedNow ? [joinedNow] : [])]));
+        await publishProfileToGroups(user.uid, fullName, groups);
+        newActiveGroupId = joinedNow || pendingInviteId || user.groupId || groups[0] || "";
       }
 
       // Set active group in local storage
@@ -157,7 +183,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
       <div className="bg-white border border-line rounded-hero shadow-card p-6 md:p-8 flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <h2 className="m-0 font-bold text-[26px] md:text-[28px] leading-tight text-ink">Xoş gəlmisən</h2>
-          <p className="m-0 text-[15px] leading-relaxed text-muted">Profilini tamamla{isInvited ? " və qrupa qoşul" : " və ilk xətm qrupunu yarat"}.</p>
+          <p className="m-0 text-[15px] leading-relaxed text-muted">Profilini tamamla{isInvited || mode === "join" ? " və qrupa qoşul" : " və ilk xətm qrupunu yarat"}.</p>
         </div>
 
         {isInvited && (
@@ -218,19 +244,51 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
           </label>
 
           {!isInvited && (
-            <label className="flex flex-col gap-2 text-sm font-semibold text-ink pt-4 border-t border-sand">
-              Xətm qrupunun adı
-              <input
-                type="text"
-                required
-                value={groupName}
-                onChange={(e) => setGroupName(e.target.value)}
-                placeholder="Məs. Ailə xətmi"
-                disabled={submitting}
-                className={inputCls}
-              />
-              <span className="text-xs font-normal text-muted">Bu qrupun sahibi olacaqsan və başqalarını dəvət edə biləcəksən.</span>
-            </label>
+            <div className="flex flex-col gap-3 pt-4 border-t border-sand">
+              <div role="tablist" aria-label="Qrup" className="grid grid-cols-2 gap-1 p-1 rounded-[14px] bg-sand">
+                {([["join", "Dəvət linkim var"], ["create", "Yeni qrup yaradıram"]] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={mode === key}
+                    onClick={() => { setMode(key); setError(null); }}
+                    disabled={submitting}
+                    className={`press min-h-[44px] rounded-[11px] text-[13px] ${mode === key ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {mode === "join" ? (
+                <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
+                  Dəvət linki
+                  <input
+                    type="text"
+                    inputMode="url"
+                    value={inviteLink}
+                    onChange={(e) => setInviteLink(e.target.value)}
+                    placeholder="https://xetm-app.onrender.com/?invite=..."
+                    disabled={submitting}
+                    className={inputCls}
+                  />
+                  <span className="text-xs font-normal text-muted">Qrup sahibinin göndərdiyi linki bura yapışdır. O təsdiq edəndən sonra qrupa daxil olacaqsan.</span>
+                </label>
+              ) : (
+                <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
+                  Xətm qrupunun adı
+                  <input
+                    type="text"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    placeholder="Məs. Ailə xətmi"
+                    disabled={submitting}
+                    className={inputCls}
+                  />
+                  <span className="text-xs font-normal text-muted">Bu qrupun sahibi olacaqsan və başqalarını dəvət edə biləcəksən.</span>
+                </label>
+              )}
+            </div>
           )}
 
           {error && (

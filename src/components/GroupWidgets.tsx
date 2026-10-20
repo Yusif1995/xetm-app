@@ -16,6 +16,16 @@ export function participantName(
   return fullNames[user.uid] || user.nickname || "İştirakçı";
 }
 
+export type GroupRole = "Owner" | "Admin" | "İştirakçı";
+
+// How a member's role reads to the viewer: the group owner sees themselves as "Owner" and
+// everyone else sees the owner as "Admin"; app admins (admins/{uid}) are "Admin" for all.
+export function roleOf(uid: string, viewerUid: string | undefined, ownerUid: string | null | undefined, adminUids: string[]): GroupRole {
+  if (ownerUid && uid === ownerUid) return viewerUid === ownerUid ? "Owner" : "Admin";
+  if (adminUids.includes(uid)) return "Admin";
+  return "İştirakçı";
+}
+
 export interface ShareStats {
   label: string;     // e.g. "Cüz 7 · 1-ci xətm"
   done: number;      // pages read in the open juz
@@ -57,17 +67,20 @@ export function ParticipantRow({
   share,
   note,
   compact = false,
+  role: roleProp,
 }: {
   name: string;
   isSelf: boolean;
   isOwner: boolean;
   share: ShareStats;
+  role?: GroupRole;
   note?: string; // replaces the "N cüz bitirib" line in the full row
   compact?: boolean;
 }) {
   const chip = STATUS_CHIP[share.status];
   const barColor = share.status === "done" ? "done" : "accent";
-  const role = isOwner ? "Qrup sahibi" : "İştirakçı";
+  const role: GroupRole = roleProp ?? (isOwner ? "Owner" : "İştirakçı");
+  const roleChip = role !== "İştirakçı" ? <Chip tone="owner">{role}</Chip> : null;
 
   if (compact) {
     return (
@@ -94,8 +107,11 @@ export function ParticipantRow({
       <div className="flex-[1_1_220px] flex items-center gap-3 min-w-0">
         <Avatar name={name} size={44} gold={!isSelf} />
         <div className="min-w-0">
-          <div className="text-[15px] font-bold truncate">
-            {name} {isSelf && <span className="font-medium text-muted">(sən)</span>}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+            <span className="text-[15px] font-bold truncate">
+              {name} {isSelf && <span className="font-medium text-muted">(sən)</span>}
+            </span>
+            {roleChip}
           </div>
           <div className="text-[13px] text-muted">{role} · {note ?? `${share.finished} cüz bitirib`}</div>
         </div>

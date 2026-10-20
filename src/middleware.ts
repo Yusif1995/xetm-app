@@ -7,6 +7,8 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
   const isLoginPage = pathname === "/";
+  // Public pages anyone can open (the add-to-home-screen guide is shared as a link)
+  const isPublicPage = pathname === "/qurasdir";
   
   // Allow all static files and internal Next.js/API calls
   if (
@@ -14,6 +16,10 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api") ||
     pathname.includes(".")
   ) {
+    return NextResponse.next();
+  }
+
+  if (isPublicPage) {
     return NextResponse.next();
   }
 

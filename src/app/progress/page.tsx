@@ -10,8 +10,8 @@ import { useAuth } from "@/lib/auth";
 import { formatIsoDateAz, relativeTimeAz } from "@/lib/dates";
 import { khatmLabel } from "@/lib/quran";
 import { khatmSummaries, memberStats, openKhatmForAssignment } from "@/lib/khatm";
-import { useGroupAssignments, useGroupFullNames } from "@/lib/useGroupData";
-import { JuzMap, KhatmTabs, khatmJuzTiles, memberShare, ParticipantRow, participantName } from "@/components/GroupWidgets";
+import { useGroupAssignments, useGroupFullNames, useGroupAdmins } from "@/lib/useGroupData";
+import { JuzMap, KhatmTabs, khatmJuzTiles, memberShare, ParticipantRow, participantName, roleOf } from "@/components/GroupWidgets";
 import { Bar, Card, LoadingScreen, PageHeader, button } from "@/components/ui";
 
 export default function ProgressPage() {
@@ -23,6 +23,7 @@ export default function ProgressPage() {
   const fullNames = useGroupFullNames(activeGroupId, canSeeNames);
   const approvedHere = !!user && (isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup));
   const { assignments, loaded } = useGroupAssignments(activeGroupId, approvedHere);
+  const adminUids = useGroupAdmins(activeGroupId, approvedHere);
 
   // Members of the active group only
   useEffect(() => {
@@ -58,8 +59,10 @@ export default function ProgressPage() {
     const u = users.find((x) => x.uid === uid);
     return u ? nameOf(u) : "Keçmiş üzv";
   };
+  // Owner first, then admins, then everyone by name
+  const rank = (uid: string) => (uid === groupCreatedBy ? 0 : adminUids.includes(uid) ? 1 : 2);
   const participants = [...filteredUsers].sort((a, b) =>
-    a.uid === groupCreatedBy ? -1 : b.uid === groupCreatedBy ? 1 : nameOf(a).localeCompare(nameOf(b))
+    rank(a.uid) - rank(b.uid) || nameOf(a).localeCompare(nameOf(b))
   );
 
   // Khatms: every khatm with assignments, plus the one currently being handed out
@@ -157,6 +160,7 @@ export default function ProgressPage() {
                       name={nameOf(u)}
                       isSelf={u.uid === user.uid}
                       isOwner={u.uid === groupCreatedBy}
+                      role={roleOf(u.uid, user.uid, groupCreatedBy, adminUids)}
                     />
                   );
                 })

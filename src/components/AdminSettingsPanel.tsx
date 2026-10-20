@@ -6,18 +6,29 @@ import { useAuth } from "@/lib/auth";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { deleteGroup, type GroupDoc } from "@/lib/db";
-import { Card, IconClose, IconLink, IconTrash, btn } from "./ui";
+import { isAppOwner } from "@/lib/ownerApi";
+import Link from "next/link";
+import { Card, IconClose, IconLink, IconShield, IconTrash, btn } from "./ui";
 
 export default function AdminSettingsPanel({ onClose }: { onClose: () => void }) {
   const { user, activeGroupId, setActiveGroupId, activeGroup, isSuperAdmin } = useAuth();
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
   const [inviteState, setInviteState] = useState<"idle" | "copied" | "failed">("idle");
+  const [guideState, setGuideState] = useState<"idle" | "copied">("idle");
+  // The app owner (server-checked) also gets the admins overview
+  const [appOwner, setAppOwner] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    isAppOwner().then((owner) => { if (!cancelled) setAppOwner(owner); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Groups this user owns, to switch to another one after deleting the current group
   useEffect(() => {
@@ -92,6 +103,26 @@ export default function AdminSettingsPanel({ onClose }: { onClose: () => void })
     handleCopyInvite();
   };
 
+  // The add-to-home-screen guide, shared like the invite link
+  const handleShareGuide = async () => {
+    const guideLink = `${window.location.origin}/qurasdir`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Xətm", text: "Xətm-i telefonun ana ekranına belə əlavə et", url: guideLink });
+      } catch {
+        // Closed the share sheet
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(guideLink);
+      setGuideState("copied");
+      setTimeout(() => setGuideState("idle"), 3000);
+    } catch {
+      // Clipboard blocked; the "Təlimata bax" link is still there
+    }
+  };
+
   const handleMigratePrivate = async () => {
     setMigrating(true);
     setMigrationResult(null);
@@ -162,6 +193,19 @@ export default function AdminSettingsPanel({ onClose }: { onClose: () => void })
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-8 md:px-6 flex flex-col gap-4">
+          {appOwner && (
+            <Card>
+              <h3 className="m-0 text-base font-bold text-ink">Sistem idarəsi</h3>
+              <p className="m-0 text-sm leading-relaxed text-muted">
+                Tətbiqin bütün adminlərini və onların qruplarını gör. Adminliyi götürə və qrupları silə bilərsən.
+              </p>
+              <Link href="/admin/sistem" onClick={onClose} className={btn.primary}>
+                <IconShield size={18} />
+                Adminləri idarə et
+              </Link>
+            </Card>
+          )}
+
           {hasGroup && (
             <Card>
               <h3 className="m-0 text-base font-bold text-ink">Dəvət linki</h3>
@@ -180,6 +224,20 @@ export default function AdminSettingsPanel({ onClose }: { onClose: () => void })
               </div>
             </Card>
           )}
+
+          <Card>
+            <h3 className="m-0 text-base font-bold text-ink">Ana ekrana əlavə etmə təlimatı</h3>
+            <p className="m-0 text-sm leading-relaxed text-muted">
+              iPhone və Android üçün şəkilli addımlar. Linki üzvlərə göndər ki, Xətm-i telefonlarına tətbiq kimi əlavə etsinlər.
+            </p>
+            <div className="flex flex-col gap-2.5">
+              <button type="button" onClick={handleShareGuide} className={btn.outline}>
+                <IconLink size={18} />
+                {guideState === "copied" ? "Link kopyalandı" : "Təlimatı paylaş"}
+              </button>
+              <a href="/qurasdir" className="text-sm font-bold text-forest self-start">Təlimata bax</a>
+            </div>
+          </Card>
 
           {isSuperAdmin && (
             <Card>

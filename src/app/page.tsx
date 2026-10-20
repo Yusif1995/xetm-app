@@ -1,3 +1,4 @@
+import Link from "next/link";
 import AyahDisplay from "@/components/AyahDisplay";
 import LoginButton from "@/components/LoginButton";
 import AuthShell from "@/components/AuthShell";
@@ -13,6 +14,7 @@ export default function LoginPage() {
           </p>
         </div>
         <LoginButton />
+        <Link href="/qurasdir" className="text-sm font-bold text-forest text-center">Telefonun ana ekranına necə əlavə etmək olar?</Link>
         <div className="text-xs text-muted text-center">© {new Date().getFullYear()} Xətm App</div>
       </div>
     </AuthShell>

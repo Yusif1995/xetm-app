@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { createGroup, leaveGroup, type GroupDoc, type GroupMemberStatus } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
+import { parseInviteId } from "@/lib/invite";
 import { Card, Chip, IconLogout, PageHeader, btn, button, inputCls } from "@/components/ui";
 
 const STATUS_CHIP: Record<GroupMemberStatus, { tone: "owner" | "done" | "pending"; text: string }> = {
@@ -16,19 +17,6 @@ const STATUS_CHIP: Record<GroupMemberStatus, { tone: "owner" | "done" | "pending
 };
 
 // Accepts a full invite link (".../?invite=ID") or a bare group ID
-function parseInviteId(input: string): string {
-  const value = input.trim();
-  if (!value) return "";
-  try {
-    const url = new URL(value);
-    return url.searchParams.get("invite") || "";
-  } catch {
-    const match = value.match(/invite=([A-Za-z0-9_-]+)/);
-    if (match) return match[1];
-    return /^[A-Za-z0-9_-]{10,}$/.test(value) ? value : "";
-  }
-}
-
 export default function GroupsPage() {
   const { user, loading, logout, activeGroupId, setActiveGroupId, isSuperAdmin } = useAuth();
   const router = useRouter();

@@ -23,8 +23,8 @@ import AdminSettingsPanel from "@/components/AdminSettingsPanel";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
-import { memberShare, participantName } from "@/components/GroupWidgets";
-import { useGroupAssignments, useGroupFullNames, useGroupMessages } from "@/lib/useGroupData";
+import { memberShare, participantName, roleOf } from "@/components/GroupWidgets";
+import { useGroupAdmins, useGroupAssignments, useGroupFullNames, useGroupMessages } from "@/lib/useGroupData";
 import { khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
 import { relativeTimeAz } from "@/lib/dates";
 import {
@@ -64,6 +64,7 @@ export default function AdminPage() {
   const fullNames = useGroupFullNames(activeGroupId, canManage);
   const messages = useGroupMessages(activeGroupId, canManage);
   const { assignments } = useGroupAssignments(activeGroupId, canManage);
+  const adminUids = useGroupAdmins(activeGroupId, canManage);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
 
   async function loadData(groupId = activeGroupId) {
@@ -553,6 +554,7 @@ export default function AdminPage() {
                     const s = memberShare(assignments, u.uid);
                     const isSelf = u.uid === currentUser.uid;
                     const isOwnerRow = u.uid === groupCreatedBy;
+                    const role = roleOf(u.uid, currentUser.uid, groupCreatedBy, adminUids);
                     return (
                       <div key={u.uid} className="flex flex-wrap items-center gap-3 py-3.5 border-t border-sand">
                         <div className="flex-[1_1_200px] flex items-center gap-3 min-w-0">
@@ -560,7 +562,7 @@ export default function AdminPage() {
                           <div className="min-w-0">
                             <div className="text-[15px] font-bold truncate">{nameOf(u)}</div>
                             <div className="text-xs text-muted">
-                              {isOwnerRow ? "Qrup sahibi" : "İştirakçı"} · {s.label}
+                              {role} · {s.label}
                             </div>
                             {messages[u.uid] && (
                               <div className="text-xs font-semibold text-goldtext">
@@ -573,12 +575,12 @@ export default function AdminPage() {
                           <div className="text-xs text-muted">{s.total > 0 ? `${s.done} / ${s.total} səhifə · ` : s.finished > 0 ? "Payı bitib · " : ""}{s.finished} cüz bitib</div>
                           <Bar ratio={s.ratio} color={s.status === "done" ? "done" : "accent"} />
                         </div>
-                        {isOwnerRow && <Chip tone="owner">Qrup sahibi</Chip>}
+                        {role !== "İştirakçı" && <Chip tone="owner">{role}</Chip>}
                         {/* No messaging or removing yourself */}
                         {!isSelf && (
                           <div className="flex gap-2">
                             <button onClick={() => openMessage(u)} className={button("outline", "sm")}>Mesaj</button>
-                            <button onClick={() => handleRemoveUser(u)} className={button("danger", "sm")}>Çıxar</button>
+                            {!isOwnerRow && <button onClick={() => handleRemoveUser(u)} className={button("danger", "sm")}>Çıxar</button>}
                           </div>
                         )}
                       </div>

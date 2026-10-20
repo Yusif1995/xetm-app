@@ -413,10 +413,13 @@ function DashboardContent() {
                 <div className="absolute right-0 top-full mt-2 w-[min(15rem,calc(100vw-2.5rem))] bg-white border border-line rounded-[20px] shadow-bar z-50 p-2 text-ink">
                   <div className="px-3 py-2 border-b border-sand mb-1">
                     <div className="text-sm font-bold truncate">{displayName}</div>
-                    <div className="text-xs text-muted">{viewerIsOwner ? "Qrup sahibi" : "İştirakçı"}</div>
+                    <div className="text-xs text-muted">{viewerIsOwner ? "Owner" : isSuperAdmin ? "Admin" : "İştirakçı"}</div>
                   </div>
                   <Link href="/groups" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
                     Qruplarım
+                  </Link>
+                  <Link href="/qurasdir" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
+                    Ana ekrana əlavə et
                   </Link>
                   <button
                     type="button"

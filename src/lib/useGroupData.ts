@@ -75,3 +75,35 @@ export function useGroupAssignments(groupId: string, enabled: boolean): { assign
   }, [groupId, enabled]);
   return state;
 }
+
+// Members of the group who are app admins (admins/{uid}); asked from the server, which only
+// answers approved members and only names admins inside this group
+export function useGroupAdmins(groupId: string, enabled: boolean): string[] {
+  const [adminUids, setAdminUids] = useState<string[]>([]);
+  useEffect(() => {
+    setAdminUids([]);
+    if (!enabled || !groupId || groupId === "default") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { auth } = await import("./firebase");
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) return;
+        const res = await fetch("/api/group-admins", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ groupId }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.adminUids)) setAdminUids(data.adminUids);
+      } catch (err) {
+        console.error("Could not load group admins:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId, enabled]);
+  return adminUids;
+}
