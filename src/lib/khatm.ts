@@ -31,10 +31,6 @@ export const MAX_OPEN_ASSIGNMENTS = 2;
 
 export type Rng = () => number;
 
-function randomPick<T>(items: T[], rng: Rng): T {
-  return items[Math.floor(rng() * items.length)];
-}
-
 export function shuffle<T>(items: T[], rng: Rng): T[] {
   const a = [...items];
   for (let i = a.length - 1; i > 0; i--) {
@@ -86,10 +82,10 @@ export interface PlannedAssignment {
   juz: number;
 }
 
-// One juz per eligible member, in random order. Juz are taken from the khatm that is still being
-// handed out and continue into the next khatm when it runs out. Each member preferably gets a juz
-// number they have never had before, so nobody can predict their next juz and members gradually
-// cover all 30 juz themselves.
+// One juz per eligible member. Juz go out in order: the lowest free juz of the khatm that is still
+// being handed out first, then juz 1, 2, ... of the next khatm when it runs out. Members are matched
+// to those juz so that as many as possible get a juz number they have never had before, so the
+// same people do not keep reading the same juz from khatm to khatm.
 export function planDistribution(eligibleUids: string[], assignments: Assignment[], rng: Rng = Math.random): PlannedAssignment[] {
   const history = new Map<string, Set<number>>();
   assignments.forEach((a) => {
@@ -101,23 +97,48 @@ export function planDistribution(eligibleUids: string[], assignments: Assignment
     });
   });
 
+  // The juz handed out in this distribution, in reading order
   const start = openKhatmForAssignment(assignments);
+  const slots: { khatm: number; juz: number }[] = [];
   let khatm = start.khatm;
-  let pool = [...start.free];
-  const plan: PlannedAssignment[] = [];
-
-  for (const uid of shuffle(eligibleUids, rng)) {
+  let pool = [...start.free].sort((a, b) => a - b);
+  while (slots.length < eligibleUids.length) {
     if (pool.length === 0) {
       khatm += 1;
       pool = Array.from({ length: JUZ_COUNT }, (_, i) => i + 1);
     }
-    const seen = history.get(uid) || new Set<number>();
-    const fresh = pool.filter((j) => !seen.has(j));
-    const juz = randomPick(fresh.length > 0 ? fresh : pool, rng);
-    pool = pool.filter((j) => j !== juz);
-    plan.push({ uid, khatm, juz });
+    slots.push({ khatm, juz: pool.shift()! });
   }
-  return plan;
+
+  // Maximum matching of slots to members who have never had that juz (augmenting paths).
+  // Members are shuffled so ties are not always broken in favour of the same people.
+  const members = shuffle(eligibleUids, rng);
+  const isFresh = (uid: string, juz: number) => !(history.get(uid)?.has(juz));
+  const memberOfSlot: (string | null)[] = slots.map(() => null);
+  const slotOfMember = new Map<string, number>();
+
+  const tryAssign = (slot: number, visited: Set<string>): boolean => {
+    for (const uid of members) {
+      if (visited.has(uid) || !isFresh(uid, slots[slot].juz)) continue;
+      visited.add(uid);
+      const taken = slotOfMember.get(uid);
+      if (taken === undefined || tryAssign(taken, visited)) {
+        memberOfSlot[slot] = uid;
+        slotOfMember.set(uid, slot);
+        return true;
+      }
+    }
+    return false;
+  };
+  slots.forEach((_, slot) => tryAssign(slot, new Set()));
+
+  // Juz nobody fresh could take go to the members still without one
+  const leftover = members.filter((uid) => !slotOfMember.has(uid));
+  slots.forEach((_, slot) => {
+    if (memberOfSlot[slot] === null) memberOfSlot[slot] = leftover.shift()!;
+  });
+
+  return slots.map((s, slot) => ({ uid: memberOfSlot[slot]!, khatm: s.khatm, juz: s.juz }));
 }
 
 export function newAssignmentData(

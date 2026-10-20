@@ -87,10 +87,36 @@ describe("distribution across khatms (13 members example)", () => {
     }
   });
 
-  test("the order is random (not the same as the member list)", () => {
-    const planA = planDistribution(members13, [], seeded(1));
-    const planB = planDistribution(members13, [], seeded(2));
-    assert.notDeepEqual(planA.map((p) => p.juz), planB.map((p) => p.juz));
+  test("juz go out in order: 1..13, then 14..26, then 27..30 and 1..9 of the next khatm", () => {
+    const rng = seeded(1);
+    const first = distribute([], members13, rng, 1);
+    assert.deepEqual(first.map((a) => a.juz).sort((a, b) => a - b), Array.from({ length: 13 }, (_, i) => i + 1));
+    let all = finishAll(first);
+    const second = distribute(all, members13, rng, 2);
+    assert.deepEqual(second.map((a) => a.juz).sort((a, b) => a - b), Array.from({ length: 13 }, (_, i) => i + 14));
+    all = finishAll([...all, ...second]);
+    const third = distribute(all, members13, rng, 3);
+    assert.deepEqual(third.filter((a) => a.khatm === 1).map((a) => a.juz).sort((a, b) => a - b), [27, 28, 29, 30]);
+    assert.deepEqual(third.filter((a) => a.khatm === 2).map((a) => a.juz).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  test("a juz handed back (cancelled) is filled first, then the order continues", () => {
+    const rng = seeded(4);
+    const all = finishAll(distribute([], members13, rng, 1)).filter((a) => a.juz !== 5);
+    const next = distribute(all, ["x", "y"], rng, 2);
+    assert.deepEqual(next.map((a) => a.juz).sort((a, b) => a - b), [5, 14]);
+  });
+
+  test("in the next khatm nobody gets a juz they already read", () => {
+    // 30 members finish khatm 1 together, then all of khatm 2 is handed out
+    const members30 = Array.from({ length: 30 }, (_, i) => `m${i + 1}`);
+    const rng = seeded(8);
+    let all = finishAll(distribute([], members30, rng, 1));
+    all = [...all, ...distribute(all, members30, rng, 2)];
+    for (const uid of members30) {
+      const juz = all.filter((a) => a.uid === uid).map((a) => a.juz);
+      assert.equal(new Set(juz).size, 2, `${uid} read the same juz twice: ${juz}`);
+    }
   });
 });
 
