@@ -371,7 +371,7 @@ export default function AdminPage() {
       alert("Zəhmət olmasa, əvvəlcə başlama və bitmə tarixlərini seçin.");
       return;
     }
-    if (!window.confirm(`Hər iştirakçıya təsadüfi bir cüz veriləcək. ${MAX_OPEN_ASSIGNMENTS} bitməmiş cüzü olan iştirakçılara bu bölgüdə cüz verilmir. Davam edilsin?`)) {
+    if (!window.confirm(`Cüzlər sıra ilə paylanacaq, hər iştirakçıya bir cüz düşəcək. ${MAX_OPEN_ASSIGNMENTS} bitməmiş cüzü olan iştirakçılara bu bölgüdə cüz verilmir. Davam edilsin?`)) {
       return;
     }
     setAutoLoading(true);
@@ -448,7 +448,7 @@ export default function AdminPage() {
             <button
               type="button"
               onClick={handleCopyInviteLink}
-              className="min-h-[52px] w-full md:w-auto px-6 rounded-btn font-bold text-[15px] inline-flex items-center justify-center gap-2.5 bg-gold text-forest md:bg-forest md:text-cream transition-colors"
+              className={`${btn.primary} min-h-[52px] w-full md:w-auto`}
             >
               <IconLink />
               {inviteCopied ? "Link kopyalandı" : "Dəvət linkini paylaş"}
@@ -458,7 +458,7 @@ export default function AdminPage() {
 
         {!isCreatorOfGroup ? (
           <Card danger className="items-center text-center py-12">
-            <h2 className="m-0 font-display font-semibold text-2xl text-danger">Giriş məhdudlaşdırılıb</h2>
+            <h2 className="m-0 font-bold text-2xl text-danger">Giriş məhdudlaşdırılıb</h2>
             <p className="m-0 text-sm text-muted max-w-md">
               Siz bu xətm qrupunun sahibi deyilsiniz. Bu səbəbdən qrupu idarə etmək səlahiyyətiniz yoxdur.
             </p>
@@ -472,7 +472,7 @@ export default function AdminPage() {
 
               {/* Pending requests */}
               {pendingGroupUsers.length > 0 && (
-                <section className="bg-progress border border-accent rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
+                <section className="bg-progress rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
                   <div className="flex items-center gap-2.5">
                     <h2 className="m-0 text-base md:text-lg font-bold text-progresstext">Qoşulmaq istəyənlər</h2>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-white text-progresstext">{pendingGroupUsers.length}</span>
@@ -493,18 +493,17 @@ export default function AdminPage() {
               )}
 
               {/* Status */}
-              <section aria-label="Qrupun vəziyyəti" className="grid grid-cols-3 md:flex md:flex-wrap gap-2.5 md:gap-5">
-                <StatTile label="Tamamlanan xətm" mobileLabel="Xətm" value={String(completedKhatms)} />
-                <StatTile label={currentKhatm ? `${khatmLabel(currentKhatm.khatm)} · oxunan` : "Cari xətm · oxunan"} mobileLabel="Oxunan" value={String(totalUniqueCompleted)} suffix="/ 604" />
-                <StatTile label="Cari xətm faizi" mobileLabel="Gedişat" value={`${pct}%`} gold />
-              </section>
+              <p aria-label="Qrupun vəziyyəti" className="m-0 text-[15px] leading-relaxed text-muted">
+                {currentKhatm ? khatmLabel(currentKhatm.khatm) : "Cari xətm"}: <strong className="text-ink tabular-nums">{totalUniqueCompleted}</strong> / {currentKhatm?.totalPages || 604} səhifə oxunub ({pct}%)
+                {completedKhatms > 0 ? <> · <strong className="text-ink tabular-nums">{completedKhatms}</strong> xətm tamamlanıb</> : null}
+              </p>
 
               {/* Juz distribution */}
               <Card className="md:!p-7 !gap-[22px]">
                 <div className="flex flex-col gap-1">
-                  <h2 className="m-0 text-base md:text-xl font-bold text-forest">Cüz bölgüsü</h2>
+                  <h2 className="m-0 text-base md:text-xl font-bold text-ink">Cüz bölgüsü</h2>
                   <div className="text-sm leading-relaxed text-muted">
-                    Hər bölgüdə hər iştirakçıya təsadüfi bir cüz düşür; cüzlər bitəndə növbəti xətmə keçilir.
+                    Hər bölgüdə hər iştirakçıya bir cüz düşür. Cüzlər 1-dən 30-a sıra ilə verilir və hər kəsə mümkün qədər əvvəl oxumadığı cüz düşür. Xətmin cüzləri bitəndə paylanma növbəti xətmin 1-ci cüzündən davam edir.{" "}
                     {MAX_OPEN_ASSIGNMENTS} bitməmiş cüzü olan iştirakçıya yeni cüz verilmir.
                     {activeGroup?.lastDistribution && ` Son bölgü: ${ordinalAz(activeGroup.lastDistribution.number)}.`}
                   </div>
@@ -529,7 +528,7 @@ export default function AdminPage() {
                     Sıfırla
                   </button>
                 </div>
-                {autoMessage && <div className="text-sm font-semibold text-done">{autoMessage}</div>}
+                {autoMessage && <div className="text-sm font-semibold text-donetext">{autoMessage}</div>}
 
                 {/* Unfinished juz per member */}
                 <div className="flex flex-col gap-3 pt-4 border-t border-sand">
@@ -553,7 +552,7 @@ export default function AdminPage() {
                           <div key={a.id} className="flex flex-col gap-2 bg-white rounded-xl px-3 py-2.5">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="text-sm">
-                                <span className="font-bold text-forest">Cüz {a.juz}</span>
+                                <span className="font-extrabold text-ink">Cüz {a.juz}</span>
                                 <span className="text-muted"> · {khatmLabel(a.khatm)} · {a.completedPages.length} / {a.pages.length} səhifə</span>
                               </div>
                               <div className="flex gap-2">
@@ -600,7 +599,7 @@ export default function AdminPage() {
                         onClick={() => { setPickedJuz(pickedJuz === j ? null : j); setPickedUid(""); }}
                         className={`min-h-[44px] rounded-[10px] font-bold text-sm border ${
                           pickedJuz === j
-                            ? "bg-forest text-cream border-forest"
+                            ? "bg-forest text-white border-forest"
                             : "border-dashed border-[#BDB59F] bg-[#F3EEDF] text-[#4F4A39] hover:bg-sand"
                         }`}
                       >
@@ -632,7 +631,7 @@ export default function AdminPage() {
               <Card className="!gap-2">
                 <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
                   <div className="flex items-center gap-2.5">
-                    <h2 className="m-0 text-base md:text-lg font-bold text-forest">İştirakçılar</h2>
+                    <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{activeGroupUsers.length} nəfər</span>
                   </div>
                   <input
@@ -667,7 +666,7 @@ export default function AdminPage() {
                           </div>
                         </div>
                         <div className="flex-[1_1_140px] flex flex-col gap-1">
-                          <div className="text-xs text-muted">{s.done} / {s.total} səhifə · {s.finished} cüz bitib</div>
+                          <div className="text-xs text-muted">{s.total > 0 ? `${s.done} / ${s.total} səhifə · ` : s.finished > 0 ? "Payı bitib · " : ""}{s.finished} cüz bitib</div>
                           <Bar ratio={s.ratio} color={s.status === "done" ? "done" : "accent"} />
                         </div>
                         {isOwnerRow && <Chip tone="owner">Qrup sahibi</Chip>}
@@ -684,19 +683,6 @@ export default function AdminPage() {
                 )}
               </Card>
 
-              {/* Danger zone */}
-              {activeGroupId !== "default" && (
-                <Card danger className="!flex-row flex-wrap items-center justify-between gap-5">
-                  <div className="flex-[1_1_320px] flex flex-col gap-1.5">
-                    <h2 className="m-0 text-base md:text-lg font-bold text-danger">Təhlükəli zona</h2>
-                    <div className="text-sm leading-relaxed text-muted">Qrupu sildikdə bütün iştirakçıların gedişatı silinir. Bu əməliyyat geri qaytarılmır.</div>
-                  </div>
-                  <button type="button" onClick={handleDeleteGroup} className={`${btn.danger} w-full md:w-auto`}>
-                    <IconTrash size={18} />
-                    Qrupu sil
-                  </button>
-                </Card>
-              )}
             </div>
 
             {/* Right column */}
@@ -742,7 +728,7 @@ export default function AdminPage() {
               )}
 
               <section className="bg-mint rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
-                <h2 className="m-0 font-display font-semibold text-lg md:text-[22px] text-forest">AI köməkçi</h2>
+                <h2 className="m-0 font-bold text-lg md:text-[22px] text-ink">AI köməkçi</h2>
                 <div className="text-sm leading-relaxed text-[#2F4A3E]">Quran ayələri, hədislər və dini mövzularda suallarını ver.</div>
                 <Link href="/admin/ai" className={btn.primary}>
                   <IconSparkle size={18} />
@@ -771,12 +757,26 @@ export default function AdminPage() {
                       className={`${inputCls} py-3 resize-y`}
                     />
                   </label>
-                  {settingsSuccess && <div className="text-sm font-semibold text-done">Yadda saxlanıldı.</div>}
+                  {settingsSuccess && <div className="text-sm font-semibold text-donetext">Yadda saxlanıldı.</div>}
                   <button type="submit" disabled={settingsLoading} className={btn.primary}>
                     {settingsLoading ? "Yadda saxlanılır..." : "Yadda saxla"}
                   </button>
                 </form>
               </Card>
+
+              {/* Danger zone */}
+              {activeGroupId !== "default" && (
+                <Card danger className="!flex-row flex-wrap items-center justify-between gap-5">
+                  <div className="flex-[1_1_320px] flex flex-col gap-1.5">
+                    <h2 className="m-0 text-base md:text-lg font-bold text-danger">Təhlükəli zona</h2>
+                    <div className="text-sm leading-relaxed text-muted">Qrupu sildikdə bütün iştirakçıların gedişatı silinir. Bu əməliyyat geri qaytarılmır.</div>
+                  </div>
+                  <button type="button" onClick={handleDeleteGroup} className={`${btn.danger} w-full md:w-auto`}>
+                    <IconTrash size={18} />
+                    Qrupu sil
+                  </button>
+                </Card>
+              )}
             </div>
           </div>
         )}
@@ -785,10 +785,10 @@ export default function AdminPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-4">
           <form
             onSubmit={(e) => { e.preventDefault(); submitMessage(messageText); }}
-            className="bg-white border border-line rounded-hero p-6 w-full max-w-md flex flex-col gap-4"
+            className="bg-white border border-line rounded-hero shadow-bar p-6 w-full max-w-md flex flex-col gap-4"
           >
             <div className="flex flex-col gap-1">
-              <h3 className="m-0 font-display font-semibold text-2xl text-forest">Mesaj göndər</h3>
+              <h3 className="m-0 font-bold text-2xl text-ink">Mesaj göndər</h3>
               <div className="text-sm text-muted">
                 {nameOf(messageTarget)} · {groupName}
               </div>
@@ -833,17 +833,3 @@ export default function AdminPage() {
   );
 }
 
-function StatTile({ label, mobileLabel, value, suffix, gold = false }: { label: string; mobileLabel: string; value: string; suffix?: string; gold?: boolean }) {
-  return (
-    <div className="md:flex-[1_1_200px] bg-white border border-line rounded-2xl md:rounded-card px-2.5 py-3.5 md:p-[22px] flex flex-col-reverse md:flex-col gap-0.5 md:gap-2 text-center md:text-left">
-      <div className="text-[11px] md:text-sm font-semibold text-muted">
-        <span className="md:hidden">{mobileLabel}</span>
-        <span className="hidden md:inline">{label}</span>
-      </div>
-      <div className={`font-display font-bold text-[26px] md:text-[40px] leading-none ${gold ? "text-goldtext" : "text-forest"}`}>
-        {value}
-        {suffix && <span className="hidden md:inline font-sans font-medium text-base text-muted"> {suffix}</span>}
-      </div>
-    </div>
-  );
-}

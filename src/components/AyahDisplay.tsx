@@ -75,25 +75,25 @@ export default function AyahDisplay() {
   if (!item) {
     return (
       <div className="flex gap-2 py-6" aria-label="Yüklənir">
-        <span className="h-2 w-2 bg-gold rounded-full animate-pulse" />
-        <span className="h-2 w-2 bg-gold rounded-full animate-pulse" />
-        <span className="h-2 w-2 bg-gold rounded-full animate-pulse" />
+        <span className="h-2 w-2 bg-field rounded-full animate-pulse" />
+        <span className="h-2 w-2 bg-field rounded-full animate-pulse" />
+        <span className="h-2 w-2 bg-field rounded-full animate-pulse" />
       </div>
     );
   }
 
   return (
-    <figure className="m-0 rounded-card border border-[rgba(226,184,92,0.35)] bg-tile p-5 md:p-6 flex flex-col gap-3">
-      <figcaption className="text-[13px] font-bold text-gold">
+    <figure className="m-0 rounded-card border border-line bg-white shadow-card p-5 md:p-6 flex flex-col gap-3">
+      <figcaption className="text-[13px] font-bold text-goldtext">
         {item.type === "ayah" ? "Günün ayəsi" : "Günün hədisi"}
       </figcaption>
       {item.text && (
-        <blockquote dir="rtl" lang="ar" className="m-0 font-amiri text-[26px] md:text-[30px] leading-[1.8] text-cream text-right">
+        <blockquote dir="rtl" lang="ar" className="m-0 font-amiri text-[26px] md:text-[30px] leading-[1.8] text-ink text-right">
           {item.text}
         </blockquote>
       )}
-      <p className="m-0 text-[15px] leading-relaxed text-cream/90">{item.translation}</p>
-      <div className="text-[13px] text-onforest">{item.source}</div>
+      <p className="m-0 text-[15px] leading-relaxed text-ink">{item.translation}</p>
+      <div className="text-[13px] text-muted">{item.source}</div>
     </figure>
   );
 }

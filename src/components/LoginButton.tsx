@@ -36,7 +36,8 @@ export default function LoginButton() {
       <button
         onClick={handleLogin}
         disabled={loading}
-        className="w-full min-h-[52px] px-6 rounded-btn bg-forest hover:bg-[#16503c] text-cream font-bold text-base inline-flex items-center justify-center gap-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        type="button"
+        className="press w-full min-h-[52px] px-6 rounded-btn bg-forest hover:bg-forestpress text-white font-bold text-base inline-flex items-center justify-center gap-3 disabled:bg-track disabled:text-muted disabled:cursor-not-allowed"
       >
         {loading ? (
           <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">

@@ -120,33 +120,29 @@ export default function ProgressPage() {
         />
 
         {/* Summary of the selected khatm */}
-        <section aria-labelledby="xetm" className="bg-forest text-cream rounded-[22px] md:rounded-hero p-5 md:p-8 flex flex-col gap-3.5 md:gap-[22px]">
+        <section aria-labelledby="xetm" className="bg-white border border-line rounded-hero shadow-card p-5 md:p-8 flex flex-col gap-3.5 md:gap-[22px]">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="flex flex-col gap-2">
-              <h2 id="xetm" className="m-0 text-[13px] font-semibold text-gold">
+              <h2 id="xetm" className="m-0 text-lg md:text-xl font-bold text-ink">
                 {khatmLabel(khatm)}{summary?.completedAt ? ` · tamamlandı ${formatIsoDateAz(summary.completedAt.slice(0, 10))}` : " · davam edir"}
               </h2>
               <div className="flex items-baseline gap-2.5">
-                <div className="font-display font-bold text-[44px] md:text-[64px] leading-none">{summary?.pagesRead || 0}</div>
-                <div className="text-sm md:text-lg text-onforest">/ 604 səhifə</div>
+                <div className="font-extrabold text-[34px] md:text-[44px] leading-none tabular-nums text-ink">{summary?.pagesRead || 0}</div>
+                <div className="text-sm md:text-base text-muted">/ {summary?.totalPages || 604} səhifə · {Math.round(ratio * 100)}%</div>
               </div>
             </div>
-            <div className="font-display font-bold text-[28px] md:text-[40px] text-gold">{Math.round(ratio * 100)}%</div>
           </div>
-          <Bar ratio={ratio} color="gold" height={14} dark />
-          <div className="flex flex-wrap gap-6 md:gap-8 text-sm text-onforest">
-            <Stat label="Oxunan cüz" value={`${summary?.done || 0} / 30`} />
-            <Stat label="Paylanan cüz" value={`${summary?.assigned || 0} / 30`} />
-            <Stat label="Tamamlanan xətm" value={String(completed.size)} />
-            <Stat label="İştirakçı" value={String(participants.length)} />
-          </div>
+          <Bar ratio={ratio} color="done" height={14} label="Xətmin irəliləyişi" />
+          <p className="m-0 text-sm md:text-[15px] leading-relaxed text-muted">
+            {summary?.done || 0} / 30 cüz oxunub, {summary?.assigned || 0} cüz paylanıb · {participants.length} iştirakçı{completed.size > 0 ? ` · ${completed.size} xətm tamamlanıb` : ""}
+          </p>
         </section>
 
         <div className="flex flex-wrap gap-5 md:gap-7 items-start">
           <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-5 md:gap-7">
             <Card>
               <div className="flex flex-col gap-1">
-                <h2 className="m-0 text-base md:text-lg font-bold text-forest">30 cüz üzrə vəziyyət · {khatmLabel(khatm)}</h2>
+                <h2 className="m-0 text-base md:text-lg font-bold text-ink">30 cüz üzrə vəziyyət · {khatmLabel(khatm)}</h2>
                 <div className="text-sm text-muted hidden md:block">Hər kart bir cüzdür. İçindəki rəqəm oxunmuş səhifələrin sayıdır.</div>
               </div>
               <KhatmTabs khatms={khatms} selected={khatm} completed={completed} onSelect={setSelectedKhatm} />
@@ -155,7 +151,7 @@ export default function ProgressPage() {
 
             <Card className="!gap-2">
               <div className="flex items-center gap-2.5 pb-2">
-                <h2 className="m-0 text-base md:text-lg font-bold text-forest">İştirakçılar</h2>
+                <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{participants.length} nəfər</span>
               </div>
               {participants.length === 0 ? (
@@ -180,7 +176,7 @@ export default function ProgressPage() {
 
           <div className="flex-[1_1_300px] min-w-0 flex flex-col gap-5 md:gap-7">
             <Card>
-              <h2 className="m-0 text-base md:text-[15px] font-bold text-forest md:text-muted">Son fəaliyyət</h2>
+              <h2 className="m-0 text-base md:text-[15px] font-bold text-ink">Son fəaliyyət</h2>
               {activities.length === 0 ? (
                 <p className="m-0 text-sm text-muted">Hələ oxunmuş səhifə yoxdur.</p>
               ) : (
@@ -199,7 +195,7 @@ export default function ProgressPage() {
             </Card>
 
             <section className="bg-mint rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
-              <h2 className="m-0 font-display font-semibold text-lg md:text-[22px] text-forest">Qrupa yeni iştirakçı əlavə et</h2>
+              <h2 className="m-0 font-bold text-lg md:text-[22px] text-ink">Qrupa yeni iştirakçı əlavə et</h2>
               <div className="text-sm leading-relaxed text-[#2F4A3E]">Dəvət linkini paylaş, qoşulan şəxs qrup sahibinin təsdiqindən sonra qrupa daxil olsun.</div>
               <button type="button" onClick={handleCopyInvite} className={btn.primary}>
                 <IconLink size={18} />
@@ -213,11 +209,3 @@ export default function ProgressPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span>{label}</span>
-      <span className="text-[22px] font-bold text-cream">{value}</span>
-    </div>
-  );
-}

@@ -79,35 +79,34 @@ export default function AnalyticsPage() {
           subtitle={`${activeGroup?.name || "Qrup"} · xətmlər, cüzlər və iştirakçıların oxuması`}
         />
 
-        {/* Group totals */}
-        <section aria-label="Qrup üzrə ümumi göstəricilər" className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-5">
-          <Tile label="Tamamlanan xətm" value={completedKhatms.length} />
-          <Tile label="Oxunan səhifə" value={totalPages} />
-          <Tile label="Bitirilən cüz" value={totalJuzDone} />
-          <Tile label="Bölgü sayı" value={activeGroup?.distributionCount || 0} />
-        </section>
+        {/* Group totals, said once as a sentence */}
+        <p className="m-0 -mt-2 md:-mt-3 text-[15px] md:text-base leading-relaxed text-muted">
+          Qrup indiyə qədər <strong className="text-ink tabular-nums">{totalPages}</strong> səhifə və <strong className="text-ink tabular-nums">{totalJuzDone}</strong> cüz oxuyub
+          {completedKhatms.length > 0 ? <>, <strong className="text-ink tabular-nums">{completedKhatms.length}</strong> xətm tamamlayıb</> : null}
+          {" "}· {activeGroup?.distributionCount || 0} bölgü
+        </p>
 
         <div className="flex flex-wrap gap-5 md:gap-7 items-start">
           <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-5 md:gap-7">
 
             {/* Khatms */}
             <Card>
-              <h2 className="m-0 text-base md:text-lg font-bold text-forest">Xətmlər</h2>
+              <h2 className="m-0 text-base md:text-lg font-bold text-ink">Xətmlər</h2>
               {summaries.length === 0 ? (
                 <p className="m-0 text-sm text-muted">Hələ cüz paylanmayıb.</p>
               ) : (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col divide-y divide-line">
                   {[...summaries].reverse().map((k) => (
-                    <div key={k.khatm} className="flex flex-col gap-2 px-4 py-3.5 rounded-2xl bg-cream">
+                    <div key={k.khatm} className="flex flex-col gap-2 py-3.5 first:pt-0 last:pb-0">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="text-[15px] font-bold text-forest">{khatmLabel(k.khatm)}</div>
+                        <div className="text-[15px] font-extrabold text-ink">{khatmLabel(k.khatm)}</div>
                         {k.completedAt
                           ? <Chip tone="done">Tamamlanıb</Chip>
                           : <Chip tone="progress">Davam edir</Chip>}
                       </div>
                       <Bar ratio={k.pagesRead / k.totalPages} color={k.completedAt ? "done" : "accent"} />
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-                        <span>{k.pagesRead} / 604 səhifə</span>
+                        <span>{k.pagesRead} / {k.totalPages} səhifə</span>
                         <span>{k.done} / 30 cüz oxunub</span>
                         <span>{k.assigned} / 30 cüz paylanıb</span>
                         {k.startedAt && <span>Başlama: {formatIsoDateAz(k.startedAt.slice(0, 10))}</span>}
@@ -124,7 +123,7 @@ export default function AnalyticsPage() {
             {/* Members */}
             <Card className="!gap-2">
               <div className="flex items-center gap-2.5 pb-2">
-                <h2 className="m-0 text-base md:text-lg font-bold text-forest">İştirakçılar</h2>
+                <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{rows.length} nəfər</span>
               </div>
               {rows.length === 0 ? (
@@ -149,10 +148,8 @@ export default function AnalyticsPage() {
                           {stats.open > 0 ? `${stats.open} bitməmiş cüz` : "Bitməmiş cüz yoxdur"}
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-center shrink-0">
-                        <Mini value={stats.pagesRead} label="səhifə" />
-                        <Mini value={stats.juzDone.length} label="cüz" />
-                        <Mini value={stats.personalKhatms} label="xətm" />
+                      <div className="text-sm text-muted shrink-0 tabular-nums">
+                        <strong className="text-ink">{stats.pagesRead}</strong> səhifə · <strong className="text-ink">{stats.juzDone.length}</strong> cüz · <strong className="text-ink">{stats.personalKhatms}</strong> xətm
                       </div>
                     </button>
 
@@ -169,8 +166,8 @@ export default function AnalyticsPage() {
                           <div className="flex flex-col gap-1.5">
                             <div className="text-sm font-semibold text-ink">Xətmlər üzrə pay</div>
                             {stats.perKhatm.map((k) => (
-                              <div key={k.khatm} className="flex flex-wrap justify-between gap-2 text-sm bg-cream rounded-xl px-3 py-2">
-                                <span className="font-semibold text-forest">{khatmLabel(k.khatm)}</span>
+                              <div key={k.khatm} className="flex flex-wrap justify-between gap-2 text-sm py-1.5 border-b border-line last:border-0">
+                                <span className="font-bold text-ink">{khatmLabel(k.khatm)}</span>
                                 <span className="text-muted">
                                   {k.juz.length > 0 ? `Cüz ${k.juz.join(", ")} · ` : ""}{k.juzDone} bitib · {k.pagesRead} səhifə
                                 </span>
@@ -183,7 +180,7 @@ export default function AnalyticsPage() {
                             <div className="text-sm font-semibold text-ink">Bitirdiyi cüzlər</div>
                             <div className="flex flex-wrap gap-1.5">
                               {stats.juzDone.map((d) => (
-                                <span key={`${d.khatm}-${d.juz}`} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-donebg text-done">
+                                <span key={`${d.khatm}-${d.juz}`} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-donebg text-donetext">
                                   Cüz {d.juz} · {khatmLabel(d.khatm)}{d.doneAt ? ` · ${formatIsoDateAz(d.doneAt.slice(0, 10))}` : ""}
                                 </span>
                               ))}
@@ -207,7 +204,7 @@ export default function AnalyticsPage() {
                   <div key={w.weekStart} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
                     <div className="text-[10px] text-muted">{w.pages > 0 ? w.pages : ""}</div>
                     <div
-                      className="w-full rounded-t-md bg-forest"
+                      className="w-full rounded-t-md bg-done"
                       style={{ height: `${(w.pages / maxWeek) * 100}%`, minHeight: w.pages > 0 ? 4 : 0 }}
                       title={`${formatIsoDateAz(w.weekStart)} həftəsi: ${w.pages} səhifə`}
                     />
@@ -235,20 +232,4 @@ export default function AnalyticsPage() {
   );
 }
 
-function Tile({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bg-white border border-line rounded-2xl md:rounded-card px-3 py-3.5 md:p-[22px] flex flex-col gap-1 md:gap-2">
-      <div className="font-display font-bold text-[26px] md:text-[40px] leading-none text-forest">{value}</div>
-      <div className="text-[11px] md:text-sm font-semibold text-muted">{label}</div>
-    </div>
-  );
-}
 
-function Mini({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="min-w-[52px] rounded-xl bg-cream px-2 py-1.5">
-      <div className="font-display font-bold text-lg leading-none text-forest">{value}</div>
-      <div className="text-[10px] text-muted mt-0.5">{label}</div>
-    </div>
-  );
-}

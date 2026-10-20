@@ -162,7 +162,7 @@ export default function GroupsPage() {
                 >
                   <div className="flex-[1_1_260px] flex flex-col gap-2.5 min-w-0">
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <div className="font-display font-bold text-[22px] md:text-[26px] text-forest truncate">{g.name}</div>
+                      <div className="font-extrabold text-[22px] md:text-[26px] text-ink truncate">{g.name}</div>
                       <Chip tone={chip.tone}>{chip.text}</Chip>
                       {isActive && <Chip tone="active">Aktiv qrup</Chip>}
                     </div>
@@ -198,7 +198,7 @@ export default function GroupsPage() {
 
         <div className="flex flex-wrap gap-5 items-stretch">
           <form onSubmit={handleCreate} className="flex-[1_1_360px] bg-white border border-line rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
-            <h2 className="m-0 text-base md:text-lg font-bold text-forest">Yeni qrup yarat</h2>
+            <h2 className="m-0 text-base md:text-lg font-bold text-ink">Yeni qrup yarat</h2>
             <div className="flex flex-wrap gap-2.5 items-end">
               <label className="flex-[1_1_220px] flex flex-col gap-2 text-sm font-semibold">
                 Qrupun adı
@@ -218,7 +218,7 @@ export default function GroupsPage() {
           </form>
 
           <form onSubmit={handleJoin} className="flex-[1_1_360px] bg-white border border-line rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
-            <h2 className="m-0 text-base md:text-lg font-bold text-forest">Dəvət linki ilə qoşul</h2>
+            <h2 className="m-0 text-base md:text-lg font-bold text-ink">Dəvət linki ilə qoşul</h2>
             <div className="flex flex-wrap gap-2.5 items-end">
               <label className="flex-[1_1_220px] flex flex-col gap-2 text-sm font-semibold">
                 Dəvət linki

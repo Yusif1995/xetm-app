@@ -93,7 +93,7 @@ export function Avatar({ name, gold = false, size = 40 }: { name: string; gold?:
   return (
     <div
       className={`rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
-        gold ? "bg-accent text-[#1B1405]" : "bg-forest text-cream"
+        gold ? "bg-progress text-progresstext" : "bg-sand text-ink"
       }`}
       style={{ width: size, height: size }}
     >
@@ -102,7 +102,7 @@ export function Avatar({ name, gold = false, size = 40 }: { name: string; gold?:
   );
 }
 
-// Circular progress ring; colors default to the dark (forest) hero style
+// Circular progress ring on a light card
 export function ProgressRing({
   value,
   total,
@@ -115,18 +115,18 @@ export function ProgressRing({
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 120 120" aria-hidden="true">
-        <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(247,243,234,0.16)" strokeWidth="10" />
+        <circle cx="60" cy="60" r="52" fill="none" stroke="#EFE5D6" strokeWidth="10" />
         <circle
-          cx="60" cy="60" r="52" fill="none" stroke="#E2B85C" strokeWidth="10" strokeLinecap="round"
+          cx="60" cy="60" r="52" fill="none" stroke="#6E8F7C" strokeWidth="10" strokeLinecap="round"
           strokeDasharray={circumference.toFixed(2)}
           strokeDashoffset={(circumference * (1 - ratio)).toFixed(2)}
           transform="rotate(-90 60 60)"
-          style={{ transition: "stroke-dashoffset 0.6s ease" }}
+          style={{ transition: "stroke-dashoffset 0.6s cubic-bezier(0.22, 1, 0.36, 1)" }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className={`font-display font-bold leading-none ${big ? "text-[38px]" : "text-2xl"}`}>{value}</div>
-        <div className={`text-onforest ${big ? "text-[13px] mt-1" : "text-[11px] mt-0.5"}`}>{caption ?? `/ ${total} səhifə`}</div>
+        <div className={`font-extrabold leading-none text-ink tabular-nums ${big ? "text-[38px]" : "text-2xl"}`}>{value}</div>
+        <div className={`text-muted ${big ? "text-[13px] mt-1" : "text-[11px] mt-0.5"}`}>{caption ?? `/ ${total} səhifə`}</div>
       </div>
     </div>
   );
@@ -135,7 +135,7 @@ export function ProgressRing({
 // Horizontal progress bar on the light track
 export function Bar({
   ratio,
-  color = "forest",
+  color = "done",
   height = 8,
   dark = false,
   label,
@@ -154,7 +154,7 @@ export function Bar({
     >
       <div
         className={`h-full rounded-full ${fill}`}
-        style={{ width: `${pct}%`, minWidth: pct > 0 ? height : 0, transition: "width 0.6s ease" }}
+        style={{ width: `${pct}%`, minWidth: pct > 0 ? height : 0, transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1)" }}
       />
     </div>
   );
@@ -164,12 +164,12 @@ export type ChipTone = "done" | "progress" | "owner" | "pending" | "neutral" | "
 
 export function Chip({ tone, children }: { tone: ChipTone; children: ReactNode }) {
   const cls = {
-    done: "bg-donebg text-done",
+    done: "bg-donebg text-donetext",
     progress: "bg-progress text-progresstext",
-    owner: "bg-[#EADCF6] text-[#4D2A78]",
+    owner: "bg-sand text-goldtext",
     pending: "bg-progress text-progresstext",
     neutral: "bg-sand text-muted",
-    active: "bg-donebg text-done",
+    active: "bg-donebg text-donetext",
   }[tone];
   return (
     <span className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${cls}`}>
@@ -182,8 +182,8 @@ export function Chip({ tone, children }: { tone: ChipTone; children: ReactNode }
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
-      <div className="flex flex-col gap-1.5 min-w-0">
-        <h1 className="m-0 font-display font-bold text-[28px] md:text-[40px] leading-[1.1] text-forest">{title}</h1>
+      <div className="flex-[1_1_12rem] flex flex-col gap-1.5 min-w-0">
+        <h1 className="m-0 font-extrabold text-[28px] md:text-[36px] leading-[1.15] tracking-[-0.01em] text-ink">{title}</h1>
         {subtitle && <div className="text-[13px] md:text-[15px] text-muted">{subtitle}</div>}
       </div>
       {actions}
@@ -194,7 +194,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 export function Card({ children, className = "", danger = false }: { children: ReactNode; className?: string; danger?: boolean }) {
   return (
     <section
-      className={`bg-white border rounded-card p-[18px] md:p-6 flex flex-col gap-3.5 ${
+      className={`bg-white border rounded-card shadow-card p-[18px] md:p-6 flex flex-col gap-3.5 ${
         danger ? "border-dangerline" : "border-line"
       } ${className}`}
     >
@@ -218,19 +218,20 @@ export function LoadingScreen({ text = "Yüklənir..." }: { text?: string }) {
 // Button styles shared across screens: a color variant plus a size.
 // Variants never set height, padding or font size, so sizes can be combined without conflicts.
 const VARIANT = {
-  primary: "bg-forest text-cream font-bold hover:bg-[#16503c]",
-  gold: "bg-gold text-forest font-bold hover:brightness-95",
-  outline: "border border-field text-forest font-semibold hover:bg-sand",
-  outlineStrong: "border border-forest bg-white text-forest font-bold hover:bg-sand",
-  ghostDark: "border border-[rgba(247,243,234,0.3)] text-cream font-semibold hover:bg-white/5",
-  danger: "border border-danger bg-white text-danger font-bold hover:bg-red-50",
+  primary: "bg-forest text-white font-bold hover:bg-forestpress",
+  gold: "bg-forest text-white font-bold hover:bg-forestpress",
+  outline: "border border-field bg-white text-ink font-bold hover:bg-sand",
+  outlineStrong: "border border-ink/80 bg-white text-ink font-bold hover:bg-sand",
+  ghostDark: "bg-sand text-ink font-bold hover:bg-track",
+  danger: "border border-dangerline bg-white text-danger font-bold hover:bg-[#FBEFEB]",
 };
 const SIZE = {
   sm: "min-h-[40px] px-3 text-sm",
   md: "min-h-[48px] px-6 text-[15px]",
   lg: "min-h-[52px] px-6 text-base",
 };
-const BASE = "rounded-btn inline-flex items-center justify-center gap-2.5 transition disabled:opacity-50 disabled:cursor-not-allowed";
+// Disabled actions lose the action colour entirely, so a colour on screen always means "you can press this"
+const BASE = "press rounded-btn inline-flex items-center justify-center gap-2.5 disabled:bg-track disabled:text-muted disabled:border-transparent disabled:cursor-not-allowed";
 
 export function button(variant: keyof typeof VARIANT, size: keyof typeof SIZE = "md"): string {
   return `${BASE} ${VARIANT[variant]} ${SIZE[size]}`;
@@ -245,7 +246,7 @@ export const btn = {
 };
 
 export const inputCls =
-  "min-h-[48px] w-full box-border px-3.5 rounded-xl border border-field bg-white text-base text-ink focus:outline-none focus:border-forest";
+  "min-h-[48px] w-full box-border px-3.5 rounded-[14px] border border-field bg-white text-base text-ink placeholder:text-[#9A8E84] focus:outline-none focus:border-forest focus:ring-2 focus:ring-forest/15";
 
 // Date field with a calendar icon. iOS Safari gives native date inputs an intrinsic width and
 // centred text; the date-input class (globals.css) resets that so the field fits its column.
@@ -256,7 +257,7 @@ export function DateInput({ className = "", ...props }: Omit<InputHTMLAttributes
       <input
         type="date"
         {...props}
-        className={`date-input min-h-[48px] w-full box-border pl-10 pr-3.5 rounded-xl border border-field bg-white text-base text-ink focus:outline-none focus:border-forest ${className}`}
+        className={`date-input min-h-[48px] w-full box-border pl-10 pr-3.5 rounded-[14px] border border-field bg-white text-base text-ink placeholder:text-[#9A8E84] focus:outline-none focus:border-forest focus:ring-2 focus:ring-forest/15 ${className}`}
       />
     </div>
   );

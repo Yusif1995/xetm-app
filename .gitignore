@@ -41,3 +41,4 @@ firestore-debug.log
 # Impeccable (local design tooling and critique archive)
 .claude/
 .impeccable/
+.playwright-mcp/

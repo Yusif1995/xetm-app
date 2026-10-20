@@ -36,11 +36,10 @@ export default function ReadingsPage() {
 
   const hadith = (
     <figure className="m-0 bg-white border border-line rounded-card p-5 md:p-6 flex flex-col gap-2.5 md:gap-3">
-      <figcaption className="text-xs md:text-[13px] font-bold text-goldtext">Günün hədisi · istikrar və davamlılıq</figcaption>
-      <blockquote className="m-0 font-display font-semibold text-[19px] md:text-[22px] leading-[1.4] text-forest">
+      <blockquote className="m-0 font-extrabold text-[19px] md:text-[22px] leading-[1.4] text-ink">
         Allah qatında əməllərin ən sevimlisi az da olsa davamlı olanıdır.
       </blockquote>
-      <div className="text-xs md:text-[13px] text-muted">Buxari</div>
+      <div className="text-xs md:text-[13px] text-muted">Hədis · Buxari</div>
     </figure>
   );
 
@@ -50,11 +49,11 @@ export default function ReadingsPage() {
       <AppLayout activeTab="readings">
         <div className="flex flex-col gap-5 md:gap-7">
           <PageHeader title="Səhifələrim" subtitle="Sənə təyin edilmiş cüzlər burada görünəcək" />
-          <section className="bg-white border border-line rounded-[22px] md:rounded-hero px-5 py-8 md:px-8 md:py-14 flex flex-col items-center text-center gap-3.5 md:gap-[18px]">
+          <section className="bg-white border border-line rounded-hero shadow-card px-5 py-8 md:px-8 md:py-14 flex flex-col items-center text-center gap-3.5 md:gap-[18px]">
             <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-mint flex items-center justify-center text-forest">
               <IconBook size={44} />
             </div>
-            <h2 className="m-0 font-display font-semibold text-2xl md:text-[28px] leading-tight text-forest">
+            <h2 className="m-0 font-bold text-2xl md:text-[28px] leading-tight text-ink">
               {mine.juzDone.length > 0 ? "Bütün cüzlərini bitirdin" : "Hələ sənə cüz təyin edilməyib"}
             </h2>
             <p className="m-0 max-w-[460px] text-sm md:text-base leading-relaxed text-muted">
@@ -112,18 +111,18 @@ export default function ReadingsPage() {
           <div className="flex-[999_1_520px] min-w-0 flex flex-col gap-5 md:gap-7">
 
             {/* Next page hero */}
-            <section aria-labelledby="novbeti" className="bg-forest text-cream rounded-[22px] md:rounded-hero p-5 md:p-8 flex flex-wrap items-center gap-4 md:gap-8">
-              <div className="flex flex-col items-center justify-center w-[88px] h-[88px] md:w-[168px] md:h-[168px] rounded-[18px] md:rounded-hero bg-[rgba(247,243,234,0.08)] border border-[rgba(226,184,92,0.5)] shrink-0">
-                <div className="text-[11px] md:text-[13px] font-semibold text-gold">Səhifə</div>
-                <div className="font-display font-bold text-[44px] md:text-[84px] leading-none">{nextPage ?? pages[pages.length - 1]}</div>
+            <section aria-labelledby="novbeti" className="bg-white border border-line rounded-hero shadow-card p-5 md:p-8 flex flex-wrap items-center gap-4 md:gap-8">
+              <div className="flex flex-col items-center justify-center w-[88px] h-[88px] md:w-[168px] md:h-[168px] rounded-[20px] md:rounded-hero bg-donebg shrink-0">
+                <div className="text-[11px] md:text-[13px] font-bold text-donetext">Səhifə</div>
+                <div className="font-extrabold text-[44px] md:text-[80px] leading-none tabular-nums text-ink">{nextPage ?? pages[pages.length - 1]}</div>
               </div>
               <div className="flex-[1_1_200px] flex flex-col gap-4 min-w-0">
                 <div className="flex flex-col gap-1 md:gap-1.5">
-                  <div className="text-xs md:text-[13px] font-semibold text-gold">Növbəti səhifə</div>
-                  <h2 id="novbeti" className="m-0 font-display font-semibold text-[22px] md:text-[28px] leading-tight">
+                  <div className="text-[13px] font-bold text-muted">Növbəti səhifə</div>
+                  <h2 id="novbeti" className="m-0 font-bold text-[22px] md:text-[28px] leading-tight text-ink">
                     {nextPage ? surahForPage(nextPage) : "Hamısı oxunub"}
                   </h2>
-                  <div className="text-[13px] md:text-[15px] text-onforest">
+                  <div className="text-[14px] md:text-[15px] text-muted">
                     Cüz {current.juz} · {khatmLabel(current.khatm)} · {remaining} səhifə qalıb
                   </div>
                 </div>
@@ -140,8 +139,8 @@ export default function ReadingsPage() {
             {/* Current juz pages */}
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="m-0 text-base md:text-lg font-bold text-forest">Bütün səhifələr</h2>
-                <div role="tablist" aria-label="Filtr" className="grid grid-cols-3 md:flex gap-1 p-1 rounded-xl bg-[#F1EBDB] w-full md:w-auto">
+                <h2 className="m-0 text-base md:text-lg font-bold text-ink">Bütün səhifələr</h2>
+                <div role="tablist" aria-label="Filtr" className="grid grid-cols-3 md:flex gap-1 p-1 rounded-[14px] bg-sand w-full md:w-auto">
                   {([
                     ["all", `Hamısı · ${counts.all}`],
                     ["done", `Oxunmuş · ${counts.done}`],
@@ -153,8 +152,8 @@ export default function ReadingsPage() {
                       role="tab"
                       aria-selected={filter === key}
                       onClick={() => setFilter(key)}
-                      className={`min-h-[36px] px-3.5 rounded-[9px] text-xs md:text-[13px] ${
-                        filter === key ? "bg-white text-forest font-bold" : "text-muted font-semibold"
+                      className={`press min-h-[40px] px-3.5 rounded-[11px] text-xs md:text-[13px] ${
+                        filter === key ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"
                       }`}
                     >
                       {label}
@@ -182,12 +181,12 @@ export default function ReadingsPage() {
                         disabled={busyPage !== null}
                         aria-pressed={isDone}
                         aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}`}
-                        className={`min-h-[44px] md:min-h-[48px] rounded-xl font-bold text-[15px] box-border transition-colors disabled:cursor-not-allowed ${
+                        className={`press min-h-[48px] rounded-[14px] font-bold text-[15px] tabular-nums box-border disabled:cursor-not-allowed ${
                           isDone
-                            ? "bg-forest text-cream border border-forest"
+                            ? "bg-forest text-white border border-forest"
                             : isNext
-                              ? "bg-white text-forest border-2 border-accent"
-                              : "bg-white text-muted border border-[#D9D1BE]"
+                              ? "bg-mint text-forest border-2 border-forest"
+                              : "bg-cream text-muted border border-line"
                         } ${busyPage === p ? "opacity-50" : ""}`}
                       >
                         {p}
@@ -201,13 +200,13 @@ export default function ReadingsPage() {
             {/* Queued juz (locked until the current one is finished) */}
             {queued.length > 0 && (
               <Card>
-                <h2 className="m-0 text-base md:text-lg font-bold text-forest">Növbədə olan cüzlər</h2>
+                <h2 className="m-0 text-base md:text-lg font-bold text-ink">Növbədə olan cüzlər</h2>
                 <p className="m-0 text-sm text-muted">Cari cüzü bitirəndə növbəti cüz açılacaq.</p>
                 <div className="flex flex-col gap-2">
                   {queued.map((a) => (
                     <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-cream opacity-80">
                       <div className="min-w-0">
-                        <div className="text-[15px] font-bold text-forest">Cüz {a.juz} · {khatmLabel(a.khatm)}</div>
+                        <div className="text-[15px] font-extrabold text-ink">Cüz {a.juz} · {khatmLabel(a.khatm)}</div>
                         <div className="text-xs text-muted">
                           {a.startDate && a.endDate ? `${formatIsoDateAz(a.startDate)} — ${formatIsoDateAz(a.endDate)}` : `${a.pages.length} səhifə`}
                         </div>
@@ -227,7 +226,7 @@ export default function ReadingsPage() {
             <Card>
               <h2 className="m-0 text-sm md:text-[15px] font-bold text-muted">Cüz {current.juz} gedişatı</h2>
               <div className="flex items-baseline gap-2">
-                <div className="font-display font-bold text-4xl md:text-[44px] leading-none text-forest">{done.length}</div>
+                <div className="font-extrabold text-4xl md:text-[40px] leading-none tabular-nums text-ink">{done.length}</div>
                 <div className="text-sm md:text-[15px] text-muted">/ {pages.length} səhifə</div>
               </div>
               <Bar ratio={ratio} color={ratio >= 1 ? "done" : "accent"} height={12} />
@@ -246,15 +245,15 @@ function FinishedList({ items }: { items: { khatm: number; juz: number; doneAt: 
   return (
     <Card>
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="m-0 text-base md:text-lg font-bold text-forest">Bitirdiyim cüzlər</h2>
-        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-donebg text-done">{items.length} cüz</span>
+        <h2 className="m-0 text-base md:text-lg font-bold text-ink">Bitirdiyim cüzlər</h2>
+        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-donebg text-donetext">{items.length} cüz</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {[...items].reverse().map((x) => (
           <span
             key={`${x.khatm}-${x.juz}`}
             title={x.doneAt ? formatIsoDateAz(x.doneAt.slice(0, 10)) : undefined}
-            className="inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-[10px] bg-cream text-sm font-semibold text-forest"
+            className="inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-[12px] bg-donebg text-sm font-bold text-donetext"
           >
             Cüz {x.juz}
             <span className="text-xs font-medium text-muted">· {khatmLabel(x.khatm)}</span>

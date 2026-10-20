@@ -154,9 +154,9 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
 
   return (
     <AuthShell>
-      <div className="bg-white border border-line rounded-hero p-6 md:p-8 flex flex-col gap-5">
+      <div className="bg-white border border-line rounded-hero shadow-card p-6 md:p-8 flex flex-col gap-5">
         <div className="flex flex-col gap-2">
-          <h2 className="m-0 font-display font-semibold text-[26px] md:text-[28px] leading-tight text-forest">Xoş gəlmisən</h2>
+          <h2 className="m-0 font-bold text-[26px] md:text-[28px] leading-tight text-ink">Xoş gəlmisən</h2>
           <p className="m-0 text-[15px] leading-relaxed text-muted">Profilini tamamla{isInvited ? " və qrupa qoşul" : " və ilk xətm qrupunu yarat"}.</p>
         </div>
 

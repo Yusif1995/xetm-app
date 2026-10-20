@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
-// Design tokens (see design system: Xətm App). Colors are also exposed as CSS variables in globals.css.
+// Design tokens: warm tinted ground, white cards, one action colour (forest) reserved for things
+// you can press, the active tab and live selection. Colors are also exposed as CSS variables in globals.css.
 const config: Config = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -12,39 +13,46 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
-        ink: "#12261E",
-        forest: "#0E3B2B",
+        ink: "#2B241F",
+        forest: "#0F5C45",
+        forestpress: "#0B4836",
         tile: "#0A2C20",
-        cream: "#F7F3EA",
-        line: "#E9E2D0",
-        track: "#E6DFCC",
-        sand: "#EFE9D9",
-        field: "#CFC6AE",
+        cream: "#F6F1E8",
+        line: "#EADFCF",
+        track: "#EFE5D6",
+        sand: "#F5EBDD",
+        field: "#D9CCBA",
         gold: "#E2B85C",
-        accent: "#C79A3B",
+        accent: "#C98A2B",
         goldtext: "#7A5718",
-        muted: "#4F6158",
-        mint: "#E4EDE6",
-        done: "#1C5B3A",
-        donebg: "#DDEBDD",
-        progress: "#F4E7C4",
+        muted: "#6F625A",
+        mint: "#E3EFE8",
+        // Completed data (bars, finished juz, streak days): a quiet sage, clearly apart from the action green
+        done: "#6E8F7C",
+        donetext: "#3B5A4A",
+        donebg: "#E6EDE7",
+        progress: "#F8E9CC",
         progresstext: "#6B4D12",
-        danger: "#9C2F1B",
-        dangerline: "#E8C3BA",
+        danger: "#A33A26",
+        dangerline: "#EBC9BF",
         exit: "#F6B4A2",
-        sidebartext: "#D3E2D9",
-        sidebarmuted: "#A9C2B4",
-        onforest: "#BBD0C3",
+        sidebartext: "#4A403A",
+        sidebarmuted: "#8A7D73",
+        onforest: "#CFE3D9",
       },
       fontFamily: {
-        sans: ["var(--font-jakarta)", "system-ui", "sans-serif"],
-        display: ["var(--font-fraunces)", "Georgia", "serif"],
+        sans: ["var(--font-nunito)", "system-ui", "sans-serif"],
+        display: ["var(--font-nunito)", "system-ui", "sans-serif"],
         amiri: ["var(--font-amiri)", "serif"],
       },
       borderRadius: {
-        card: "20px",
-        hero: "24px",
-        btn: "14px",
+        card: "24px",
+        hero: "28px",
+        btn: "16px",
+      },
+      boxShadow: {
+        card: "0 1px 2px rgba(43,36,31,0.04), 0 8px 24px -12px rgba(43,36,31,0.12)",
+        bar: "0 8px 28px -10px rgba(43,36,31,0.22)",
       },
       minHeight: {
         touch: "44px",

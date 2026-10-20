@@ -135,7 +135,7 @@ export default function AiPage() {
       const hasArabic = /[\u0600-\u06FF]/.test(line);
       if (hasArabic) {
         return (
-          <p key={index} className="text-xl md:text-2xl leading-loose font-amiri text-forest text-right my-2.5 py-0.5 select-all" dir="rtl">
+          <p key={index} className="text-xl md:text-2xl leading-loose font-amiri text-ink text-right my-2.5 py-0.5 select-all" dir="rtl">
             {content}
           </p>
         );
@@ -167,7 +167,7 @@ export default function AiPage() {
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                     msg.role === "user"
-                      ? "bg-forest text-cream rounded-tr-md text-sm font-medium"
+                      ? "bg-forest text-white rounded-tr-md text-sm font-medium"
                       : "bg-cream border border-line text-ink rounded-tl-md"
                   }`}
                 >
@@ -188,9 +188,9 @@ export default function AiPage() {
                 <div className="bg-cream border border-line rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-2">
                   <span className="text-sm text-muted animate-pulse">Düşünür</span>
                   <span className="flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
                   </span>
                 </div>
               </div>
@@ -231,7 +231,7 @@ export default function AiPage() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Quran ayəsi, hədis və ya dini sual..."
+              placeholder="Sualını yaz…"
               disabled={isSending}
               className={`${inputCls} flex-1 disabled:opacity-60`}
             />

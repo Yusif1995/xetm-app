@@ -103,8 +103,8 @@ export function ParticipantRow({
       <div className="flex-[1_1_140px] text-sm text-ink">{share.label}</div>
       <div className="flex-[2_1_200px] flex flex-col gap-1.5">
         <div className="flex justify-between text-[13px] text-muted">
-          <span>{share.done} / {share.total} səhifə</span>
-          <span className="font-bold text-ink">{Math.round(share.ratio * 100)}%</span>
+          <span>{share.total > 0 ? `${share.done} / ${share.total} səhifə` : share.finished > 0 ? "Payı bitib" : "Pay yoxdur"}</span>
+          {share.total > 0 && <span className="font-bold text-ink tabular-nums">{Math.round(share.ratio * 100)}%</span>}
         </div>
         <Bar ratio={share.ratio} color={barColor} label={`${name}: oxuduğu səhifələr`} />
       </div>
@@ -133,9 +133,9 @@ export function khatmJuzTiles(assignments: Assignment[], khatm: number): JuzTile
 }
 
 const TILE_STYLE: Record<JuzTile["state"], string> = {
-  done: "bg-done border border-done text-cream",
-  progress: "bg-progress border border-accent text-forest",
-  assigned: "bg-white border border-[#A9A08A] text-forest",
+  done: "bg-done border border-done text-white",
+  progress: "bg-progress border border-accent text-ink",
+  assigned: "bg-white border border-[#B9AC99] text-ink",
   empty: "bg-[#F3EEDF] border border-dashed border-[#BDB59F] text-[#6A6553]",
 };
 
@@ -150,7 +150,7 @@ export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (
             className={`flex flex-col items-center justify-center gap-0.5 min-h-[64px] md:min-h-[92px] rounded-[12px] md:rounded-[14px] box-border p-2 text-center ${TILE_STYLE[j.state]}`}
           >
             <div className="text-[11px] font-semibold opacity-85">Cüz</div>
-            <div className="font-display font-bold text-xl md:text-[26px] leading-none">{j.juz}</div>
+            <div className="font-extrabold text-xl md:text-[26px] leading-none">{j.juz}</div>
             <div className="text-[10px] md:text-xs font-semibold">
               {j.state === "empty" ? "Boş" : `${j.completed} / ${j.total}`}
             </div>
@@ -199,7 +199,7 @@ export function KhatmTabs({
           aria-selected={selected === k}
           onClick={() => onSelect(k)}
           className={`min-h-[40px] px-3.5 rounded-xl text-sm font-semibold border transition-colors ${
-            selected === k ? "bg-forest text-cream border-forest" : "bg-white text-forest border-field hover:bg-sand"
+            selected === k ? "bg-forest text-white border-forest" : "bg-white text-ink border-field hover:bg-sand"
           }`}
         >
           {khatmLabel(k)}{completed.has(k) ? " ✓" : ""}

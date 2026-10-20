@@ -91,35 +91,33 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-cream text-ink md:flex">
       {/* Sidebar (desktop) */}
-      <aside className="hidden md:flex w-[264px] shrink-0 box-border bg-forest text-[#EAE3D2] px-5 py-8 flex-col gap-7 sticky top-0 h-screen overflow-y-auto">
+      <aside className="hidden md:flex w-[264px] shrink-0 box-border bg-white border-r border-line px-5 py-8 flex-col gap-7 sticky top-0 h-screen overflow-y-auto">
         <Link href="/dashboard" className="flex items-center gap-3 px-2">
-          <div className="w-11 h-11 rounded-xl bg-tile border border-[rgba(226,184,92,0.4)] flex items-center justify-center">
+          <div className="w-11 h-11 rounded-[14px] bg-tile flex items-center justify-center">
             <Logo />
           </div>
-          <span className="font-display font-bold text-2xl text-gold">Xətm App</span>
+          <span className="font-extrabold text-[22px] tracking-[-0.01em] text-ink">Xətm</span>
         </Link>
 
         <div className="flex flex-col gap-2 px-1">
-          <div className="text-xs font-semibold text-sidebarmuted pl-1">Aktiv qrup</div>
+          <div className="text-xs font-bold text-sidebarmuted pl-1">Aktiv qrup</div>
           <Link
             href="/groups"
-            className={`flex items-center justify-between gap-3 min-h-[52px] px-3.5 py-2 rounded-btn border text-cream transition-colors ${
-              current === "groups"
-                ? "bg-tile border-[rgba(226,184,92,0.5)]"
-                : "bg-white/[0.07] border-white/[0.16] hover:bg-white/10"
+            className={`press flex items-center justify-between gap-3 min-h-[56px] px-3.5 py-2 rounded-btn border transition-colors ${
+              current === "groups" ? "bg-mint border-forest/30" : "bg-cream border-line hover:bg-sand"
             }`}
           >
             <span className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-base font-bold truncate">{activeGroupName}</span>
-              <span className="text-xs text-sidebarmuted">
+              <span className="text-[15px] font-bold text-ink truncate">{activeGroupName}</span>
+              <span className="text-xs text-muted">
                 {activeGroup ? `${memberCount} iştirakçı` : "Qruplarım"}
               </span>
             </span>
-            <IconChevronDown size={18} className="text-sidebarmuted shrink-0" />
+            <IconChevronDown size={18} className="text-muted shrink-0" />
           </Link>
         </div>
 
-        <nav aria-label="Əsas naviqasiya" className="flex flex-col gap-1.5">
+        <nav aria-label="Əsas naviqasiya" className="flex flex-col gap-1">
           {navItems.map((item) => {
             const isCurrent = current === item.key;
             return (
@@ -127,8 +125,8 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                 key={item.key}
                 href={item.href}
                 aria-current={isCurrent ? "page" : undefined}
-                className={`flex items-center gap-3 min-h-[48px] px-3.5 rounded-btn text-[15px] transition-colors ${
-                  isCurrent ? "bg-cream text-forest font-bold" : "text-sidebartext font-semibold hover:bg-white/5"
+                className={`press flex items-center gap-3 min-h-[48px] px-3.5 rounded-btn text-[15px] transition-colors ${
+                  isCurrent ? "bg-mint text-forest font-extrabold" : "text-sidebartext font-semibold hover:bg-cream"
                 }`}
               >
                 {item.icon}
@@ -138,10 +136,11 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           })}
         </nav>
 
-        <div className="mt-auto px-1">
+        <div className="mt-auto px-1 pt-4 border-t border-line">
           <button
+            type="button"
             onClick={logout}
-            className="w-full flex items-center gap-3 min-h-[48px] px-3.5 rounded-btn text-exit font-semibold text-[15px] border-t border-white/[0.12] hover:bg-white/5"
+            className="press w-full flex items-center gap-3 min-h-[48px] px-3.5 rounded-btn text-danger font-semibold text-[15px] hover:bg-[#FBEFEB]"
           >
             <IconLogout />
             Çıxış
@@ -150,37 +149,37 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       </aside>
 
       {/* Content */}
-      <main className="flex-1 min-w-0 box-border px-5 pt-7 pb-28 md:px-12 md:pt-9 md:pb-14">
-        <div className="max-w-[1160px] mx-auto">
+      <main className="flex-1 min-w-0 box-border px-4 pt-6 pb-32 md:px-12 md:pt-10 md:pb-14">
+        <div className="max-w-[1120px] mx-auto">
           {isApproved || activeTab === "groups" ? children : <ApprovalPendingScreen user={user} logout={logout} />}
         </div>
       </main>
 
-      {/* Bottom tab bar (mobile) */}
-      <nav
-        aria-label="Əsas naviqasiya"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid bg-white border-t border-[#E3DBC7] px-2 pt-2 pb-safe"
-        style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }}
-      >
-        {mobileItems.map((item) => {
-          const isCurrent = current === item.key;
-          return (
-            <Link
-              key={item.key}
-              href={item.href}
-              aria-current={isCurrent ? "page" : undefined}
-              className={`min-h-[56px] flex flex-col items-center justify-center gap-1 text-xs ${
-                isCurrent ? "font-bold text-forest" : "font-semibold text-muted"
-              }`}
-            >
-              <span className={`h-[30px] flex items-center justify-center ${isCurrent ? "w-14 rounded-full bg-mint" : ""}`}>
+      {/* Floating tab bar (mobile), within thumb reach */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pb-safe pointer-events-none">
+        <nav
+          aria-label="Əsas naviqasiya"
+          className="pointer-events-auto grid bg-white/95 backdrop-blur-md border border-line rounded-[26px] shadow-bar px-1.5 py-1.5"
+          style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }}
+        >
+          {mobileItems.map((item) => {
+            const isCurrent = current === item.key;
+            return (
+              <Link
+                key={item.key}
+                href={item.href}
+                aria-current={isCurrent ? "page" : undefined}
+                className={`press min-h-[56px] rounded-[20px] flex flex-col items-center justify-center gap-0.5 text-[11px] ${
+                  isCurrent ? "font-extrabold text-forest bg-mint" : "font-bold text-muted"
+                }`}
+              >
                 {item.icon}
-              </span>
-              {item.short}
-            </Link>
-          );
-        })}
-      </nav>
+                {item.short}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 }
@@ -204,11 +203,11 @@ function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => 
 
   return (
     <div className="w-full flex justify-center py-8 md:py-16">
-      <section className="bg-white border border-line rounded-hero w-full max-w-md p-8 flex flex-col items-center text-center gap-4">
+      <section className="bg-white border border-line rounded-hero shadow-card w-full max-w-md p-8 flex flex-col items-center text-center gap-4">
         <div className="w-20 h-20 rounded-full bg-mint flex items-center justify-center text-forest">
           <IconGroup size={40} />
         </div>
-        <h1 className="m-0 font-display font-semibold text-2xl text-forest">Təsdiq gözlənilir</h1>
+        <h1 className="m-0 font-extrabold text-2xl text-ink">Təsdiq gözlənilir</h1>
         <p className="m-0 text-sm leading-relaxed text-muted">
           {groupName ? (
             <>
