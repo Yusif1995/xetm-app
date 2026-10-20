@@ -46,6 +46,9 @@ export const IconChevronDown = (p: IconProps) => (
 export const IconCheck = (p: IconProps) => (
   <Svg {...p}><path d="M5 12l5 5 9-10" /></Svg>
 );
+export const IconShare = (p: IconProps) => (
+  <Svg {...p}><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5" /><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></Svg>
+);
 export const IconClose = (p: IconProps) => (
   <Svg {...p}><path d="M6 6l12 12M18 6L6 18" /></Svg>
 );
