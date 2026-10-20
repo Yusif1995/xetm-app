@@ -134,6 +134,7 @@ export type GroupMemberStatus = "owner" | "member" | "pending";
 export interface AppSettings {
   currentAyah?: string;
   currentHadith?: string;
+  dailyDate?: string; // YYYY-MM-DD (Baku): the saved ayah/hadith replace the automatic ones on that day only
   lastDistributedJuz?: number;
   cycleStartJuz?: number;
   completedKhatms?: number;

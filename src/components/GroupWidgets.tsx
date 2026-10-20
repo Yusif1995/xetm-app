@@ -133,10 +133,10 @@ export function khatmJuzTiles(assignments: Assignment[], khatm: number): JuzTile
 }
 
 const TILE_STYLE: Record<JuzTile["state"], string> = {
-  done: "bg-done border border-done text-white",
-  progress: "bg-progress border border-accent text-ink",
-  assigned: "bg-white border border-[#B9AC99] text-ink",
-  empty: "bg-[#F3EEDF] border border-dashed border-[#BDB59F] text-[#6A6553]",
+  done: "bg-juzdone border border-juzdone text-white",
+  progress: "bg-juzprogress border border-juzprogress text-white ring-2 ring-juzprogress ring-offset-2 ring-offset-white",
+  assigned: "bg-juzassigned border border-juzassignedline text-ink",
+  empty: "bg-white border border-line text-muted",
 };
 
 export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (uid: string) => string }) {
@@ -158,10 +158,10 @@ export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (
         ))}
       </div>
       <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs md:text-[13px] text-muted">
-        <Legend className="bg-done" label="Tamamlanıb" />
-        <Legend className="bg-progress border border-accent" label="Davam edir" />
-        <Legend className="bg-white border border-[#A9A08A]" label="Təyin edilib" />
-        <Legend className="bg-[#F3EEDF] border border-dashed border-[#BDB59F]" label="Təyin edilməyib" />
+        <Legend className="bg-juzdone" label="Tamamlanıb" />
+        <Legend className="bg-juzprogress" label="Davam edir" />
+        <Legend className="bg-juzassigned border border-juzassignedline" label="Verilib" />
+        <Legend className="bg-white border border-field" label="Verilməyib" />
       </div>
     </>
   );

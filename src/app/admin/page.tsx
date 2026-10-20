@@ -5,8 +5,6 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import {
   getGroupMembers,
-  getGroupSettings,
-  setGroupSettings,
   distributeJuz,
   assignJuzManually,
   transferAssignment,
@@ -15,23 +13,21 @@ import {
   sendMemberMessage,
   updateUserApproval,
   getUserGroupIds,
-  deleteGroup,
   isUserApprovedInGroup,
   removeUserFromGroup,
   type UserDoc,
-  type AppSettings,
   type GroupDoc
 } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
-import { auth, db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
 import { memberShare, participantName } from "@/components/GroupWidgets";
 import { useGroupAssignments, useGroupFullNames, useGroupMessages } from "@/lib/useGroupData";
 import { khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
 import { relativeTimeAz } from "@/lib/dates";
 import {
-  Avatar, Bar, Card, Chip, DateInput, IconLink, IconSparkle, IconTrash, LoadingScreen, PageHeader, btn, button, inputCls
+  Avatar, Bar, Card, Chip, DateInput, IconSettings, IconSparkle, LoadingScreen, PageHeader, btn, button, inputCls
 } from "@/components/ui";
 
 export default function AdminPage() {
@@ -43,11 +39,6 @@ export default function AdminPage() {
   // Auto distribution
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoMessage, setAutoMessage] = useState<string | null>(null);
-
-  // Login page / daily settings
-  const [settings, setSettings] = useState<AppSettings>({ currentAyah: "", currentHadith: "" });
-  const [settingsSuccess, setSettingsSuccess] = useState(false);
-  const [settingsLoading, setSettingsLoading] = useState(false);
 
   // Juz distribution dates
   const [groupStartDate, setGroupStartDate] = useState("");
@@ -64,23 +55,16 @@ export default function AdminPage() {
   const [messageSending, setMessageSending] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
 
-  // Super admin: one-off move of everyone's email / push subscriptions into private docs
-  const [migrating, setMigrating] = useState(false);
-  const [migrationResult, setMigrationResult] = useState<string | null>(null);
-
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
   const canManage = !!currentUser && (isSuperAdmin || activeGroup?.createdBy === currentUser.uid);
   const fullNames = useGroupFullNames(activeGroupId, canManage);
   const messages = useGroupMessages(activeGroupId, canManage);
   const { assignments } = useGroupAssignments(activeGroupId, canManage);
-  const [inviteCopied, setInviteCopied] = useState(false);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
 
   async function loadData(groupId = activeGroupId) {
     try {
       setUsers(await getGroupMembers(groupId));
-      const appSettings = await getGroupSettings(groupId);
-      setSettings(appSettings);
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
@@ -115,7 +99,7 @@ export default function AdminPage() {
     return () => unsubUsers();
   }, [activeGroupId]);
 
-  // Real-time listener for settings based on activeGroupId
+  // Real-time listener for the group owner
   useEffect(() => {
     if (!activeGroupId) return;
     const settingsRef = activeGroupId === "default"
@@ -130,16 +114,6 @@ export default function AdminPage() {
         } else {
           setGroupCreatedBy(null);
         }
-        setSettings({
-          currentAyah: data.currentAyah || "İnna lilləhi və inna ileyhi raciun",
-          currentHadith: data.currentHadith || "Sizin ən xeyirliniz Quranı öyrənən və onu başqalarına öyrədəndir.",
-          lastDistributedJuz: data.lastDistributedJuz || 0,
-          cycleStartJuz: data.cycleStartJuz || 1,
-          completedKhatms: data.completedKhatms || 0,
-          isCurrentKhatmCompleted: data.isCurrentKhatmCompleted || false,
-          currentDailyItem: data.currentDailyItem,
-          lastDailyUpdate: data.lastDailyUpdate
-        });
       }
     }, (err) => {
       console.error("Error in real-time settings listener:", err);
@@ -226,40 +200,6 @@ export default function AdminPage() {
       } catch (err) {
         console.error("Error rejecting user:", err);
         alert("Rədd edərkən xəta baş verdi.");
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  const handleCopyInviteLink = () => {
-    if (activeGroupId === "default") return;
-    const inviteLink = `${window.location.origin}/?invite=${activeGroupId}`;
-    navigator.clipboard.writeText(inviteLink).then(() => {
-      setInviteCopied(true);
-      setTimeout(() => setInviteCopied(false), 3000);
-    });
-  };
-
-  const handleDeleteGroup = async () => {
-    if (activeGroupId === "default") return;
-    if (window.confirm(`“${groupName}” qrupunu silmək istədiyinizdən əminsiniz? Qrupa aid bütün oxunma məlumatları və üzvlük qeydləri silinəcək.`)) {
-      try {
-        setLoading(true);
-        await deleteGroup(activeGroupId);
-
-        const remaining = createdGroups.filter(g => g.id !== activeGroupId);
-        if (remaining.length > 0) {
-          setActiveGroupId(remaining[0].id);
-          await loadData(remaining[0].id);
-        } else {
-          const userRef = doc(db, "users", currentUser.uid);
-          await updateDoc(userRef, { isOnboarded: false, groupId: "" });
-          window.location.href = "/dashboard";
-        }
-      } catch (err) {
-        console.error("Error deleting group:", err);
-        alert("Qrupu silərkən xəta baş verdi.");
       } finally {
         setLoading(false);
       }
@@ -394,42 +334,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleMigratePrivate = async () => {
-    setMigrating(true);
-    setMigrationResult(null);
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/admin/migrate-private", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${idToken || ""}` },
-      });
-      const data = await res.json();
-      setMigrationResult(res.ok
-        ? `Hazırdır: ${data.total} istifadəçidən ${data.migrated} nəfərin məlumatı köçürüldü.`
-        : `Xəta: ${data.error || res.status}`);
-    } catch (err) {
-      console.error("Migration error:", err);
-      setMigrationResult("Xəta baş verdi.");
-    } finally {
-      setMigrating(false);
-    }
-  };
-
-  const handleSettingsSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSettingsLoading(true);
-    setSettingsSuccess(false);
-    try {
-      await setGroupSettings(settings, activeGroupId);
-      setSettingsSuccess(true);
-      setTimeout(() => setSettingsSuccess(false), 3000);
-    } catch (err) {
-      console.error("Error saving global settings:", err);
-    } finally {
-      setSettingsLoading(false);
-    }
-  };
-
   const filteredUsers = activeGroupUsers.filter(
     (u) =>
       nameOf(u).toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -444,15 +348,11 @@ export default function AdminPage() {
         <PageHeader
           title="İnzibatçı paneli"
           subtitle={isCreatorOfGroup ? `${groupName} qrupunu idarə et: cüzləri böl, iştirakçıları dəvət et` : groupName}
-          actions={isCreatorOfGroup && activeGroupId !== "default" ? (
-            <button
-              type="button"
-              onClick={handleCopyInviteLink}
-              className={`${btn.primary} min-h-[52px] w-full md:w-auto`}
-            >
-              <IconLink />
-              {inviteCopied ? "Link kopyalandı" : "Dəvət linkini paylaş"}
-            </button>
+          actions={isCreatorOfGroup ? (
+            <Link href="/admin/settings" className={`${button("outline")} w-full md:w-auto`}>
+              <IconSettings size={18} />
+              Ayarlar
+            </Link>
           ) : undefined}
         />
 
@@ -500,14 +400,7 @@ export default function AdminPage() {
 
               {/* Juz distribution */}
               <Card className="md:!p-7 !gap-[22px]">
-                <div className="flex flex-col gap-1">
-                  <h2 className="m-0 text-base md:text-xl font-bold text-ink">Cüz bölgüsü</h2>
-                  <div className="text-sm leading-relaxed text-muted">
-                    Hər bölgüdə hər iştirakçıya bir cüz düşür. Cüzlər 1-dən 30-a sıra ilə verilir və hər kəsə mümkün qədər əvvəl oxumadığı cüz düşür. Xətmin cüzləri bitəndə paylanma növbəti xətmin 1-ci cüzündən davam edir.{" "}
-                    {MAX_OPEN_ASSIGNMENTS} bitməmiş cüzü olan iştirakçıya yeni cüz verilmir.
-                    {activeGroup?.lastDistribution && ` Son bölgü: ${ordinalAz(activeGroup.lastDistribution.number)}.`}
-                  </div>
-                </div>
+                <h2 className="m-0 text-base md:text-xl font-bold text-ink">Cüz bölgüsü</h2>
 
                 <div className="flex flex-wrap gap-4">
                   <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-2 text-sm font-semibold text-ink">
@@ -714,69 +607,15 @@ export default function AdminPage() {
                 <Link href="/groups" className="text-sm font-semibold text-forest underline underline-offset-4">Yeni qrup yarat</Link>
               </Card>
 
-              {isSuperAdmin && (
-                <Card>
-                  <h2 className="m-0 text-[15px] font-bold text-muted">Məxfilik (super admin)</h2>
-                  <div className="text-sm leading-relaxed text-muted">
-                    Bütün istifadəçilərin e-poçt və bildiriş abunələrini gizli bölməyə köçürür. Bir dəfə işə salmaq kifayətdir.
-                  </div>
-                  <button type="button" onClick={handleMigratePrivate} disabled={migrating} className={btn.outline}>
-                    {migrating ? "Köçürülür..." : "Məlumatları köçür"}
-                  </button>
-                  {migrationResult && <div className="text-sm font-semibold text-forest">{migrationResult}</div>}
-                </Card>
-              )}
-
               <section className="bg-mint rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
                 <h2 className="m-0 font-bold text-lg md:text-[22px] text-ink">AI köməkçi</h2>
-                <div className="text-sm leading-relaxed text-[#2F4A3E]">Quran ayələri, hədislər və dini mövzularda suallarını ver.</div>
+                <div className="text-sm leading-relaxed text-[#2F4A3E]">Günün ayə və hədisini AI ilə yaz, Quran və hədislər barədə suallarını ver.</div>
                 <Link href="/admin/ai" className={btn.primary}>
                   <IconSparkle size={18} />
                   Köməkçini aç
                 </Link>
               </section>
 
-              <Card>
-                <h2 className="m-0 text-[15px] font-bold text-muted">Günün ayəsi və hədisi</h2>
-                <form onSubmit={handleSettingsSubmit} className="flex flex-col gap-3.5">
-                  <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
-                    Günün ayəsi
-                    <textarea
-                      value={settings.currentAyah || ""}
-                      onChange={(e) => setSettings({ ...settings, currentAyah: e.target.value })}
-                      rows={3}
-                      className={`${inputCls} py-3 resize-y`}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
-                    Günün hədisi
-                    <textarea
-                      value={settings.currentHadith || ""}
-                      onChange={(e) => setSettings({ ...settings, currentHadith: e.target.value })}
-                      rows={3}
-                      className={`${inputCls} py-3 resize-y`}
-                    />
-                  </label>
-                  {settingsSuccess && <div className="text-sm font-semibold text-donetext">Yadda saxlanıldı.</div>}
-                  <button type="submit" disabled={settingsLoading} className={btn.primary}>
-                    {settingsLoading ? "Yadda saxlanılır..." : "Yadda saxla"}
-                  </button>
-                </form>
-              </Card>
-
-              {/* Danger zone */}
-              {activeGroupId !== "default" && (
-                <Card danger className="!flex-row flex-wrap items-center justify-between gap-5">
-                  <div className="flex-[1_1_320px] flex flex-col gap-1.5">
-                    <h2 className="m-0 text-base md:text-lg font-bold text-danger">Təhlükəli zona</h2>
-                    <div className="text-sm leading-relaxed text-muted">Qrupu sildikdə bütün iştirakçıların gedişatı silinir. Bu əməliyyat geri qaytarılmır.</div>
-                  </div>
-                  <button type="button" onClick={handleDeleteGroup} className={`${btn.danger} w-full md:w-auto`}>
-                    <IconTrash size={18} />
-                    Qrupu sil
-                  </button>
-                </Card>
-              )}
             </div>
           </div>
         )}

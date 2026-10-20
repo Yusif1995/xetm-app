@@ -12,13 +12,12 @@ import { khatmLabel } from "@/lib/quran";
 import { khatmSummaries, memberStats, openKhatmForAssignment } from "@/lib/khatm";
 import { useGroupAssignments, useGroupFullNames } from "@/lib/useGroupData";
 import { JuzMap, KhatmTabs, khatmJuzTiles, memberShare, ParticipantRow, participantName } from "@/components/GroupWidgets";
-import { Bar, Card, IconLink, LoadingScreen, PageHeader, btn, button } from "@/components/ui";
+import { Bar, Card, LoadingScreen, PageHeader, button } from "@/components/ui";
 
 export default function ProgressPage() {
   const { user, activeGroupId, activeGroup, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
   const [selectedKhatm, setSelectedKhatm] = useState<number | null>(null);
   const canSeeNames = !!user && (isSuperAdmin || activeGroup?.createdBy === user.uid);
   const fullNames = useGroupFullNames(activeGroupId, canSeeNames);
@@ -90,15 +89,6 @@ export default function ProgressPage() {
     });
   });
   const activities = Array.from(activityMap.values()).sort((a, b) => b.time - a.time).slice(0, 6);
-
-  const handleCopyInvite = () => {
-    if (!activeGroupId) return;
-    const inviteLink = `${window.location.origin}/?invite=${activeGroupId}`;
-    navigator.clipboard.writeText(inviteLink).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
-    });
-  };
 
   const groupName = activeGroup?.name || "Qrup";
 
@@ -193,15 +183,6 @@ export default function ProgressPage() {
                 </div>
               )}
             </Card>
-
-            <section className="bg-mint rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
-              <h2 className="m-0 font-bold text-lg md:text-[22px] text-ink">Qrupa yeni iştirakçı əlavə et</h2>
-              <div className="text-sm leading-relaxed text-[#2F4A3E]">Dəvət linkini paylaş, qoşulan şəxs qrup sahibinin təsdiqindən sonra qrupa daxil olsun.</div>
-              <button type="button" onClick={handleCopyInvite} className={btn.primary}>
-                <IconLink size={18} />
-                {copied ? "Link kopyalandı" : "Dəvət linkini kopyala"}
-              </button>
-            </section>
           </div>
         </div>
       </div>

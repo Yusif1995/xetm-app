@@ -10,6 +10,7 @@ import { formatIsoDateAz } from "@/lib/dates";
 import { memberStats, openAssignmentsOf } from "@/lib/khatm";
 import { useGroupAssignments } from "@/lib/useGroupData";
 import { Bar, Card, IconBook, LoadingScreen, PageHeader, btn } from "@/components/ui";
+import { useEncouragement } from "@/components/Encouragement";
 
 type Filter = "all" | "done" | "pending";
 
@@ -19,6 +20,7 @@ export default function ReadingsPage() {
   const { assignments, loaded } = useGroupAssignments(activeGroupId, approvedHere);
   const [busyPage, setBusyPage] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const encouragement = useEncouragement();
 
   if (loading || (approvedHere && !loaded)) {
     return <LoadingScreen />;
@@ -34,14 +36,6 @@ export default function ReadingsPage() {
   const queued = myOpen.slice(1);
   const mine = memberStats(assignments, user.uid);
 
-  const hadith = (
-    <figure className="m-0 bg-white border border-line rounded-card p-5 md:p-6 flex flex-col gap-2.5 md:gap-3">
-      <blockquote className="m-0 font-extrabold text-[19px] md:text-[22px] leading-[1.4] text-ink">
-        Allah qatında əməllərin ən sevimlisi az da olsa davamlı olanıdır.
-      </blockquote>
-      <div className="text-xs md:text-[13px] text-muted">Hədis · Buxari</div>
-    </figure>
-  );
 
   // Nothing to read right now
   if (!current) {
@@ -67,8 +61,8 @@ export default function ReadingsPage() {
             </div>
           </section>
           <FinishedList items={mine.juzDone} />
-          <div className="max-w-[640px] w-full mx-auto">{hadith}</div>
         </div>
+        {encouragement.node}
       </AppLayout>
     );
   }
@@ -92,6 +86,7 @@ export default function ReadingsPage() {
     setBusyPage(page);
     try {
       await toggleAssignmentPages(activeGroupId, current.id, [page], isCompleted);
+      if (isCompleted) encouragement.show();
     } catch (err) {
       console.error("Error toggling page:", err);
     } finally {
@@ -232,10 +227,10 @@ export default function ReadingsPage() {
               <Bar ratio={ratio} color={ratio >= 1 ? "done" : "accent"} height={12} />
               <div className="text-xs md:text-[13px] text-muted">Cüzün {Math.round(ratio * 100)}%-i oxunub</div>
             </Card>
-            {hadith}
           </div>
         </div>
       </div>
+      {encouragement.node}
     </AppLayout>
   );
 }

@@ -31,6 +31,11 @@ const config: Config = {
         done: "#6E8F7C",
         donetext: "#3B5A4A",
         donebg: "#E6EDE7",
+        // 30-juz map on the group screen: finished green, in progress a strong amber, handed out yellow, free white
+        juzdone: "#2F8A5B",
+        juzprogress: "#B5651D",
+        juzassigned: "#F7E3A3",
+        juzassignedline: "#DDBB55",
         progress: "#F8E9CC",
         progresstext: "#6B4D12",
         danger: "#A33A26",
