@@ -104,7 +104,7 @@ function EncouragementCard({
     setShareState("busy");
     try {
       const blob = await (image.current || renderShareImage(item));
-      const result = await shareImage(blob, item);
+      const result = await shareImage(blob);
       setShareState(result === "downloaded" ? "downloaded" : "idle");
     } catch (err) {
       console.error("Share failed:", err);
@@ -118,7 +118,7 @@ function EncouragementCard({
   };
 
   return (
-    <div className="fixed inset-x-3 bottom-[92px] md:bottom-8 md:left-auto md:right-8 md:w-[440px] z-50 pointer-events-none">
+    <div className="fixed-layer fixed inset-x-3 bottom-[92px] md:bottom-8 md:left-auto md:right-8 md:w-[440px] z-50 pointer-events-none">
       <section
         role="status"
         aria-live="polite"

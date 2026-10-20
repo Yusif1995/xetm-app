@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import {
@@ -19,6 +19,7 @@ import {
   type GroupDoc
 } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
+import AdminSettingsPanel from "@/components/AdminSettingsPanel";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
@@ -51,6 +52,9 @@ export default function AdminPage() {
 
   // Message to a member
   const [messageTarget, setMessageTarget] = useState<UserDoc | null>(null);
+  // Settings panel (invite link, privacy, danger zone) opened from the gear button
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const [messageText, setMessageText] = useState("");
   const [messageSending, setMessageSending] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
@@ -349,10 +353,17 @@ export default function AdminPage() {
           title="İnzibatçı paneli"
           subtitle={isCreatorOfGroup ? `${groupName} qrupunu idarə et: cüzləri böl, iştirakçıları dəvət et` : groupName}
           actions={isCreatorOfGroup ? (
-            <Link href="/admin/settings" className={`${button("outline")} w-full md:w-auto`}>
-              <IconSettings size={18} />
-              Ayarlar
-            </Link>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Ayarlar"
+              title="Ayarlar"
+              aria-haspopup="dialog"
+              aria-expanded={settingsOpen}
+              className="press self-start w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-full bg-white border border-line shadow-card text-ink flex items-center justify-center hover:bg-sand"
+            >
+              <IconSettings size={22} />
+            </button>
           ) : undefined}
         />
 
@@ -620,8 +631,9 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      {settingsOpen && <AdminSettingsPanel onClose={closeSettings} />}
       {messageTarget && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-4">
           <form
             onSubmit={(e) => { e.preventDefault(); submitMessage(messageText); }}
             className="bg-white border border-line rounded-hero shadow-bar p-6 w-full max-w-md flex flex-col gap-4"

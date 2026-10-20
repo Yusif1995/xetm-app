@@ -156,10 +156,10 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       </main>
 
       {/* Floating tab bar (mobile), within thumb reach */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pb-safe pointer-events-none">
+      <div className="fixed-layer md:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pb-safe pointer-events-none">
         <nav
           aria-label="Əsas naviqasiya"
-          className="pointer-events-auto grid bg-white/95 backdrop-blur-md border border-line rounded-[26px] shadow-bar px-1.5 py-1.5"
+          className="pointer-events-auto grid bg-white border border-line rounded-[26px] shadow-bar px-1.5 py-1.5"
           style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }}
         >
           {mobileItems.map((item) => {

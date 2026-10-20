@@ -547,7 +547,7 @@ function DashboardContent() {
 
       {/* Invite dialog */}
       {showInviteModal && inviteGroup && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleCancelInvite}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={handleCancelInvite}>
           <div
             ref={inviteDialogRef}
             role="dialog"
