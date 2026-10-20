@@ -306,6 +306,11 @@ function DashboardContent() {
   // Unread message from the group owner
   const showOwnerMessage = !!ownerMessage?.text && !ownerMessage.read;
 
+  // Join requests waiting for the owner's approval
+  const pendingRequests = viewerIsOwner
+    ? Object.values(activeGroup?.members || {}).filter((s) => s === "pending").length
+    : 0;
+
   const handleMessageRead = async () => {
     setMarkingMessage(true);
     try {
@@ -459,6 +464,23 @@ function DashboardContent() {
             <button type="button" onClick={handleMessageRead} disabled={markingMessage} className={`${btn.outline} bg-white w-full md:w-auto`}>
               {markingMessage ? "Qeyd edilir..." : "Mesajı oxudum"}
             </button>
+          </section>
+        )}
+
+        {pendingRequests > 0 && (
+          <section
+            aria-label="Qoşulma istəkləri"
+            className="bg-white border border-line rounded-card shadow-card p-4 md:p-5 flex flex-wrap items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3 min-w-0 flex-[1_1_220px]">
+              <div className="w-11 h-11 rounded-full bg-progress text-goldtext flex items-center justify-center shrink-0">
+                <IconBell size={22} />
+              </div>
+              <p className="m-0 text-[15px] leading-snug text-ink">
+                <strong className="font-bold">{pendingRequests} nəfər</strong> “{activeGroup?.name || "qrup"}” qrupuna qoşulmaq istəyir.
+              </p>
+            </div>
+            <Link href="/admin" className={`${btn.primary} w-full sm:w-auto`}>Təsdiq et</Link>
           </section>
         )}
 

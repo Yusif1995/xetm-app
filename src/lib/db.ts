@@ -504,6 +504,18 @@ export async function requestGroupMembership(uid: string, groupId: string): Prom
   await updateDoc(doc(db, "groups", groupId), {
     [`members.${uid}`]: "pending"
   });
+  notifyOwnerOfJoinRequest(groupId);
+}
+
+// Push to the group owner that a request is waiting. Fire and forget: joining never waits on it.
+function notifyOwnerOfJoinRequest(groupId: string): void {
+  auth.currentUser?.getIdToken()
+    .then((idToken) => fetch("/api/notify-join-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ groupId }),
+    }))
+    .catch((err) => console.error("Could not notify the group owner:", err));
 }
 
 // Groups whose members map lists this user (owner, approved member or pending)
