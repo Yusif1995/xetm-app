@@ -187,6 +187,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
 function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => Promise<void> }) {
   const [groupName, setGroupName] = useState<string>("");
   const { activeGroupId } = useAuth();
+  const hasGroup = (!!activeGroupId && activeGroupId !== "default") || (user.groupIds?.length ?? 0) > 0;
 
   useEffect(() => {
     const loadGroup = async () => {
@@ -207,9 +208,11 @@ function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => 
         <div className="w-20 h-20 rounded-full bg-mint flex items-center justify-center text-forest">
           <IconGroup size={40} />
         </div>
-        <h1 className="m-0 font-extrabold text-2xl text-ink">Təsdiq gözlənilir</h1>
+        <h1 className="m-0 font-extrabold text-2xl text-ink">{hasGroup ? "Təsdiq gözlənilir" : "Hələ qrupun yoxdur"}</h1>
         <p className="m-0 text-sm leading-relaxed text-muted">
-          {groupName ? (
+          {!hasGroup ? (
+            "Qrup sahibindən dəvət linkini al və Qruplarım bölməsində yapışdır. Təsdiq ediləndən sonra qrupa daxil olacaqsan."
+          ) : groupName ? (
             <>
               <strong className="text-ink">“{groupName}”</strong> qrupuna qoşulmaq istəyiniz qeydə alınıb. Qrup sahibi təsdiq edən kimi qrupa daxil olacaqsınız.
             </>
@@ -219,7 +222,7 @@ function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => 
         </p>
         <div className="flex flex-col gap-2.5 w-full mt-2">
           <Link href="/groups" className={btn.primary}>
-            Qruplarım — başqa qrupa keç
+            {hasGroup ? "Qruplarım — başqa qrupa keç" : "Dəvət linkini yapışdır"}
           </Link>
           <button onClick={logout} className={btn.danger}>
             <IconLogout size={18} />

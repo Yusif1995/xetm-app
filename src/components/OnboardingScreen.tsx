@@ -5,7 +5,7 @@ import { db } from "../lib/firebase";
 import { doc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { createGroup, getGroupDoc, joinGroup, privateDocRef, publishProfileToGroups, UserDoc } from "../lib/db";
 import AuthShell from "./AuthShell";
-import { parseInviteId } from "../lib/invite";
+import { clearPendingInvite, parseInviteId, readPendingInvite } from "../lib/invite";
 import { btn, inputCls } from "./ui";
 
 interface OnboardingScreenProps {
@@ -25,7 +25,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
   const [error, setError] = useState<string | null>(null);
 
   // Without an invite the member chooses: join with a link (default) or start their own group
-  const [mode, setMode] = useState<"join" | "create">("join");
+  const [mode, setMode] = useState<"join" | "create" | "later">("join");
   const [inviteLink, setInviteLink] = useState("");
   const [pendingInviteId, setPendingInviteId] = useState("");
 
@@ -36,20 +36,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
     || (user.groupIds?.length ?? 0) > 0;
 
   useEffect(() => {
-    const getInviteId = () => {
-      if (typeof window !== "undefined") {
-        const params = new URLSearchParams(window.location.search);
-        const urlInvite = params.get("invite");
-        if (urlInvite) {
-          sessionStorage.setItem("pendingInviteGroupId", urlInvite);
-          return urlInvite;
-        }
-        return sessionStorage.getItem("pendingInviteGroupId");
-      }
-      return null;
-    };
-
-    const inviteId = getInviteId();
+    const inviteId = readPendingInvite();
     if (inviteId) setPendingInviteId(inviteId);
     if (inviteId && user.groupId !== inviteId) {
       setLoadingInvite(true);
@@ -122,11 +109,23 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
 
       // No invite yet, but the member pasted one: join that group first, then finish as invited
       let joinedNow = "";
+      if (!isInvited && mode === "later") {
+        await updateDoc(userRef, { nickname: nickname.trim(), isOnboarded: true, groupId: "" });
+        clearPendingInvite();
+        window.location.href = "/groups";
+        return;
+      }
+
       if (!isInvited && mode === "join") {
+        if (!inviteLink.trim()) {
+          setError("Qrup sahibinin göndərdiyi dəvət linkini bura yapışdır. Linkin hələ yoxdursa, aşağıdakı “Linkim hələ yoxdur” seçiminə toxun.");
+          setSubmitting(false);
+          return;
+        }
         const id = parseInviteId(inviteLink);
         const group = id ? await getGroupDoc(id) : null;
         if (!group) {
-          setError("Dəvət linki tanınmadı. Qrup sahibindən aldığın linki tam şəkildə yapışdır.");
+          setError("Bu link tanınmadı. Qrup sahibindən aldığın linki tam şəkildə yapışdır.");
           setSubmitting(false);
           return;
         }
@@ -166,8 +165,9 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
         newActiveGroupId = joinedNow || pendingInviteId || user.groupId || groups[0] || "";
       }
 
-      // Set active group in local storage
+      // Set active group in local storage; the invite has been handled
       localStorage.setItem(`activeGroupId_${user.uid}`, newActiveGroupId);
+      clearPendingInvite();
       
       // Perform window redirect to clear any invite parameters in URL and reload the app layout
       window.location.href = "/dashboard";
@@ -183,7 +183,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
       <div className="bg-white border border-line rounded-hero shadow-card p-6 md:p-8 flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <h2 className="m-0 font-bold text-[26px] md:text-[28px] leading-tight text-ink">Xoş gəlmisən</h2>
-          <p className="m-0 text-[15px] leading-relaxed text-muted">Profilini tamamla{isInvited || mode === "join" ? " və qrupa qoşul" : " və ilk xətm qrupunu yarat"}.</p>
+          <p className="m-0 text-[15px] leading-relaxed text-muted">Profilini tamamla{isInvited || mode === "join" ? " və qrupa qoşul" : mode === "create" ? " və ilk xətm qrupunu yarat" : ""}.</p>
         </div>
 
         {isInvited && (
@@ -251,16 +251,23 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
                     key={key}
                     type="button"
                     role="tab"
-                    aria-selected={mode === key}
+                    aria-selected={mode === key || (key === "join" && mode === "later")}
                     onClick={() => { setMode(key); setError(null); }}
                     disabled={submitting}
-                    className={`press min-h-[44px] rounded-[11px] text-[13px] ${mode === key ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"}`}
+                    className={`press min-h-[44px] rounded-[11px] text-[13px] ${mode === key || (key === "join" && mode === "later") ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"}`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-              {mode === "join" ? (
+              {mode === "later" ? (
+                <div className="flex flex-col gap-2 rounded-btn bg-cream border border-line px-4 py-3.5 text-sm leading-relaxed text-ink">
+                  <p className="m-0">Profilini indi tamamla. Qrup sahibindən linki alanda <strong>Qruplarım</strong> bölməsində yapışdırıb qoşula biləcəksən.</p>
+                  <button type="button" onClick={() => setMode("join")} disabled={submitting} className="self-start text-sm font-bold text-forest">
+                    Linkim var, indi yapışdırım
+                  </button>
+                </div>
+              ) : mode === "join" ? (
                 <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
                   Dəvət linki
                   <input
@@ -273,6 +280,9 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
                     className={inputCls}
                   />
                   <span className="text-xs font-normal text-muted">Qrup sahibinin göndərdiyi linki bura yapışdır. O təsdiq edəndən sonra qrupa daxil olacaqsan.</span>
+                  <button type="button" onClick={() => { setMode("later"); setError(null); }} disabled={submitting} className="self-start mt-1 text-sm font-bold text-forest">
+                    Linkim hələ yoxdur
+                  </button>
                 </label>
               ) : (
                 <label className="flex flex-col gap-2 text-sm font-semibold text-ink">

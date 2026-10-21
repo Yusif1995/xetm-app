@@ -9,6 +9,7 @@ import {
   type User as FirebaseUser
 } from "firebase/auth";
 import { auth, db } from "./firebase";
+import { clearPendingInvite, readPendingInvite } from "./invite";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import {
   getUserDoc,
@@ -126,18 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveGroupIdState(id);
   };
 
-  const getInviteGroupId = (): string => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const urlInvite = params.get("invite") || "";
-      if (urlInvite) {
-        sessionStorage.setItem("pendingInviteGroupId", urlInvite);
-        return urlInvite;
-      }
-      return sessionStorage.getItem("pendingInviteGroupId") || "";
-    }
-    return "";
-  };
+  const getInviteGroupId = (): string => readPendingInvite();
 
   const syncUserInvite = async (firebaseUser: FirebaseUser, userDoc: UserDoc, inviteGroupId: string): Promise<UserDoc> => {
     if (!inviteGroupId) return userDoc;
@@ -146,8 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (!hasGroupInIds) {
       await joinGroup(userDoc, inviteGroupId);
+      // Handled: a member removed later must not be re-requested on their next sign-in
+      clearPendingInvite();
       return (await getUserDoc(firebaseUser.uid)) || userDoc;
     }
+    clearPendingInvite();
     if (needsActiveGroupIdUpdate && userDoc.groupId !== inviteGroupId) {
       const { doc: fsDoc, updateDoc } = await import("firebase/firestore");
       await updateDoc(fsDoc(db, "users", firebaseUser.uid), { groupId: inviteGroupId });
