@@ -376,25 +376,49 @@ export async function migrateOwnPrivateData(user: UserDoc): Promise<void> {
   await updateDoc(doc(db, "users", user.uid), removals);
 }
 
-// Ask the server to notify the other group members; it looks up recipients itself
-export async function sendPushNotificationForCompletedPages(
-  _senderUid: string,
-  pageNumbers: number[],
-  groupId?: string | null
-): Promise<void> {
-  try {
-    if (!groupId || groupId === "default") return;
-    const idToken = await auth.currentUser?.getIdToken();
-    if (!idToken) return;
+// ---------- "X oxudu" notices to the group, one per reading session ----------
+// Marked pages wait here, unmarked ones leave again, and the batch goes out as one notice after
+// a quiet spell (or when the app is closed or hidden). The server re-checks that every page is
+// still marked before telling anyone, so a mistaken tap that was undone is never announced.
+const READ_NOTICE_DELAY_MS = 45 * 1000;
+const pendingReads = new Map<string, Set<number>>(); // groupId -> pages
+let readNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+let readNoticeListening = false;
 
-    await fetch("/api/send-push", {
+function flushReadNotices(keepalive = false): void {
+  if (readNoticeTimer) clearTimeout(readNoticeTimer);
+  readNoticeTimer = null;
+  const batches = Array.from(pendingReads.entries()).filter(([, pages]) => pages.size > 0);
+  pendingReads.clear();
+  if (batches.length === 0) return;
+  auth.currentUser?.getIdToken()
+    .then((idToken) => Promise.all(batches.map(([groupId, pages]) => fetch("/api/send-push", {
       method: "POST",
+      keepalive,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({ groupId, pageNumbers })
+      body: JSON.stringify({ groupId, pageNumbers: Array.from(pages) }),
+    }))))
+    .catch((err) => console.error("Error sending the reading notice:", err));
+}
+
+function queueReadNotice(groupId: string, pages: number[], read: boolean): void {
+  if (!groupId || groupId === "default" || typeof window === "undefined") return;
+  const set = pendingReads.get(groupId) || new Set<number>();
+  pages.forEach((p) => (read ? set.add(p) : set.delete(p)));
+  if (set.size > 0) pendingReads.set(groupId, set);
+  else pendingReads.delete(groupId);
+
+  if (!readNoticeListening) {
+    readNoticeListening = true;
+    // Leaving the app sends what is waiting instead of losing it
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushReadNotices(true);
     });
-  } catch (err) {
-    console.error("Error in sendPushNotificationForCompletedPages:", err);
+    window.addEventListener("pagehide", () => flushReadNotices(true));
   }
+
+  if (readNoticeTimer) clearTimeout(readNoticeTimer);
+  readNoticeTimer = pendingReads.size > 0 ? setTimeout(() => flushReadNotices(), READ_NOTICE_DELAY_MS) : null;
 }
 
 // Get group settings (backwards compatible with default settings/config)
@@ -679,6 +703,19 @@ export async function getGroupAssignments(groupId: string): Promise<Assignment[]
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Assignment));
 }
 
+// "Bismillah · Sizin üçün Cüz N təyin edildi" push to each new holder. Fire and forget:
+// handing out juz never waits on notifications.
+function notifyNewAssignments(groupId: string, assignmentIds: string[], skippedUids: string[] = []): void {
+  if (assignmentIds.length === 0 && skippedUids.length === 0) return;
+  auth.currentUser?.getIdToken()
+    .then((idToken) => fetch("/api/notify-assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ groupId, assignmentIds, skippedUids }),
+    }))
+    .catch((err) => console.error("Could not notify members about their juz:", err));
+}
+
 export interface DistributionResult {
   distribution: number;
   assigned: number;
@@ -701,14 +738,18 @@ export async function distributeJuz(
   const now = new Date().toISOString();
 
   const batch = writeBatch(db);
+  const newIds: string[] = [];
   plan.forEach((p) => {
-    batch.set(doc(assignmentsCol(groupId)), newAssignmentData(p, distribution, startDate, endDate, now));
+    const ref = doc(assignmentsCol(groupId));
+    newIds.push(ref.id);
+    batch.set(ref, newAssignmentData(p, distribution, startDate, endDate, now));
   });
   batch.update(doc(db, "groups", groupId), {
     distributionCount: distribution,
     lastDistribution: { number: distribution, startDate, endDate, at: now }
   });
   await batch.commit();
+  notifyNewAssignments(groupId, newIds, skipped);
   return { distribution, assigned: plan.length, skipped };
 }
 
@@ -723,10 +764,9 @@ export async function assignJuzManually(
 ): Promise<void> {
   const group = await getGroupDoc(groupId);
   const distribution = Math.max(1, group?.distributionCount || 0);
-  await setDoc(
-    doc(assignmentsCol(groupId)),
-    newAssignmentData({ uid, khatm, juz }, distribution, startDate, endDate, new Date().toISOString())
-  );
+  const ref = doc(assignmentsCol(groupId));
+  await setDoc(ref, newAssignmentData({ uid, khatm, juz }, distribution, startDate, endDate, new Date().toISOString()));
+  notifyNewAssignments(groupId, [ref.id]);
   if (!group?.distributionCount) {
     await updateDoc(doc(db, "groups", groupId), { distributionCount: distribution });
   }
@@ -739,6 +779,8 @@ export async function transferAssignment(groupId: string, a: Assignment, newUid:
     uid: newUid,
     previousHolders: [...(a.previousHolders || []), { uid: a.uid, pagesRead: pagesReadBy(a, a.uid) }]
   });
+  // The new holder hears about it like any other assignment
+  notifyNewAssignments(groupId, [a.id]);
 }
 
 export async function removeAssignment(groupId: string, assignmentId: string): Promise<void> {
@@ -782,11 +824,7 @@ export async function toggleAssignmentPages(
 
   if (!result) return;
   refreshGroupProgress(groupId);
-  if (isCompleted) {
-    sendPushNotificationForCompletedPages(result.uid, result.changed, groupId).catch((err) =>
-      console.error("Failed to send push:", err)
-    );
-  }
+  queueReadNotice(groupId, result.changed, isCompleted);
 }
 
 // Owner: delete every assignment of the group and start counting from scratch
