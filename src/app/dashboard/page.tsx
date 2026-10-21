@@ -487,13 +487,6 @@ function DashboardContent() {
           </section>
         )}
 
-        {/* Ayah and hadith of the day: first thing on the screen */}
-        <section aria-label="Günün ayəsi və hədisi" className="bg-white border border-line rounded-card shadow-card p-5 md:p-7 flex flex-col md:flex-row gap-5 md:gap-10">
-          <DailyFigure caption="Günün ayəsi" item={ownerAyah ? null : auto.ayah} fallback={ownerAyah} />
-          <div aria-hidden="true" className="h-px md:h-auto md:w-px bg-line shrink-0" />
-          <DailyFigure caption="Günün hədisi" item={ownerHadith ? null : auto.hadith} fallback={ownerHadith} />
-        </section>
-
         {/* Today's reading */}
         {!assignmentsLoaded && approvedHere ? (
           <section
@@ -566,6 +559,13 @@ function DashboardContent() {
             )}
           </section>
         )}
+
+        {/* Ayah and hadith of the day, after today's pages */}
+        <section aria-label="Günün ayəsi və hədisi" className="bg-white border border-line rounded-card shadow-card p-5 md:p-7 flex flex-col md:flex-row gap-5 md:gap-10">
+          <DailyFigure caption="Günün ayəsi" item={ownerAyah ? null : auto.ayah} fallback={ownerAyah} />
+          <div aria-hidden="true" className="h-px md:h-auto md:w-px bg-line shrink-0" />
+          <DailyFigure caption="Günün hədisi" item={ownerHadith ? null : auto.hadith} fallback={ownerHadith} />
+        </section>
       </div>
 
       {encouragement.node}
