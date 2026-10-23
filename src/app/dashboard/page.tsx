@@ -311,6 +311,12 @@ function DashboardContent() {
   const displayName = user.name || user.nickname || "";
   const firstName = user.firstName || displayName.split(" ")[0];
 
+  // Whoever finishes juz 30 is invited to read the khatm dua for two weeks afterwards
+  const finishedJuz30 = assignments.find((a) =>
+    a.uid === user.uid && a.juz === 30 && a.done && !!a.doneAt
+    && Date.now() - new Date(a.doneAt).getTime() < 14 * 24 * 60 * 60 * 1000
+  );
+
   // Unread message from the group owner
   const showOwnerMessage = !!ownerMessage?.text && !ownerMessage.read;
 
@@ -475,6 +481,21 @@ function DashboardContent() {
             <button type="button" onClick={handleMessageRead} disabled={markingMessage} className={`${btn.outline} bg-white w-full md:w-auto`}>
               {markingMessage ? "Qeyd edilir..." : "Mesajı oxudum"}
             </button>
+          </section>
+        )}
+
+        {finishedJuz30 && (
+          <section
+            aria-label="Xətm duası"
+            className="bg-donebg rounded-card p-5 md:p-6 flex flex-wrap items-center justify-between gap-4"
+          >
+            <div className="flex flex-col gap-1 min-w-0 flex-[1_1_240px]">
+              <div className="text-[13px] font-bold text-donetext">{khatmLabel(finishedJuz30.khatm)} · Cüz 30</div>
+              <p className="m-0 text-[15px] leading-relaxed text-ink">
+                Quranın son cüzünü sən oxudun. Allah qəbul etsin. Xətm duasını oxuya bilərsən.
+              </p>
+            </div>
+            <Link href="/oxu?dua=1" className={`${btn.gold} w-full md:w-auto`}>Xətm duasını oxu</Link>
           </section>
         )}
 
