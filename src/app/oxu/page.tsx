@@ -37,7 +37,10 @@ function Reader() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announce, setAnnounce] = useState("");
-  const touchX = useRef<number | null>(null);
+  // The page fills the screen; a tap shows or hides the bars around it
+  const [chrome, setChrome] = useState(false);
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
 
   const duaPage = clampInt(params.get("dua"), DUA_PAGES);
   const isDua = duaPage !== null;
@@ -108,10 +111,15 @@ function Reader() {
       encouragement.show();
       const left = remaining.filter((p) => p !== page);
       setAnnounce(left.length === 0 ? `Cüz ${held.juz} tamamlandı.` : `Səhifə ${page} oxunmuş kimi qeyd olundu.`);
-      // On to the next unread page of the juz (after this one first, then any skipped earlier)
+      // On to the next unread page of the juz (after this one first, then any skipped earlier),
+      // shown clean; when the juz is finished the bars stay up with the closing message
       const target = left.find((p) => p > page) ?? left[0];
-      if (target !== undefined) go(target);
+      if (target !== undefined) {
+        go(target);
+        setChrome(false);
+      }
     } catch (err) {
+      setChrome(true);
       console.error("Error marking page:", err);
       setError(`Səhifə ${page} qeyd olunmadı. İnterneti yoxla və yenidən cəhd et.`);
     } finally {
@@ -135,15 +143,25 @@ function Reader() {
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
-    touchX.current = e.touches.length === 1 ? e.touches[0].clientX : null;
+    swiped.current = false;
+    touch.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
   };
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchX.current;
-    touchX.current = null;
+    if (!touch.current) return;
+    const dx = e.changedTouches[0].clientX - touch.current.x;
+    const dy = e.changedTouches[0].clientY - touch.current.y;
+    touch.current = null;
+    if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) < Math.abs(dy)) return;
+    swiped.current = true;
     // Pages turn as in an Arabic book: pulling the page to the right goes forward
-    if (dx > SWIPE_PX) go(next);
-    else if (dx < -SWIPE_PX) go(prev);
+    go(dx > 0 ? next : prev);
+  };
+  const onPageClick = () => {
+    if (swiped.current) {
+      swiped.current = false;
+      return;
+    }
+    setChrome((v) => !v);
   };
 
   const title = isDua ? "Xətm duası" : held ? `Cüz ${held.juz} · səhifə ${page}` : `Səhifə ${page}`;
@@ -178,12 +196,41 @@ function Reader() {
     );
   }
 
+  const info = isDua
+    ? `Xətm duası | ${page}. səhifə`
+    : `${page}. səhifə | ${Math.min(30, Math.floor((page - 1) / 20) + 1)}. cüz | ${surahForPage(page)}`;
+  const bars = `transition-[transform,opacity] duration-200 motion-reduce:transition-none ${chrome ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none"}`;
+
   return (
-    <div className="fixed inset-0 flex flex-col bg-cream text-ink">
+    <div className="fixed inset-0 bg-[#FFF7E5] text-ink select-none">
       <div role="status" aria-live="polite" className="sr-only">{announce}</div>
 
+      {/* The page, edge to edge; tap toggles the bars, swipe turns the page */}
+      <main
+        className="absolute inset-0 overflow-y-auto overscroll-contain flex flex-col pt-[max(8px,env(safe-area-inset-top))] pb-[max(6px,env(safe-area-inset-bottom))]"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onClick={onPageClick}
+      >
+        <div className={`flex-1 min-h-0 flex flex-col items-center gap-3 px-1.5 ${!isDua && page === 1 ? "justify-start" : "justify-center"}`}>
+          {imagesOf(page, isDua).map((src) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={src}
+              src={src}
+              alt={isDua ? `Xətm duası, səhifə ${page}` : `Quran, səhifə ${page}`}
+              className={`block w-full object-contain ${!isDua && page === 1 ? "h-auto" : "h-full min-h-0"}`}
+              draggable={false}
+            />
+          ))}
+        </div>
+        <div className="shrink-0 pt-1 text-center text-[12px] font-semibold text-muted tabular-nums">
+          {info}{isRead && <span className="text-donetext"> · oxunub ✓</span>}
+        </div>
+      </main>
+
       {/* Top bar */}
-      <header className="shrink-0 flex items-center gap-3 px-3 md:px-5 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-white border-b border-line">
+      <header className={`absolute inset-x-0 top-0 flex items-center gap-3 px-3 md:px-5 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-white/95 backdrop-blur border-b border-line shadow-card ${bars} ${chrome ? "" : "-translate-y-full"}`}>
         <Link
           href="/dashboard"
           aria-label="Bağla"
@@ -203,34 +250,15 @@ function Reader() {
           )}
           <div className="text-[11px] text-muted mt-0.5 tabular-nums">{position}</div>
         </div>
+        {held && (
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-track" aria-hidden="true">
+            <div className="h-full bg-juzdone transition-[width] duration-500" style={{ width: `${(done.length / juzPages.length) * 100}%` }} />
+          </div>
+        )}
       </header>
 
-      {held && (
-        <div className="shrink-0 h-1.5 bg-track" aria-hidden="true">
-          <div className="h-full bg-juzdone transition-[width] duration-500" style={{ width: `${(done.length / juzPages.length) * 100}%` }} />
-        </div>
-      )}
-
-      {/* The page */}
-      <main
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col items-center gap-3 px-2 py-2"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        {imagesOf(page, isDua).map((src) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={src}
-            src={src}
-            alt={isDua ? `Xətm duası, səhifə ${page}` : `Quran, səhifə ${page}`}
-            className={`block w-auto max-w-full object-contain select-none ${!isDua && page === 1 ? "" : "max-h-full"}`}
-            draggable={false}
-          />
-        ))}
-      </main>
-
       {/* Bottom bar: next is on the left, as in the mushaf */}
-      <footer className="shrink-0 bg-white border-t border-line px-3 md:px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] flex flex-col gap-2">
+      <footer className={`absolute inset-x-0 bottom-0 bg-white/95 backdrop-blur border-t border-line shadow-bar px-3 md:px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] flex flex-col gap-2 ${bars} ${chrome ? "" : "translate-y-full"}`}>
         {error && <p role="alert" className="m-0 text-[13px] font-semibold text-danger text-center">{error}</p>}
         {juzDone && (
           <p className="m-0 text-[14px] font-bold text-donetext text-center">
