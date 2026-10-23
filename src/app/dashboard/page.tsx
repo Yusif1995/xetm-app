@@ -35,7 +35,6 @@ type Undo = { assignmentId: string; pages: number[]; label: string };
 function DashboardContent() {
   const { user, loading, activeGroupId, setActiveGroupId, activeGroup, logout, isSuperAdmin } = useAuth();
   const [isMarking, setIsMarking] = useState(false);
-  const [togglingPage, setTogglingPage] = useState<number | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -299,23 +298,6 @@ function DashboardContent() {
     if (ok) setAnnouncement(`Səhifə ${label} yenidən oxunmamış oldu.`);
   };
 
-  const handleTogglePage = async (page: number) => {
-    if (!current || togglingPage !== null) return;
-    const assignmentId = current.id;
-    const markRead = !completedPages.includes(page);
-    setTogglingPage(page);
-    clearUndo();
-    const ok = await runWrite(
-      () => toggleAssignmentPages(activeGroupId, assignmentId, [page], markRead),
-      `Səhifə ${page} yadda saxlanmadı. İnterneti yoxla və yenidən cəhd et.`
-    );
-    setTogglingPage(null);
-    if (ok) {
-      setAnnouncement(`Səhifə ${page} ${markRead ? "oxunmuş" : "oxunmamış"} kimi qeyd olundu.`);
-      if (markRead) encouragement.show();
-    }
-  };
-
   const handleRetry = async () => {
     if (!failedWrite) return;
     const { retry, message } = failedWrite;
@@ -368,27 +350,24 @@ function DashboardContent() {
           const isDone = completedPages.includes(p);
           const isNext = p === nextPage;
           return (
-            <button
+            <Link
               key={p}
-              type="button"
-              onClick={() => handleTogglePage(p)}
-              disabled={togglingPage !== null}
-              aria-pressed={isDone}
-              aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}`}
-              className={`press min-h-[44px] rounded-[12px] font-bold text-[15px] tabular-nums box-border disabled:cursor-not-allowed ${
+              href={`/oxu?s=${p}`}
+              aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}. Quranda aç`}
+              className={`press min-h-[44px] rounded-[12px] font-bold text-[15px] tabular-nums box-border flex items-center justify-center ${
                 isDone
                   ? "bg-forest text-white border border-forest"
                   : isNext
                     ? "bg-mint text-forest border-2 border-forest"
                     : "bg-cream text-muted border border-line"
-              } ${togglingPage === p ? "opacity-50" : ""}`}
+              }`}
             >
               {p}
-            </button>
+            </Link>
           );
         })}
       </div>
-      <p className="m-0 text-[13px] text-muted">Oxuduğun səhifəyə toxun, işarələnsin. Yaşıl xanalar oxunub.</p>
+      <p className="m-0 text-[13px] text-muted">Səhifəyə toxun, Quranda açılsın. Yaşıl xanalar oxunub.</p>
     </div>
   );
 
@@ -568,7 +547,12 @@ function DashboardContent() {
                 <div className="flex flex-wrap gap-3">
                   {activeChunk.length > 0 ? (
                     <>
-                      <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={`${btn.gold} w-full sm:w-auto sm:min-w-[260px]`}>
+                      {nextPage && (
+                        <Link href={`/oxu?s=${nextPage}`} className={`${btn.gold} w-full sm:w-auto sm:min-w-[260px]`}>
+                          Quranda oxu · səhifə {nextPage}
+                        </Link>
+                      )}
+                      <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={`${button("outline", "lg")} w-full sm:w-auto`}>
                         {isMarking ? "Qeyd edilir..." : `Oxudum: səhifə ${rangeLabel(activeChunk)}`}
                       </button>
                       <button type="button" onClick={handleMarkJuz} disabled={isMarking} className={`${button("outline", "lg")} w-full sm:w-auto`}>

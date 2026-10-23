@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { isUserApprovedInGroup, toggleAssignmentPages } from "@/lib/db";
+import { isUserApprovedInGroup } from "@/lib/db";
 import { useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
@@ -10,7 +10,6 @@ import { formatIsoDateAz } from "@/lib/dates";
 import { memberStats, openAssignmentsOf } from "@/lib/khatm";
 import { useGroupAssignments } from "@/lib/useGroupData";
 import { Bar, Card, IconBook, LoadingScreen, PageHeader, btn } from "@/components/ui";
-import { useEncouragement } from "@/components/Encouragement";
 
 type Filter = "all" | "done" | "pending";
 
@@ -18,9 +17,7 @@ export default function ReadingsPage() {
   const { user, loading, activeGroupId, activeGroup, isSuperAdmin } = useAuth();
   const approvedHere = !!user && (isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup));
   const { assignments, loaded } = useGroupAssignments(activeGroupId, approvedHere);
-  const [busyPage, setBusyPage] = useState<number | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
-  const encouragement = useEncouragement();
 
   if (loading || (approvedHere && !loaded)) {
     return <LoadingScreen />;
@@ -62,7 +59,6 @@ export default function ReadingsPage() {
           </section>
           <FinishedList items={mine.juzDone} />
         </div>
-        {encouragement.node}
       </AppLayout>
     );
   }
@@ -80,19 +76,6 @@ export default function ReadingsPage() {
   const visiblePages = pages.filter((p) =>
     filter === "all" ? true : filter === "done" ? done.includes(p) : !done.includes(p)
   );
-
-  const togglePage = async (page: number, isCompleted: boolean) => {
-    if (busyPage !== null) return;
-    setBusyPage(page);
-    try {
-      await toggleAssignmentPages(activeGroupId, current.id, [page], isCompleted);
-      if (isCompleted) encouragement.show();
-    } catch (err) {
-      console.error("Error toggling page:", err);
-    } finally {
-      setBusyPage(null);
-    }
-  };
 
   return (
     <AppLayout activeTab="readings">
@@ -123,9 +106,7 @@ export default function ReadingsPage() {
                 </div>
                 {nextPage && (
                   <div className="flex flex-col md:flex-row gap-2.5 md:gap-3">
-                    <button type="button" onClick={() => togglePage(nextPage, true)} disabled={busyPage !== null} className={btn.gold}>
-                      {busyPage !== null ? "Qeyd edilir..." : "Oxudum"}
-                    </button>
+                    <Link href={`/oxu?s=${nextPage}`} className={btn.gold}>Quranda oxu</Link>
                   </div>
                 )}
               </div>
@@ -170,23 +151,20 @@ export default function ReadingsPage() {
                     const isDone = done.includes(p);
                     const isNext = p === nextPage;
                     return (
-                      <button
+                      <Link
                         key={p}
-                        type="button"
-                        onClick={() => togglePage(p, !isDone)}
-                        disabled={busyPage !== null}
-                        aria-pressed={isDone}
-                        aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}`}
-                        className={`press min-h-[48px] rounded-[14px] font-bold text-[15px] tabular-nums box-border disabled:cursor-not-allowed ${
+                        href={`/oxu?s=${p}`}
+                        aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}. Quranda aç`}
+                        className={`press min-h-[48px] rounded-[14px] font-bold text-[15px] tabular-nums box-border flex items-center justify-center ${
                           isDone
                             ? "bg-forest text-white border border-forest"
                             : isNext
                               ? "bg-mint text-forest border-2 border-forest"
                               : "bg-cream text-muted border border-line"
-                        } ${busyPage === p ? "opacity-50" : ""}`}
+                        }`}
                       >
                         {p}
-                      </button>
+                      </Link>
                     );
                   })}
                 </div>
@@ -231,7 +209,6 @@ export default function ReadingsPage() {
           </div>
         </div>
       </div>
-      {encouragement.node}
     </AppLayout>
   );
 }

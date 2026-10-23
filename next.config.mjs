@@ -15,7 +15,11 @@ const securityHeaders = [
 const nextConfig = {
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Mushaf page images never change, so phones keep them once a page has been opened
+      { source: "/mushaf/:file*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+    ];
   },
 };
 
