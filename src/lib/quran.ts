@@ -49,9 +49,41 @@ export function juzOfPage(page: number): number {
   return Math.min(30, Math.floor((page - 1) / 20) + 1);
 }
 
-// First surah of the juz that contains the page
+// Surah names and the page each one starts on in the standard 604-page Medina mushaf
+const SURAHS: [string, number][] = [
+  ["Əl-Fatihə", 1], ["Əl-Bəqərə", 2], ["Ali-İmran", 50], ["Ən-Nisa", 77], ["Əl-Maidə", 106],
+  ["Əl-Ənam", 128], ["Əl-Əraf", 151], ["Əl-Ənfal", 177], ["Ət-Tövbə", 187], ["Yunus", 208],
+  ["Hud", 221], ["Yusuf", 235], ["Ər-Rəd", 249], ["İbrahim", 255], ["Əl-Hicr", 262],
+  ["Ən-Nəhl", 267], ["Əl-İsra", 282], ["Əl-Kəhf", 293], ["Məryəm", 305], ["Taha", 312],
+  ["Əl-Ənbiya", 322], ["Əl-Həcc", 332], ["Əl-Muminun", 342], ["Ən-Nur", 350], ["Əl-Furqan", 359],
+  ["Əş-Şuəra", 367], ["Ən-Nəml", 377], ["Əl-Qəsəs", 385], ["Əl-Ənkəbut", 396], ["Ər-Rum", 404],
+  ["Loğman", 411], ["Əs-Səcdə", 415], ["Əl-Əhzab", 418], ["Səba", 428], ["Fatir", 434],
+  ["Yasin", 440], ["Əs-Saffat", 446], ["Sad", 453], ["Əz-Zumər", 458], ["Ğafir", 467],
+  ["Fussilət", 477], ["Əş-Şura", 483], ["Əz-Zuxruf", 489], ["Əd-Duxan", 496], ["Əl-Casiyə", 499],
+  ["Əl-Əhqaf", 502], ["Muhəmməd", 507], ["Əl-Fəth", 511], ["Əl-Hucurat", 515], ["Qaf", 518],
+  ["Əz-Zariyat", 520], ["Ət-Tur", 523], ["Ən-Nəcm", 526], ["Əl-Qəmər", 528], ["Ər-Rəhman", 531],
+  ["Əl-Vaqiə", 534], ["Əl-Hədid", 537], ["Əl-Mucadilə", 542], ["Əl-Həşr", 545], ["Əl-Mumtəhinə", 549],
+  ["Əs-Saff", 551], ["Əl-Cumuə", 553], ["Əl-Munafiqun", 554], ["Ət-Təğabun", 556], ["Ət-Talaq", 558],
+  ["Ət-Təhrim", 560], ["Əl-Mulk", 562], ["Əl-Qələm", 564], ["Əl-Haqqə", 566], ["Əl-Məaric", 568],
+  ["Nuh", 570], ["Əl-Cinn", 572], ["Əl-Muzzəmmil", 574], ["Əl-Muddəssir", 575], ["Əl-Qiyamə", 577],
+  ["Əl-İnsan", 578], ["Əl-Mursəlat", 580], ["Ən-Nəbə", 582], ["Ən-Naziat", 583], ["Əbəsə", 585],
+  ["Ət-Təkvir", 586], ["Əl-İnfitar", 587], ["Əl-Mutəffifin", 587], ["Əl-İnşiqaq", 589], ["Əl-Buruc", 590],
+  ["Ət-Tariq", 591], ["Əl-Əla", 591], ["Əl-Ğaşiyə", 592], ["Əl-Fəcr", 593], ["Əl-Bələd", 594],
+  ["Əş-Şəms", 595], ["Əl-Leyl", 595], ["Əd-Duha", 596], ["Əş-Şərh", 596], ["Ət-Tin", 597],
+  ["Əl-Ələq", 597], ["Əl-Qədr", 598], ["Əl-Bəyyinə", 598], ["Əz-Zəlzələ", 599], ["Əl-Adiyat", 599],
+  ["Əl-Qariə", 600], ["Ət-Təkasur", 600], ["Əl-Əsr", 601], ["Əl-Huməzə", 601], ["Əl-Fil", 601],
+  ["Qureyş", 602], ["Əl-Maun", 602], ["Əl-Kövsər", 602], ["Əl-Kafirun", 603], ["Ən-Nəsr", 603],
+  ["Əl-Məsəd", 603], ["Əl-İxlas", 604], ["Əl-Fələq", 604], ["Ən-Nas", 604],
+];
+
+// Surah the page belongs to: the last surah that starts on or before it
 export function surahForPage(page: number): string {
-  return JUZ_MAP[juzOfPage(page)]?.surah.split(" - ")[0] || `Səhifə ${page}`;
+  let name = SURAHS[0][0];
+  for (const [surah, start] of SURAHS) {
+    if (start > page) break;
+    name = surah;
+  }
+  return name;
 }
 
 // "Əl-Bəqərə - Ali-İmran" style label for a list of juzs

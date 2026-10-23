@@ -19,11 +19,11 @@ import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useSearchParams } from "next/navigation";
 import { khatmLabel, pageRangesLabel, surahForPage } from "@/lib/quran";
-import { formatGregorianAz, formatHijriAz, relativeTimeAz } from "@/lib/dates";
+import { formatGregorianAz, formatHijriAz, formatIsoDateAz, relativeTimeAz } from "@/lib/dates";
 import { enablePushFromUserGesture, isPushSupported } from "@/lib/push";
 import { bakuDateKey, dailyContent, type DailyItem } from "@/lib/dailyContent";
 import { useEncouragement } from "@/components/Encouragement";
-import { Avatar, IconBell, IconCheck, IconLogout, LoadingScreen, ProgressRing, btn } from "@/components/ui";
+import { Avatar, IconBell, IconCalendar, IconCheck, IconLogout, LoadingScreen, ProgressRing, btn, button } from "@/components/ui";
 
 const CHUNK_SIZE = 5;
 const UNDO_MS = 6000;
@@ -219,6 +219,11 @@ function DashboardContent() {
     remainingText = "Sənə verilən bütün cüzləri bitirdin. Növbəti bölgüdə yeni cüz alacaqsan.";
   }
 
+  // Reading period of the juz, and whether today (Baku) is its last day
+  const todayKey = bakuDateKey(new Date());
+  const isLastDay = !!current && remaining > 0 && current.endDate === todayKey;
+  const isOverdue = !!current && remaining > 0 && !!current.endDate && current.endDate < todayKey;
+
   const rangeLabel = (pages: number[]) =>
     `${pages[0]}${pages.length > 1 ? `–${pages[pages.length - 1]}` : ""}`;
 
@@ -257,6 +262,27 @@ function DashboardContent() {
     if (ok && pages.length > 0) {
       setAnnouncement(`Səhifə ${label} oxunmuş kimi qeyd olundu.`);
       setUndo({ assignmentId, pages, label });
+      undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS);
+      encouragement.show();
+    }
+  };
+
+  // Whole juz read in one sitting: mark every remaining page with one tap (undo stays available)
+  const handleMarkJuz = async () => {
+    if (!current || remaining === 0 || isMarking) return;
+    const assignmentId = current.id;
+    const pages = sortedPages.filter((p) => !completedPages.includes(p));
+    const label = `Cüz ${current.juz}`;
+    setIsMarking(true);
+    clearUndo();
+    const ok = await runWrite(
+      () => toggleAssignmentPages(activeGroupId, assignmentId, pages, true),
+      `${label} qeyd olunmadı. İnterneti yoxla və yenidən cəhd et.`
+    );
+    setIsMarking(false);
+    if (ok) {
+      setAnnouncement(`${label} bütöv oxunmuş kimi qeyd olundu.`);
+      setUndo({ assignmentId, pages, label: `${pages[0]}–${pages[pages.length - 1]}` });
       undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS);
       encouragement.show();
     }
@@ -371,13 +397,11 @@ function DashboardContent() {
       <div className="max-w-[880px] flex flex-col gap-5 md:gap-7">
         <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
 
-        <header className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-            <h1 className="m-0 font-extrabold text-[28px] md:text-[36px] leading-[1.15] tracking-[-0.01em] text-ink">
-              {firstName ? `Xoş gördük, ${firstName}` : "Xoş gördük"}
-            </h1>
-            <div className="text-[13px] md:text-[15px] text-muted">{gregorian}{hijri && <> <span className="whitespace-nowrap">· {hijri}</span></>}</div>
-          </div>
+        <header className="flex flex-col gap-1.5">
+          <div className="flex items-start justify-between gap-3">
+          <h1 className="m-0 min-w-0 flex-1 font-extrabold text-[28px] md:text-[36px] leading-[1.15] tracking-[-0.01em] text-ink">
+            {firstName ? `Xoş gördük, ${firstName}` : "Xoş gördük"}
+          </h1>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <button
               type="button"
@@ -432,6 +456,11 @@ function DashboardContent() {
                 </div>
               )}
             </div>
+          </div>
+          </div>
+          {/* One line across the full width; the font shrinks with the screen so it never wraps */}
+          <div className="whitespace-nowrap overflow-hidden text-ellipsis text-[clamp(11px,3.5vw,15px)] text-muted">
+            {gregorian}{hijri && ` · ${hijri}`}
           </div>
         </header>
 
@@ -507,14 +536,46 @@ function DashboardContent() {
               <div className="flex flex-col gap-1.5 md:gap-2">
                 <h2 id="hedef" className="m-0 font-extrabold text-[26px] md:text-[34px] leading-[1.12] tracking-[-0.015em] text-ink">{targetTitle}</h2>
                 <div className="text-[14px] md:text-[15px] text-muted leading-relaxed">{remainingText}</div>
+                {current?.startDate && current.endDate && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    <span className="inline-flex items-center gap-1.5 min-h-[32px] px-3 rounded-full bg-sand text-[13px] font-semibold text-ink">
+                      <IconCalendar size={15} className="text-muted" />
+                      Başlama: {formatIsoDateAz(current.startDate)}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 min-h-[32px] px-3 rounded-full bg-sand text-[13px] font-semibold text-ink">
+                      <IconCalendar size={15} className="text-muted" />
+                      Bitmə: {formatIsoDateAz(current.endDate)}
+                    </span>
+                  </div>
+                )}
               </div>
+              {isLastDay && (
+                <div role="alert" className="flex items-center gap-3 rounded-btn bg-[#FBEFEB] border border-dangerline px-4 py-3 text-danger">
+                  <IconBell size={22} className="shrink-0" />
+                  <div className="flex flex-col">
+                    <strong className="text-[15px] md:text-base font-extrabold">Bu gün son gündür</strong>
+                    <span className="text-[13px]">Cüzü bu gün bitir: {remaining} səhifə qalıb.</span>
+                  </div>
+                </div>
+              )}
+              {isOverdue && (
+                <div role="alert" className="rounded-btn bg-[#FBEFEB] border border-dangerline px-4 py-3 text-[14px] font-semibold text-danger">
+                  Müddət {formatIsoDateAz(current!.endDate)} tarixində bitib. Qalan {remaining} səhifəni tez bitir.
+                </div>
+              )}
               {current && pageGrid}
               {current && (
                 <div className="flex flex-wrap gap-3">
                   {activeChunk.length > 0 ? (
-                    <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={`${btn.gold} w-full sm:w-auto sm:min-w-[260px]`}>
-                      {isMarking ? "Qeyd edilir..." : `Oxudum: səhifə ${rangeLabel(activeChunk)}`}
-                    </button>
+                    <>
+                      <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={`${btn.gold} w-full sm:w-auto sm:min-w-[260px]`}>
+                        {isMarking ? "Qeyd edilir..." : `Oxudum: səhifə ${rangeLabel(activeChunk)}`}
+                      </button>
+                      <button type="button" onClick={handleMarkJuz} disabled={isMarking} className={`${button("outline", "lg")} w-full sm:w-auto`}>
+                        <IconCheck size={20} />
+                        Cüzü bütöv oxudum
+                      </button>
+                    </>
                   ) : (
                     <div className="min-h-[52px] px-5 rounded-btn bg-donebg text-donetext font-bold text-base flex items-center gap-2.5">
                       <IconCheck size={20} />

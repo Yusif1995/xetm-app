@@ -14,8 +14,33 @@ import { useGroupAssignments, useGroupFullNames, useGroupAdmins } from "@/lib/us
 import { JuzMap, KhatmTabs, khatmJuzTiles, memberShare, ParticipantRow, participantName, roleOf } from "@/components/GroupWidgets";
 import { Bar, Card, LoadingScreen, PageHeader, button } from "@/components/ui";
 
+type ReaderState = "notStarted" | "reading" | "finished";
+
+// Same colours as the juz tiles above: given (yellow), in progress (brown), finished (green)
+const READER_TABS: { key: ReaderState; label: string; on: string; off: string; empty: string }[] = [
+  {
+    key: "notStarted", label: "Başlamayanlar",
+    on: "bg-juzassigned border-juzassignedline text-ink ring-2 ring-juzassignedline",
+    off: "bg-juzassigned/40 border-juzassignedline/60 text-muted",
+    empty: "Hamı oxumağa başlayıb.",
+  },
+  {
+    key: "reading", label: "Davam edənlər",
+    on: "bg-juzprogress border-juzprogress text-white",
+    off: "bg-juzprogress/10 border-juzprogress/30 text-juzprogress",
+    empty: "Hazırda oxumağa davam edən yoxdur.",
+  },
+  {
+    key: "finished", label: "Bitirənlər",
+    on: "bg-juzdone border-juzdone text-white",
+    off: "bg-juzdone/10 border-juzdone/30 text-juzdone",
+    empty: "Hələ cüzünü bitirən yoxdur.",
+  },
+];
+
 export default function ProgressPage() {
   const { user, activeGroupId, activeGroup, isSuperAdmin } = useAuth();
+  const [readerTab, setReaderTab] = useState<ReaderState>("notStarted");
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [selectedKhatm, setSelectedKhatm] = useState<number | null>(null);
@@ -73,6 +98,16 @@ export default function ProgressPage() {
   const defaultKhatm = summaries.find((k) => !k.completedAt)?.khatm ?? khatms[khatms.length - 1] ?? 1;
   const khatm = selectedKhatm && khatms.includes(selectedKhatm) ? selectedKhatm : defaultKhatm;
   const summary = summaries.find((k) => k.khatm === khatm) || null;
+
+  // Where each participant stands in the selected khatm
+  const byState: Record<ReaderState, UserDoc[]> = { notStarted: [], reading: [], finished: [] };
+  participants.forEach((u) => {
+    const mine = assignments.filter((a) => a.khatm === khatm && a.uid === u.uid);
+    const state: ReaderState = mine.length > 0 && mine.every((a) => a.done)
+      ? "finished"
+      : mine.some((a) => a.completedPages.length > 0) ? "reading" : "notStarted";
+    byState[state].push(u);
+  });
   const ratio = summary ? summary.pagesRead / summary.totalPages : 0;
 
   // Recent activity: pages read per holder per day, newest first
@@ -147,10 +182,28 @@ export default function ProgressPage() {
                 <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{participants.length} nəfər</span>
               </div>
-              {participants.length === 0 ? (
-                <p className="m-0 text-sm text-muted py-4">Siyahıda hələ heç bir iştirakçı yoxdur.</p>
+              <div role="tablist" aria-label="İştirakçıların vəziyyəti" className="grid grid-cols-3 gap-1.5 pb-2">
+                {READER_TABS.map((t) => {
+                  const selected = readerTab === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      onClick={() => setReaderTab(t.key)}
+                      className={`press min-h-[52px] px-1.5 rounded-[14px] border box-border flex flex-col items-center justify-center leading-tight ${selected ? t.on : t.off}`}
+                    >
+                      <span className="text-[12px] md:text-[13px] font-bold whitespace-nowrap">{t.label}</span>
+                      <span className="text-base font-extrabold tabular-nums">{byState[t.key].length}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {byState[readerTab].length === 0 ? (
+                <p className="m-0 text-sm text-muted py-4">{READER_TABS.find((t) => t.key === readerTab)!.empty}</p>
               ) : (
-                participants.map((u) => {
+                byState[readerTab].map((u) => {
                   const inKhatm = memberStats(assignments, u.uid).perKhatm.find((k) => k.khatm === khatm);
                   return (
                     <ParticipantRow

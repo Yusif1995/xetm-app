@@ -137,21 +137,22 @@ export default function ReadingsPage() {
                 <h2 className="m-0 text-base md:text-lg font-bold text-ink">Bütün səhifələr</h2>
                 <div role="tablist" aria-label="Filtr" className="grid grid-cols-3 md:flex gap-1 p-1 rounded-[14px] bg-sand w-full md:w-auto">
                   {([
-                    ["all", `Hamısı · ${counts.all}`],
-                    ["done", `Oxunmuş · ${counts.done}`],
-                    ["pending", `Gözləyən · ${counts.pending}`],
-                  ] as [Filter, string][]).map(([key, label]) => (
+                    ["all", "Hamısı", counts.all],
+                    ["done", "Oxunmuş", counts.done],
+                    ["pending", "Gözləyən", counts.pending],
+                  ] as [Filter, string, number][]).map(([key, label, count]) => (
                     <button
                       key={key}
                       type="button"
                       role="tab"
                       aria-selected={filter === key}
                       onClick={() => setFilter(key)}
-                      className={`press min-h-[40px] px-3.5 rounded-[11px] text-xs md:text-[13px] ${
+                      className={`press min-h-[40px] px-1.5 md:px-3.5 rounded-[11px] text-[12px] md:text-[13px] whitespace-nowrap inline-flex items-center justify-center gap-1 ${
                         filter === key ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"
                       }`}
                     >
                       {label}
+                      <span className="tabular-nums">· {count}</span>
                     </button>
                   ))}
                 </div>

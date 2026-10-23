@@ -104,6 +104,7 @@ self.addEventListener('push', (event) => {
       icon: data.icon || "/icon.png",
       badge: data.badge || "/favicon.ico",
       vibrate: data.vibrate || [200, 100, 200],
+      requireInteraction: !!data.requireInteraction,
       data: data.data || { url: "/" }
     };
 

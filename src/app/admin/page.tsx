@@ -352,7 +352,6 @@ export default function AdminPage() {
       <div className="flex flex-col gap-5 md:gap-7">
         <PageHeader
           title="İnzibatçı paneli"
-          subtitle={isCreatorOfGroup ? `${groupName} qrupunu idarə et: cüzləri böl, iştirakçıları dəvət et` : groupName}
           actions={isCreatorOfGroup ? (
             <button
               type="button"
