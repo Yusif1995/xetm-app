@@ -20,7 +20,7 @@ const DUA_PAGES = 3;
 const SWIPE_PX = 50;
 
 // Page images are cached for a year as immutable, so a new export must change the URL: bump this
-const IMAGE_VERSION = 4;
+const IMAGE_VERSION = 5;
 const imagesOf = (page: number, dua: boolean) =>
   (dua ? [`dua-${page}`] : page === 1 ? ["1", "1b"] : [String(page)]).map((n) => `/mushaf/${n}.webp?v=${IMAGE_VERSION}`);
 
@@ -214,14 +214,16 @@ function Reader() {
         onTouchEnd={onTouchEnd}
         onClick={onPageClick}
       >
-        <div className={`flex-1 min-h-0 flex flex-col items-center gap-3 px-1.5 ${!isDua && page === 1 ? "justify-start" : "justify-center"}`}>
+        {/* Page 1 is two ornamented panels (al-Fatiha and the opening of al-Baqara): shown one under
+            the other at full width and scrolled; every other page fits the screen */}
+        <div className={`flex flex-col items-center gap-4 px-1.5 ${!isDua && page === 1 ? "shrink-0" : "flex-1 min-h-0 justify-center"}`}>
           {imagesOf(page, isDua).map((src) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={src}
               src={src}
               alt={isDua ? `Xətm duası, səhifə ${page}` : `Quran, səhifə ${page}`}
-              className={`block w-full object-contain ${!isDua && page === 1 ? "h-auto" : "h-full min-h-0"}`}
+              className={`block w-full object-contain ${!isDua && page === 1 ? "h-auto max-w-[560px]" : "h-full min-h-0"}`}
               draggable={false}
             />
           ))}
