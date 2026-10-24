@@ -16,11 +16,11 @@ import { useEncouragement } from "@/components/Encouragement";
 import { IconCheck, IconClose, LoadingScreen, btn, button } from "@/components/ui";
 
 const TOTAL_PAGES = 604;
-const DUA_PAGES = 4;
+const DUA_PAGES = 3;
 const SWIPE_PX = 50;
 
 // Page images are cached for a year as immutable, so a new export must change the URL: bump this
-const IMAGE_VERSION = 3;
+const IMAGE_VERSION = 4;
 const imagesOf = (page: number, dua: boolean) =>
   (dua ? [`dua-${page}`] : page === 1 ? ["1", "1b"] : [String(page)]).map((n) => `/mushaf/${n}.webp?v=${IMAGE_VERSION}`);
 
