@@ -20,7 +20,7 @@ const DUA_PAGES = 4;
 const SWIPE_PX = 50;
 
 // Page images are cached for a year as immutable, so a new export must change the URL: bump this
-const IMAGE_VERSION = 2;
+const IMAGE_VERSION = 3;
 const imagesOf = (page: number, dua: boolean) =>
   (dua ? [`dua-${page}`] : page === 1 ? ["1", "1b"] : [String(page)]).map((n) => `/mushaf/${n}.webp?v=${IMAGE_VERSION}`);
 
