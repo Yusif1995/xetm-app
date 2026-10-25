@@ -5,6 +5,7 @@ import { db } from "../lib/firebase";
 import { doc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { createGroup, getGroupDoc, joinGroup, privateDocRef, publishProfileToGroups, UserDoc } from "../lib/db";
 import AuthShell from "./AuthShell";
+import { useAuth } from "../lib/auth";
 import { clearPendingInvite, parseInviteId, readPendingInvite } from "../lib/invite";
 import { btn, inputCls } from "./ui";
 
@@ -14,6 +15,7 @@ interface OnboardingScreenProps {
 }
 
 export default function OnboardingScreen({ user, logout }: OnboardingScreenProps) {
+  const { isSuperAdmin } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [nickname, setNickname] = useState("");
@@ -144,7 +146,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
         await updateDoc(userRef, { nickname: nickname.trim() });
 
         // 2. Create the group (automatically links to user as creator and approves them)
-        const newGroupId = await createGroup(groupName.trim(), user.uid);
+        const newGroupId = await createGroup(groupName.trim());
         newActiveGroupId = newGroupId;
 
         // 3. Complete onboarding
@@ -245,6 +247,8 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
 
           {!isInvited && (
             <div className="flex flex-col gap-3 pt-4 border-t border-sand">
+              {/* Starting a new group is for app admins only; everyone else joins with a link */}
+              {isSuperAdmin && (
               <div role="tablist" aria-label="Qrup" className="grid grid-cols-2 gap-1 p-1 rounded-[14px] bg-sand">
                 {([["join", "Dəvət linkim var"], ["create", "Yeni qrup yaradıram"]] as const).map(([key, label]) => (
                   <button
@@ -260,6 +264,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
                   </button>
                 ))}
               </div>
+              )}
               {mode === "later" ? (
                 <div className="flex flex-col gap-2 rounded-btn bg-cream border border-line px-4 py-3.5 text-sm leading-relaxed text-ink">
                   <p className="m-0">Profilini indi tamamla. Qrup sahibindən linki alanda <strong>Qruplarım</strong> bölməsində yapışdırıb qoşula biləcəksən.</p>
@@ -284,7 +289,7 @@ export default function OnboardingScreen({ user, logout }: OnboardingScreenProps
                     Linkim hələ yoxdur
                   </button>
                 </label>
-              ) : (
+              ) : isSuperAdmin && (
                 <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
                   Xətm qrupunun adı
                   <input

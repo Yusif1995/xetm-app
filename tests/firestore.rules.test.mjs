@@ -227,18 +227,12 @@ describe("users", () => {
 });
 
 describe("groups", () => {
-  test("anyone can create a group they own", async () => {
-    await assertSucceeds(setDoc(doc(dbAs(MEMBER), "groups", "new"), {
+  test("clients cannot create groups (the server does, for app admins only)", async () => {
+    await assertFails(setDoc(doc(dbAs(MEMBER), "groups", "new"), {
       name: "n", createdBy: MEMBER, members: { [MEMBER]: "owner" },
     }));
-  });
-
-  test("cannot create a group owned by someone else or with extra members", async () => {
-    await assertFails(setDoc(doc(dbAs(MEMBER), "groups", "new"), {
-      name: "n", createdBy: OWNER, members: { [OWNER]: "owner" },
-    }));
-    await assertFails(setDoc(doc(dbAs(MEMBER), "groups", "new"), {
-      name: "n", createdBy: MEMBER, members: { [MEMBER]: "owner", [STRANGER]: "member" },
+    await assertFails(setDoc(doc(dbAs(SUPER), "groups", "new"), {
+      name: "n", createdBy: SUPER, members: { [SUPER]: "owner" },
     }));
   });
 
@@ -337,8 +331,9 @@ describe("member messages", () => {
     await assertFails(setDoc(msgRef(MEMBER, G, OWNER), message));
   });
 
-  test("owner can list read status of all members' messages", async () => {
+  test("owner and app admins can list read status of all members' messages", async () => {
     await assertSucceeds(getDocs(collection(dbAs(OWNER), "groups", G, "messages")));
+    await assertSucceeds(getDocs(collection(dbAs(SUPER), "groups", G, "messages")));
     await assertFails(getDocs(collection(dbAs(MEMBER), "groups", G, "messages")));
   });
 

@@ -289,27 +289,20 @@ export function messageDocRef(groupId: string, uid: string) {
   return doc(db, "groups", groupId, "messages", uid);
 }
 
-// The group owner sends (or, with empty text, clears) a message to a member.
-// Only the owner and that member can read it; it is also pushed to the member's devices.
+// The group owner or an app admin sends (or, with empty text, clears) a message to a member.
+// The server writes it (so admins who did not create the group can send too) and pushes it.
+// Throws with a readable reason when it is not saved.
 export async function sendMemberMessage(uid: string, groupId: string, text: string): Promise<void> {
-  const trimmed = text.trim();
-  if (!trimmed) {
-    await deleteDoc(messageDocRef(groupId, uid));
-    return;
-  }
-  await setDoc(messageDocRef(groupId, uid), { text: trimmed, sentAt: new Date().toISOString(), read: false });
-
-  try {
-    const idToken = await auth.currentUser?.getIdToken();
-    if (!idToken) return;
-    await fetch("/api/notify-member", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({ groupId, targetUid: uid, text: trimmed })
-    });
-  } catch (err) {
-    // The message is saved either way; push is best effort
-    console.error("Error pushing member message:", err);
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Hesabına yenidən daxil ol.");
+  const res = await fetch("/api/group-message", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ groupId, targetUid: uid, text })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(typeof data.error === "string" ? data.error : "Mesaj göndərilmədi.");
   }
 }
 
@@ -494,29 +487,21 @@ export async function getGroupDoc(groupId: string): Promise<GroupDoc | null> {
   }
 }
 
-// Create a new group owned by createdBy
-export async function createGroup(name: string, createdBy: string): Promise<string> {
-  const { addDoc, collection, doc: fsDoc, updateDoc, arrayUnion } = await import("firebase/firestore");
-  const docRef = await addDoc(collection(db, "groups"), {
-    name,
-    createdBy,
-    createdAt: new Date().toISOString(),
-    lastDistributedJuz: 0,
-    cycleStartJuz: 1,
-    isCurrentKhatmCompleted: false,
-    completedKhatms: 0,
-    members: { [createdBy]: "owner" },
-    membersBackfilled: true
+// Create a new group owned by the signed-in user. Only app admins may; the server checks and
+// creates it. Throws with a readable reason otherwise.
+export async function createGroup(name: string): Promise<string> {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Hesabına yenidən daxil ol.");
+  const res = await fetch("/api/create-group", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ name })
   });
-
-  const creatorRef = fsDoc(db, "users", createdBy);
-  await updateDoc(creatorRef, {
-    groupIds: arrayUnion(docRef.id),
-    [`groupData.${docRef.id}`]: { ...emptyGroupEntry(), approved: true },
-    selfEditedGroup: docRef.id
-  });
-
-  return docRef.id;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || typeof data.groupId !== "string") {
+    throw new Error(typeof data.error === "string" ? data.error : "Qrup yaradılmadı.");
+  }
+  return data.groupId;
 }
 
 // Ask to join a group: adds the user to the group's members map as pending.

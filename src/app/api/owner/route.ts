@@ -23,7 +23,7 @@ interface AdminEntry {
 }
 
 // App owner tools (OWNER_EMAIL only): list the app admins (admins/{uid}) with the groups they
-// created, revoke an admin, delete a group. Runs with the Admin SDK, so firestore.rules stay closed.
+// created, list all users, grant or revoke admin rights, delete a group. Runs with the Admin SDK, so firestore.rules stay closed.
 export async function POST(req: NextRequest) {
   try {
     const ownerUid = await verifyRequestOwner(req);
@@ -49,6 +49,23 @@ export async function POST(req: NextRequest) {
 
     if (action === "list") {
       return NextResponse.json({ admins: await listAdmins(db, ownerUid) });
+    }
+
+    // Everyone who has signed up, with whether they are an admin, so the owner can pick one
+    if (action === "users") {
+      return NextResponse.json({ users: await listUsers(db) });
+    }
+
+    if (action === "grant") {
+      const uid = body.uid;
+      if (typeof uid !== "string" || !ID_PATTERN.test(uid)) {
+        return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      }
+      if (!(await db.collection("users").doc(uid).get()).exists) {
+        return NextResponse.json({ error: "Bu istifadəçi tapılmadı." }, { status: 404 });
+      }
+      await db.collection("admins").doc(uid).set({ grantedBy: ownerUid, grantedAt: new Date().toISOString() }, { merge: true });
+      return NextResponse.json({ success: true });
     }
 
     if (action === "revoke") {
@@ -116,6 +133,42 @@ async function listAdmins(db: Firestore, ownerUid: string): Promise<AdminEntry[]
   }));
   // You first, then by name
   return entries.sort((x, y) => Number(y.isSelf) - Number(x.isSelf) || (x.name || x.nickname).localeCompare(y.name || y.nickname));
+}
+
+interface UserEntry {
+  uid: string;
+  nickname: string;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+}
+
+async function listUsers(db: Firestore): Promise<UserEntry[]> {
+  const [usersSnap, adminSnap, privateSnap] = await Promise.all([
+    db.collection("users").get(),
+    db.collection("admins").get(),
+    db.collectionGroup("private").get(),
+  ]);
+  const admins = new Set(adminSnap.docs.map((d) => d.id));
+  // users/{uid}/private/profile holds the name and email
+  const priv = new Map<string, Record<string, unknown>>();
+  privateSnap.docs.forEach((d) => {
+    const owner = d.ref.parent.parent;
+    if (d.id === PRIVATE_DOC && owner?.parent.id === "users") priv.set(owner.id, d.data());
+  });
+  return usersSnap.docs
+    .map((u) => {
+      const p = priv.get(u.id) || {};
+      const nickname = u.data().nickname;
+      return {
+        uid: u.id,
+        nickname: typeof nickname === "string" ? nickname : "",
+        name: typeof p.name === "string" ? p.name : "",
+        email: typeof p.email === "string" ? p.email : "",
+        isAdmin: admins.has(u.id),
+      };
+    })
+    .sort((x, y) => (x.name || x.nickname || x.email).localeCompare(y.name || y.nickname || y.email));
 }
 
 // Same cleanup the client did when an owner deleted their group: drop the group from every

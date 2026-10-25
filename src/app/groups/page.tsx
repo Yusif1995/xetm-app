@@ -84,13 +84,14 @@ export default function GroupsPage() {
     setCreating(true);
     setError(null);
     try {
-      const newId = await createGroup(newGroupName.trim(), user.uid);
+      const newId = await createGroup(newGroupName.trim());
       setNewGroupName("");
       setActiveGroupId(newId);
-      router.push("/admin");
+      // The new group arrives in the user doc from the server; reload so the app picks it up
+      window.location.href = "/admin";
     } catch (err) {
       console.error("Error creating group:", err);
-      setError("Qrup yaradılarkən xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.");
+      setError(err instanceof Error ? err.message : "Qrup yaradılarkən xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.");
     } finally {
       setCreating(false);
     }
@@ -114,7 +115,7 @@ export default function GroupsPage() {
         <PageHeader
           title="Qruplarım"
           subtitle={<>
-            <span className="md:hidden">Qrupunu idarə et, yeni qrup yarat və ya qoşul</span>
+            <span className="md:hidden">{isSuperAdmin ? "Qrupunu idarə et, yeni qrup yarat və ya qoşul" : "Qruplarına bax və ya dəvət linki ilə qoşul"}</span>
             <span className="hidden md:inline">Üzv olduğun xətm qrupları</span>
           </>}
         />
@@ -131,7 +132,9 @@ export default function GroupsPage() {
           ) : groups.length === 0 ? (
             <Card>
               <p className="m-0 text-sm text-muted text-center py-4">
-                Hələ heç bir qrupa üzv deyilsən. Dəvət linki ilə qoşul və ya aşağıdan yeni qrup yarat.
+                {isSuperAdmin
+                  ? "Hələ heç bir qrupa üzv deyilsən. Dəvət linki ilə qoşul və ya aşağıdan yeni qrup yarat."
+                  : "Hələ heç bir qrupa üzv deyilsən. Qrup rəhbərindən aldığın dəvət linki ilə aşağıdan qoşul."}
               </p>
             </Card>
           ) : (
@@ -185,6 +188,8 @@ export default function GroupsPage() {
         </section>
 
         <div className="flex flex-wrap gap-5 items-stretch">
+          {/* Only app admins create groups; everyone else joins with an invite link */}
+          {isSuperAdmin && (
           <form onSubmit={handleCreate} className="flex-[1_1_360px] bg-white border border-line rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
             <h2 className="m-0 text-base md:text-lg font-bold text-ink">Yeni qrup yarat</h2>
             <div className="flex flex-wrap gap-2.5 items-end">
@@ -204,6 +209,7 @@ export default function GroupsPage() {
               </button>
             </div>
           </form>
+          )}
 
           <form onSubmit={handleJoin} className="flex-[1_1_360px] bg-white border border-line rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
             <h2 className="m-0 text-base md:text-lg font-bold text-ink">Dəvət linki ilə qoşul</h2>

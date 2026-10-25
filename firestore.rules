@@ -156,10 +156,9 @@ service cloud.firestore {
         && (resource.data.createdBy == request.auth.uid
             || resource.data.members[request.auth.uid] in ['owner', 'member', 'pending']);
 
-      // Anyone can create a group they own, with themselves as the only member
-      allow create: if isAuthenticated()
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.get('members', {}).keys().hasOnly([request.auth.uid]);
+      // Groups are created only by the server (/api/create-group), which checks that the caller
+      // is an app admin; clients cannot create them directly
+      allow create: if false;
 
       // Khatm counters are maintained by the server; members may only join (pending) or leave
       allow update: if isSuperAdmin()
@@ -177,9 +176,10 @@ service cloud.firestore {
           && (!(request.auth.uid in newMembers) || newMembers[request.auth.uid] == 'pending');
       }
 
-      // Owner -> member messages: readable by the owner and that member only
+      // Owner -> member messages: readable by the owner, app admins and that member only.
+      // App admins send through the server (/api/group-message).
       match /messages/{memberId} {
-        allow read: if isOwner(memberId) || isGroupOwner(groupId);
+        allow read: if isOwner(memberId) || isGroupOwner(groupId) || isSuperAdmin();
         allow create, delete: if isGroupOwner(groupId);
         allow update: if isGroupOwner(groupId)
           || (isOwner(memberId) && changedKeys().hasOnly(['read']));

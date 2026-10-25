@@ -243,7 +243,7 @@ export default function AdminPage() {
       setMessageText("");
     } catch (err) {
       console.error("Error sending member message:", err);
-      setMessageError("Mesaj göndərilərkən xəta baş verdi.");
+      setMessageError(`Mesaj göndərilmədi: ${err instanceof Error ? err.message : "İnterneti yoxla və yenidən cəhd et."}`);
     } finally {
       setMessageSending(false);
     }
@@ -352,18 +352,30 @@ export default function AdminPage() {
       <div className="flex flex-col gap-5 md:gap-7">
         <PageHeader
           title="İnzibatçı paneli"
-          actions={isCreatorOfGroup ? (
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Ayarlar"
-              title="Ayarlar"
-              aria-haspopup="dialog"
-              aria-expanded={settingsOpen}
-              className="press self-start w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-full bg-white border border-line shadow-card text-ink flex items-center justify-center hover:bg-sand"
-            >
-              <IconSettings size={22} />
-            </button>
+          actions={canManage ? (
+            <div className="flex items-center gap-2 md:gap-3 self-start shrink-0">
+              <Link
+                href="/admin/ai"
+                aria-label="AI köməkçi"
+                title="AI köməkçi"
+                className="press w-11 h-11 md:w-12 md:h-12 rounded-full bg-mint border border-line shadow-card text-forest flex items-center justify-center hover:bg-donebg"
+              >
+                <IconSparkle size={22} />
+              </Link>
+              {isCreatorOfGroup && (
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label="Ayarlar"
+                  title="Ayarlar"
+                  aria-haspopup="dialog"
+                  aria-expanded={settingsOpen}
+                  className="press w-11 h-11 md:w-12 md:h-12 rounded-full bg-white border border-line shadow-card text-ink flex items-center justify-center hover:bg-sand"
+                >
+                  <IconSettings size={22} />
+                </button>
+              )}
+            </div>
           ) : undefined}
         />
 

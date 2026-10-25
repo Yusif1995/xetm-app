@@ -37,6 +37,16 @@ export async function isAppOwner(): Promise<boolean> {
   }
 }
 
+export interface OwnerUser {
+  uid: string;
+  nickname: string;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+}
+
 export const listAdmins = () => call<{ admins?: OwnerAdmin[]; error?: string }>({ action: "list" });
+export const listUsers = () => call<{ users?: OwnerUser[]; error?: string }>({ action: "users" });
+export const grantAdmin = (uid: string) => call<{ error?: string }>({ action: "grant", uid });
 export const revokeAdmin = (uid: string) => call<{ error?: string }>({ action: "revoke", uid });
 export const deleteGroupAsOwner = (groupId: string) => call<{ error?: string }>({ action: "deleteGroup", groupId });
