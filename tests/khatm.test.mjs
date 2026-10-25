@@ -9,6 +9,7 @@ import {
   openKhatmForAssignment,
   pagesReadBy,
   planDistribution,
+  readerStateInKhatm,
 } from "../src/lib/khatm.ts";
 
 // Deterministic random numbers for repeatable tests
@@ -187,5 +188,37 @@ describe("statistics", () => {
     };
     assert.equal(pagesReadBy(transferred, "first"), 5);
     assert.equal(pagesReadBy(transferred, "second"), 7);
+  });
+});
+
+describe("reader state in a khatm (Qrup tabs)", () => {
+  const members = ["a", "b", "c", "d"];
+  const rng = seeded(7);
+  // 1st distribution: everyone gets a juz of khatm 1; a and b finish, c reads a little, d nothing
+  let all = distribute([], members, rng, 1);
+  const byUid = (uid) => all.find((x) => x.uid === uid);
+  all = all.map((x) => (x.uid === "a" || x.uid === "b" ? finishAll([x])[0] : x.uid === "c" ? { ...x, completedPages: [x.pages[0]] } : x));
+
+  test("after the 1st distribution", () => {
+    assert.equal(readerStateInKhatm(all, "a", 1), "finished");
+    assert.equal(readerStateInKhatm(all, "c", 1), "reading");
+    assert.equal(readerStateInKhatm(all, "d", 1), "notStarted");
+  });
+
+  test("a new distribution in the same khatm starts finished members from zero", () => {
+    const second = distribute(all, members, rng, 2);
+    const after = [...all, ...second];
+    const newOfA = second.find((x) => x.uid === "a");
+    assert.ok(newOfA && newOfA.khatm === 1, "a gets another juz of khatm 1");
+    // a finished juz 1 earlier but has not opened the new one: not started, not "reading"
+    assert.equal(readerStateInKhatm(after, "a", 1), "notStarted");
+    // one page of the new juz moves a to reading; finishing it moves a to finished
+    const reading = after.map((x) => (x.id === newOfA.id ? { ...x, completedPages: [x.pages[0]] } : x));
+    assert.equal(readerStateInKhatm(reading, "a", 1), "reading");
+    const done = after.map((x) => (x.id === newOfA.id ? finishAll([x])[0] : x));
+    assert.equal(readerStateInKhatm(done, "a", 1), "finished");
+    // c is still on the first juz (read one page) and got a second one: still reading
+    assert.equal(readerStateInKhatm(after, "c", 1), "reading");
+    assert.ok(byUid("d"));
   });
 });

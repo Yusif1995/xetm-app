@@ -9,12 +9,10 @@ import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth";
 import { formatIsoDateAz, relativeTimeAz } from "@/lib/dates";
 import { khatmLabel } from "@/lib/quran";
-import { khatmSummaries, memberStats, openKhatmForAssignment } from "@/lib/khatm";
+import { khatmSummaries, memberStats, openKhatmForAssignment, readerStateInKhatm, type ReaderState } from "@/lib/khatm";
 import { useGroupAssignments, useGroupFullNames, useGroupAdmins } from "@/lib/useGroupData";
 import { JuzMap, KhatmTabs, khatmJuzTiles, memberShare, ParticipantRow, participantName, roleOf } from "@/components/GroupWidgets";
 import { Bar, Card, LoadingScreen, PageHeader, button } from "@/components/ui";
-
-type ReaderState = "notStarted" | "reading" | "finished";
 
 // Same colours as the juz tiles above: given (yellow), in progress (brown), finished (green)
 const READER_TABS: { key: ReaderState; label: string; on: string; off: string; empty: string }[] = [
@@ -99,15 +97,9 @@ export default function ProgressPage() {
   const khatm = selectedKhatm && khatms.includes(selectedKhatm) ? selectedKhatm : defaultKhatm;
   const summary = summaries.find((k) => k.khatm === khatm) || null;
 
-  // Where each participant stands in the selected khatm
+  // Where each participant stands in the selected khatm, by the juz they hold now
   const byState: Record<ReaderState, UserDoc[]> = { notStarted: [], reading: [], finished: [] };
-  participants.forEach((u) => {
-    const mine = assignments.filter((a) => a.khatm === khatm && a.uid === u.uid);
-    const state: ReaderState = mine.length > 0 && mine.every((a) => a.done)
-      ? "finished"
-      : mine.some((a) => a.completedPages.length > 0) ? "reading" : "notStarted";
-    byState[state].push(u);
-  });
+  participants.forEach((u) => byState[readerStateInKhatm(assignments, u.uid, khatm)].push(u));
   const ratio = summary ? summary.pagesRead / summary.totalPages : 0;
 
   // Recent activity: pages read per holder per day, newest first

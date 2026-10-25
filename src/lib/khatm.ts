@@ -66,6 +66,21 @@ export function openAssignmentsOf(assignments: Assignment[], uid: string): Assig
     .sort((a, b) => a.distribution - b.distribution || a.khatm - b.khatm || a.juz - b.juz);
 }
 
+export type ReaderState = "notStarted" | "reading" | "finished";
+
+// Where a member stands in one khatm, judged by the juz they hold now (the unfinished ones), so a
+// new distribution counts from zero: someone who finished their juz in an earlier distribution and
+// was just given a new one is "not started" again until they read a page of it.
+// - an unfinished juz with at least one page read -> reading
+// - unfinished juz, none started, or no juz in this khatm at all -> notStarted
+// - no unfinished juz and at least one finished -> finished
+export function readerStateInKhatm(assignments: Assignment[], uid: string, khatm: number): ReaderState {
+  const mine = assignments.filter((a) => a.uid === uid && a.khatm === khatm);
+  const open = mine.filter((a) => !a.done);
+  if (open.length > 0) return open.some((a) => a.completedPages.length > 0) ? "reading" : "notStarted";
+  return mine.length > 0 ? "finished" : "notStarted";
+}
+
 // Members allowed into the next distribution: fewer than MAX_OPEN_ASSIGNMENTS unfinished juz
 export function eligibleMembers(memberUids: string[], assignments: Assignment[]): { eligible: string[]; skipped: string[] } {
   const eligible: string[] = [];
