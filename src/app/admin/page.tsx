@@ -639,14 +639,6 @@ export default function AdminPage() {
                 <Link href="/admin/arxiv" className={button("outline")}>Arxivə bax</Link>
               </Card>
 
-              <section className="bg-mint rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
-                <h2 className="m-0 font-bold text-lg md:text-[22px] text-ink">AI köməkçi</h2>
-                <div className="text-sm leading-relaxed text-[#2F4A3E]">Günün ayə və hədisini AI ilə yaz, Quran və hədislər barədə suallarını ver.</div>
-                <Link href="/admin/ai" className={btn.primary}>
-                  <IconSparkle size={18} />
-                  Köməkçini aç
-                </Link>
-              </section>
 
             </div>
           </div>

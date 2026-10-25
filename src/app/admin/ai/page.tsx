@@ -7,7 +7,8 @@ import { doc, onSnapshot } from "firebase/firestore";
 import AppLayout from "@/components/AppLayout";
 import { setGroupSettings } from "@/lib/db";
 import { bakuDateKey, dailyContent } from "@/lib/dailyContent";
-import { Card, IconSparkle, LoadingScreen, PageHeader, btn, inputCls } from "@/components/ui";
+import Link from "next/link";
+import { Card, IconClose, IconSparkle, LoadingScreen, PageHeader, btn, inputCls } from "@/components/ui";
 
 // Asked of the assistant when the owner wants today's ayah and hadith written for the group
 const DAILY_PROMPT =
@@ -253,7 +254,20 @@ export default function AiPage() {
   return (
     <AppLayout activeTab="ai">
       <div className="flex flex-col gap-5 md:gap-7">
-        <PageHeader title="AI köməkçi" subtitle="Günün ayə və hədisini yaz, Quran və hədislər barədə suallarını ver." />
+        <PageHeader
+          title="AI köməkçi"
+          subtitle="Günün ayə və hədisini yaz, Quran və hədislər barədə suallarını ver."
+          actions={
+            <Link
+              href="/admin"
+              aria-label="Bağla"
+              title="Bağla"
+              className="press self-start w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-full bg-white border border-line shadow-card text-ink flex items-center justify-center hover:bg-sand"
+            >
+              <IconClose size={22} />
+            </Link>
+          }
+        />
 
         {activeGroupId && activeGroupId !== "default" && (
           <Card>
