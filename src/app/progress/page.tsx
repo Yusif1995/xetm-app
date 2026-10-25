@@ -8,10 +8,10 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth";
 import { formatIsoDateAz, relativeTimeAz } from "@/lib/dates";
-import { khatmLabel } from "@/lib/quran";
-import { khatmSummaries, memberStats, openKhatmForAssignment, readerStateInKhatm, type ReaderState } from "@/lib/khatm";
+import { khatmLabel, ordinalAz } from "@/lib/quran";
+import { activeDistributions, activeKhatms, khatmSummaries, readerStateInDistribution, type ReaderState } from "@/lib/khatm";
 import { useGroupAssignments, useGroupFullNames, useGroupAdmins } from "@/lib/useGroupData";
-import { JuzMap, KhatmTabs, khatmJuzTiles, memberShare, ParticipantRow, participantName, roleOf } from "@/components/GroupWidgets";
+import { JuzMap, KhatmTabs, khatmJuzTiles, ParticipantRow, participantName, roleOf, type ShareStats } from "@/components/GroupWidgets";
 import { Bar, Card, LoadingScreen, PageHeader, button } from "@/components/ui";
 
 // Same colours as the juz tiles above: given (yellow), in progress (brown), finished (green)
@@ -42,6 +42,7 @@ export default function ProgressPage() {
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [selectedKhatm, setSelectedKhatm] = useState<number | null>(null);
+  const [selectedDist, setSelectedDist] = useState<number | null>(null);
   const canSeeNames = !!user && (isSuperAdmin || activeGroup?.createdBy === user.uid);
   const fullNames = useGroupFullNames(activeGroupId, canSeeNames);
   const approvedHere = !!user && (isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup));
@@ -88,19 +89,42 @@ export default function ProgressPage() {
     rank(a.uid) - rank(b.uid) || nameOf(a).localeCompare(nameOf(b))
   );
 
-  // Khatms: every khatm with assignments, plus the one currently being handed out
+  // Khatms on the 30-juz card: the unfinished ones (at most 3, the current one first). A khatm whose
+  // 30 juz are all finished leaves this screen and is kept in the admin archive.
   const summaries = khatmSummaries(assignments);
   const completed = new Set(summaries.filter((k) => k.completedAt).map((k) => k.khatm));
-  const assigningKhatm = openKhatmForAssignment(assignments).khatm;
-  const khatms = Array.from(new Set([...summaries.map((k) => k.khatm), ...(assignments.length > 0 ? [assigningKhatm] : [])])).sort((a, b) => a - b);
-  const defaultKhatm = summaries.find((k) => !k.completedAt)?.khatm ?? khatms[khatms.length - 1] ?? 1;
-  const khatm = selectedKhatm && khatms.includes(selectedKhatm) ? selectedKhatm : defaultKhatm;
+  const khatms = activeKhatms(assignments);
+  const khatm = selectedKhatm && khatms.includes(selectedKhatm) ? selectedKhatm : khatms[0] ?? 1;
   const summary = summaries.find((k) => k.khatm === khatm) || null;
-
-  // Where each participant stands in the selected khatm, by the juz they hold now
-  const byState: Record<ReaderState, UserDoc[]> = { notStarted: [], reading: [], finished: [] };
-  participants.forEach((u) => byState[readerStateInKhatm(assignments, u.uid, khatm)].push(u));
   const ratio = summary ? summary.pagesRead / summary.totalPages : 0;
+
+  // Participants card, per distribution: the unfinished ones (at most 3), newest first. A
+  // distribution in which everyone has finished their juz is no longer shown.
+  const distributions = activeDistributions(assignments);
+  const distribution = selectedDist && distributions.includes(selectedDist) ? selectedDist : distributions[0] ?? null;
+  const byState: Record<ReaderState, UserDoc[]> = { notStarted: [], reading: [], finished: [] };
+  let withoutJuz = 0;
+  if (distribution !== null) {
+    participants.forEach((u) => {
+      const state = readerStateInDistribution(assignments, u.uid, distribution);
+      if (state) byState[state].push(u);
+      else withoutJuz++;
+    });
+  }
+  // Row figures for the selected distribution only
+  const distShare = (uid: string): ShareStats => {
+    const mine = assignments.filter((a) => a.uid === uid && a.distribution === distribution);
+    const done = mine.reduce((s, a) => s + a.completedPages.length, 0);
+    const total = mine.reduce((s, a) => s + a.pages.length, 0);
+    const finished = mine.filter((a) => a.done).length;
+    const state = distribution !== null ? readerStateInDistribution(assignments, uid, distribution) : null;
+    return {
+      label: mine.map((a) => `Cüz ${a.juz} · ${khatmLabel(a.khatm)}`).join(", "),
+      done, total, ratio: total > 0 ? done / total : 0,
+      open: mine.length - finished, finished,
+      status: state === "finished" ? "done" : state === "reading" ? "progress" : "assigned",
+    };
+  };
 
   // Recent activity: pages read per holder per day, newest first
   const activityMap = new Map<string, { name: string; count: number; time: number }>();
@@ -174,6 +198,29 @@ export default function ProgressPage() {
                 <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{participants.length} nəfər</span>
               </div>
+              {distribution === null ? (
+                <p className="m-0 text-sm text-muted py-4">
+                  {assignments.length === 0 ? "Hələ cüz paylanmayıb." : "Bütün bölgülərdə hamı cüzünü bitirib. Növbəti bölgü burada görünəcək."}
+                </p>
+              ) : (
+              <>
+              {/* One tab per unfinished distribution, the current one first */}
+              <div role="tablist" aria-label="Bölgü" className="flex flex-wrap gap-1.5 pb-2">
+                {distributions.map((d, i) => (
+                  <button
+                    key={d}
+                    type="button"
+                    role="tab"
+                    aria-selected={distribution === d}
+                    onClick={() => setSelectedDist(d)}
+                    className={`press min-h-[40px] px-3.5 rounded-xl text-sm font-semibold border ${
+                      distribution === d ? "bg-forest text-white border-forest" : "bg-white text-ink border-field hover:bg-sand"
+                    }`}
+                  >
+                    {ordinalAz(d)} bölgü{i === 0 ? " · cari" : ""}
+                  </button>
+                ))}
+              </div>
               <div role="tablist" aria-label="İştirakçıların vəziyyəti" className="grid grid-cols-3 gap-1.5 pb-2">
                 {READER_TABS.map((t) => {
                   const selected = readerTab === t.key;
@@ -196,12 +243,12 @@ export default function ProgressPage() {
                 <p className="m-0 text-sm text-muted py-4">{READER_TABS.find((t) => t.key === readerTab)!.empty}</p>
               ) : (
                 byState[readerTab].map((u) => {
-                  const inKhatm = memberStats(assignments, u.uid).perKhatm.find((k) => k.khatm === khatm);
+                  const share = distShare(u.uid);
                   return (
                     <ParticipantRow
                       key={u.uid}
-                      share={memberShare(assignments, u.uid)}
-                      note={inKhatm ? `${khatmLabel(khatm)}: ${inKhatm.juz.length} cüz · ${inKhatm.pagesRead} səhifə` : `${khatmLabel(khatm)}: cüz yoxdur`}
+                      share={share}
+                      note={`${ordinalAz(distribution)} bölgü: ${share.done} / ${share.total} səhifə`}
                       name={nameOf(u)}
                       isSelf={u.uid === user.uid}
                       isOwner={u.uid === groupCreatedBy}
@@ -209,6 +256,13 @@ export default function ProgressPage() {
                     />
                   );
                 })
+              )}
+              {withoutJuz > 0 && (
+                <p className="m-0 pt-3 text-xs text-muted border-t border-sand">
+                  {withoutJuz} nəfərə bu bölgüdə cüz verilməyib.
+                </p>
+              )}
+              </>
               )}
             </Card>
           </div>

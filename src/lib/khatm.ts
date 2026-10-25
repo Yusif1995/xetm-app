@@ -68,17 +68,33 @@ export function openAssignmentsOf(assignments: Assignment[], uid: string): Assig
 
 export type ReaderState = "notStarted" | "reading" | "finished";
 
-// Where a member stands in one khatm, judged by the juz they hold now (the unfinished ones), so a
-// new distribution counts from zero: someone who finished their juz in an earlier distribution and
-// was just given a new one is "not started" again until they read a page of it.
-// - an unfinished juz with at least one page read -> reading
-// - unfinished juz, none started, or no juz in this khatm at all -> notStarted
-// - no unfinished juz and at least one finished -> finished
-export function readerStateInKhatm(assignments: Assignment[], uid: string, khatm: number): ReaderState {
-  const mine = assignments.filter((a) => a.uid === uid && a.khatm === khatm);
+// ---------- what the Qrup screen shows (finished rounds move to the archive) ----------
+
+export const MAX_VISIBLE = 3;
+
+// Distributions that still have an unfinished juz, newest first, at most `max`. A distribution
+// in which every juz is finished is no longer shown (it lives on in the archive).
+export function activeDistributions(assignments: Assignment[], max = MAX_VISIBLE): number[] {
+  const open = new Set(assignments.filter((a) => !a.done).map((a) => a.distribution));
+  return Array.from(open).sort((a, b) => b - a).slice(0, max);
+}
+
+// A member's state in one distribution, from the juz they got in it; null if they got none
+export function readerStateInDistribution(assignments: Assignment[], uid: string, distribution: number): ReaderState | null {
+  const mine = assignments.filter((a) => a.uid === uid && a.distribution === distribution);
+  if (mine.length === 0) return null;
   const open = mine.filter((a) => !a.done);
-  if (open.length > 0) return open.some((a) => a.completedPages.length > 0) ? "reading" : "notStarted";
-  return mine.length > 0 ? "finished" : "notStarted";
+  if (open.length === 0) return "finished";
+  return open.some((a) => a.completedPages.length > 0) ? "reading" : "notStarted";
+}
+
+// Khatms to show on the 30-juz card: the ones not yet completed (including the one being handed
+// out), oldest first, at most `max`. Completed khatms move to the archive.
+export function activeKhatms(assignments: Assignment[], max = MAX_VISIBLE): number[] {
+  const summaries = khatmSummaries(assignments);
+  const open = summaries.filter((k) => !k.completedAt).map((k) => k.khatm);
+  if (assignments.length > 0) open.push(openKhatmForAssignment(assignments).khatm);
+  return Array.from(new Set(open)).sort((a, b) => a - b).slice(0, max);
 }
 
 // Members allowed into the next distribution: fewer than MAX_OPEN_ASSIGNMENTS unfinished juz

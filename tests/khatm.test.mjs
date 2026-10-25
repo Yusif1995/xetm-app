@@ -9,7 +9,9 @@ import {
   openKhatmForAssignment,
   pagesReadBy,
   planDistribution,
-  readerStateInKhatm,
+  activeDistributions,
+  activeKhatms,
+  readerStateInDistribution,
 } from "../src/lib/khatm.ts";
 
 // Deterministic random numbers for repeatable tests
@@ -191,34 +193,46 @@ describe("statistics", () => {
   });
 });
 
-describe("reader state in a khatm (Qrup tabs)", () => {
+describe("Qrup screen: distributions and khatms in view", () => {
   const members = ["a", "b", "c", "d"];
   const rng = seeded(7);
-  // 1st distribution: everyone gets a juz of khatm 1; a and b finish, c reads a little, d nothing
+  // 1st distribution: a and b finish, c reads a page, d nothing
   let all = distribute([], members, rng, 1);
-  const byUid = (uid) => all.find((x) => x.uid === uid);
   all = all.map((x) => (x.uid === "a" || x.uid === "b" ? finishAll([x])[0] : x.uid === "c" ? { ...x, completedPages: [x.pages[0]] } : x));
+  // 2nd distribution: everyone gets another juz of khatm 1
+  const second = distribute(all, members, rng, 2);
+  const both = [...all, ...second];
 
-  test("after the 1st distribution", () => {
-    assert.equal(readerStateInKhatm(all, "a", 1), "finished");
-    assert.equal(readerStateInKhatm(all, "c", 1), "reading");
-    assert.equal(readerStateInKhatm(all, "d", 1), "notStarted");
+  test("each distribution is judged on its own juz", () => {
+    assert.equal(readerStateInDistribution(both, "a", 1), "finished");
+    assert.equal(readerStateInDistribution(both, "a", 2), "notStarted");
+    assert.equal(readerStateInDistribution(both, "c", 1), "reading");
+    assert.equal(readerStateInDistribution(both, "d", 1), "notStarted");
+    assert.equal(readerStateInDistribution(both, "a", 3), null);
   });
 
-  test("a new distribution in the same khatm starts finished members from zero", () => {
-    const second = distribute(all, members, rng, 2);
-    const after = [...all, ...second];
-    const newOfA = second.find((x) => x.uid === "a");
-    assert.ok(newOfA && newOfA.khatm === 1, "a gets another juz of khatm 1");
-    // a finished juz 1 earlier but has not opened the new one: not started, not "reading"
-    assert.equal(readerStateInKhatm(after, "a", 1), "notStarted");
-    // one page of the new juz moves a to reading; finishing it moves a to finished
-    const reading = after.map((x) => (x.id === newOfA.id ? { ...x, completedPages: [x.pages[0]] } : x));
-    assert.equal(readerStateInKhatm(reading, "a", 1), "reading");
-    const done = after.map((x) => (x.id === newOfA.id ? finishAll([x])[0] : x));
-    assert.equal(readerStateInKhatm(done, "a", 1), "finished");
-    // c is still on the first juz (read one page) and got a second one: still reading
-    assert.equal(readerStateInKhatm(after, "c", 1), "reading");
-    assert.ok(byUid("d"));
+  test("open distributions are shown newest first; a finished one drops out", () => {
+    assert.deepEqual(activeDistributions(both), [2, 1]);
+    const firstDone = both.map((x) => (x.distribution === 1 ? finishAll([x])[0] : x));
+    assert.deepEqual(activeDistributions(firstDone), [2]);
+    assert.deepEqual(activeDistributions(finishAll(both)), []);
+  });
+
+  test("at most three distributions are shown", () => {
+    // five distributions that each still have an unfinished juz
+    const many = [1, 2, 3, 4, 5].map((d) => ({
+      id: `m${d}`,
+      ...newAssignmentData({ uid: `u${d}`, khatm: 1, juz: d }, d, "2026-10-01", "2026-10-07", "2026-10-01T10:00:00Z"),
+    }));
+    assert.deepEqual(activeDistributions(many), [5, 4, 3]);
+  });
+
+  test("a khatm with all 30 juz finished leaves the 30-juz card", () => {
+    const people = Array.from({ length: 30 }, (_, i) => `m${i}`);
+    const k1 = finishAll(distribute([], people, rng, 1));
+    assert.deepEqual(activeKhatms(k1), [2], "khatm 1 is done, khatm 2 is the one being handed out");
+    const partly = distribute(k1, people.slice(0, 5), rng, 2);
+    assert.deepEqual(activeKhatms([...k1, ...partly]), [2]);
+    assert.deepEqual(activeKhatms([]), []);
   });
 });

@@ -1,9 +1,12 @@
 // Group-level widgets shared by the "Bu gün", "Qrup", admin and analytics screens.
 // Everything is computed from the juz assignment records (groups/{gid}/assignments).
+"use client";
+import { useEffect, useRef, useState } from "react";
 import type { UserDoc } from "@/lib/db";
-import { khatmLabel } from "@/lib/quran";
+import { khatmLabel, ordinalAz } from "@/lib/quran";
+import { formatIsoDateAz } from "@/lib/dates";
 import { MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, type Assignment } from "@/lib/khatm";
-import { Avatar, Bar, Chip } from "./ui";
+import { Avatar, Bar, Chip, button } from "./ui";
 
 // Names: you see your own name; full names of others come from the group's profiles,
 // which only the group owner can read. Everyone else sees nicknames.
@@ -131,10 +134,15 @@ export function ParticipantRow({
 
 export interface JuzTile {
   juz: number;
+  khatm: number;
   state: "done" | "progress" | "assigned" | "empty";
   completed: number;
   total: number;
   holderUid: string | null;
+  distribution: number | null;
+  startDate: string;
+  endDate: string;
+  doneAt: string | null;
 }
 
 // The 30 juz of one khatm
@@ -142,11 +150,23 @@ export function khatmJuzTiles(assignments: Assignment[], khatm: number): JuzTile
   return Array.from({ length: 30 }, (_, i) => {
     const juz = i + 1;
     const a = assignments.find((x) => x.khatm === khatm && x.juz === juz);
-    if (!a) return { juz, state: "empty", completed: 0, total: juz === 30 ? 24 : 20, holderUid: null };
+    if (!a) {
+      return { juz, khatm, state: "empty", completed: 0, total: juz === 30 ? 24 : 20, holderUid: null, distribution: null, startDate: "", endDate: "", doneAt: null };
+    }
     const state = a.done ? "done" : a.completedPages.length > 0 ? "progress" : "assigned";
-    return { juz, state, completed: a.completedPages.length, total: a.pages.length, holderUid: a.uid };
+    return {
+      juz, khatm, state, completed: a.completedPages.length, total: a.pages.length, holderUid: a.uid,
+      distribution: a.distribution, startDate: a.startDate, endDate: a.endDate, doneAt: a.doneAt,
+    };
   });
 }
+
+const TILE_STATE_TEXT: Record<JuzTile["state"], string> = {
+  done: "Tamamlanıb",
+  progress: "Davam edir",
+  assigned: "Verilib, başlanmayıb",
+  empty: "Hələ verilməyib",
+};
 
 const TILE_STYLE: Record<JuzTile["state"], string> = {
   done: "bg-juzdone border border-juzdone text-white",
@@ -155,24 +175,84 @@ const TILE_STYLE: Record<JuzTile["state"], string> = {
   empty: "bg-white border border-line text-muted",
 };
 
+// Tapping a juz opens a small card with who holds it, how far they are and the dates
 export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (uid: string) => string }) {
+  const [open, setOpen] = useState<JuzTile | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
     <>
       <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2 md:gap-2.5">
         {tiles.map((j) => (
-          <div
+          <button
             key={j.juz}
-            title={j.holderUid && holderName ? holderName(j.holderUid) : undefined}
-            className={`flex flex-col items-center justify-center gap-0.5 min-h-[64px] md:min-h-[92px] rounded-[12px] md:rounded-[14px] box-border p-2 text-center ${TILE_STYLE[j.state]}`}
+            type="button"
+            onClick={() => setOpen(j)}
+            aria-label={`Cüz ${j.juz}: ${TILE_STATE_TEXT[j.state]}${j.holderUid && holderName ? `, ${holderName(j.holderUid)}` : ""}`}
+            className={`press flex flex-col items-center justify-center gap-0.5 min-h-[64px] md:min-h-[92px] rounded-[12px] md:rounded-[14px] box-border p-2 text-center ${TILE_STYLE[j.state]}`}
           >
-            <div className="text-[11px] font-semibold opacity-85">Cüz</div>
-            <div className="font-extrabold text-xl md:text-[26px] leading-none">{j.juz}</div>
-            <div className="text-[10px] md:text-xs font-semibold">
+            <span className="text-[11px] font-semibold opacity-85">Cüz</span>
+            <span className="font-extrabold text-xl md:text-[26px] leading-none">{j.juz}</span>
+            <span className="text-[10px] md:text-xs font-semibold">
               {j.state === "empty" ? "Boş" : `${j.completed} / ${j.total}`}
-            </div>
-          </div>
+            </span>
+          </button>
         ))}
       </div>
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-4" onClick={() => setOpen(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="juz-pop-title"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-white border border-line rounded-hero shadow-bar p-5 flex flex-col gap-3.5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="juz-pop-title" className="m-0 text-xl font-extrabold text-ink">Cüz {open.juz}</h3>
+                <div className="text-[13px] text-muted">
+                  {khatmLabel(open.khatm)}{open.distribution ? ` · ${ordinalAz(open.distribution)} bölgü` : ""}
+                </div>
+              </div>
+              <Chip tone={open.state === "done" ? "done" : open.state === "empty" ? "neutral" : "progress"}>{TILE_STATE_TEXT[open.state]}</Chip>
+            </div>
+            {open.holderUid ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <Avatar name={holderName ? holderName(open.holderUid) : "?"} gold />
+                  <div className="min-w-0">
+                    <div className="text-xs text-muted">Kimə düşüb</div>
+                    <div className="text-[16px] font-bold text-ink truncate">{holderName ? holderName(open.holderUid) : "İştirakçı"}</div>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex justify-between text-[13px] text-muted">
+                    <span>{open.completed} / {open.total} səhifə oxunub</span>
+                    <span className="font-bold text-ink tabular-nums">{Math.round((open.completed / open.total) * 100)}%</span>
+                  </div>
+                  <Bar ratio={open.completed / open.total} color={open.state === "done" ? "done" : "accent"} />
+                </div>
+                <div className="text-[13px] text-muted">
+                  {open.startDate && open.endDate ? `Müddət: ${formatIsoDateAz(open.startDate)} – ${formatIsoDateAz(open.endDate)}` : ""}
+                  {open.doneAt ? `${open.startDate ? " · " : ""}Bitib: ${formatIsoDateAz(open.doneAt.slice(0, 10))}` : ""}
+                </div>
+              </>
+            ) : (
+              <p className="m-0 text-sm text-muted">Bu cüz hələ heç kimə verilməyib.</p>
+            )}
+            <button ref={closeRef} type="button" onClick={() => setOpen(null)} className={button("outline", "md")}>Bağla</button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs md:text-[13px] text-muted">
         <Legend className="bg-juzdone" label="Tamamlanıb" />
         <Legend className="bg-juzprogress" label="Davam edir" />
