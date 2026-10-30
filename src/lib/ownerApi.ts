@@ -50,3 +50,28 @@ export const listUsers = () => call<{ users?: OwnerUser[]; error?: string }>({ a
 export const grantAdmin = (uid: string) => call<{ error?: string }>({ action: "grant", uid });
 export const revokeAdmin = (uid: string) => call<{ error?: string }>({ action: "revoke", uid });
 export const deleteGroupAsOwner = (groupId: string) => call<{ error?: string }>({ action: "deleteGroup", groupId });
+
+export interface OwnerGroup {
+  id: string;
+  name: string;
+}
+
+export interface OwnerThread {
+  memberUid: string;
+  name: string;
+  lastText: string;
+  lastAt: string;
+  lastFrom: "manager" | "member";
+}
+
+export interface OwnerThreadMessage {
+  id: string;
+  from: "manager" | "member";
+  sender: string;
+  text: string;
+  sentAt: string;
+}
+
+export const listAllGroups = () => call<{ groups?: OwnerGroup[]; error?: string }>({ action: "groups" });
+export const listThreads = (groupId: string) => call<{ threads?: OwnerThread[]; error?: string }>({ action: "threads", groupId });
+export const getThread = (groupId: string, memberUid: string) => call<{ messages?: OwnerThreadMessage[]; error?: string }>({ action: "thread", groupId, memberUid });

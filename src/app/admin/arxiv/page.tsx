@@ -1,35 +1,40 @@
 "use client";
-// Archive for group managers: khatms whose 30 juz are all finished and distributions in which
-// everyone finished. They leave the Qrup screen but stay in the database; this page shows them.
+// Archive for group managers, in two parts: finished khatms and finished distributions. Each
+// record is a self-contained copy in groups/{gid}/archive (written by /api/archive when this page
+// opens and before a reset), so it stays here even after the assignments are cleared.
+// Every record, or a whole part, can be exported as a PDF.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
-import type { UserDoc } from "@/lib/db";
-import { activeDistributions, khatmSummaries } from "@/lib/khatm";
-import { bakuDay, dayDiff } from "@/lib/analytics";
-import { khatmLabel, ordinalAz } from "@/lib/quran";
-import { formatIsoDateAz } from "@/lib/dates";
-import { useGroupAssignments, useGroupFullNames } from "@/lib/useGroupData";
-import { JuzMap, khatmJuzTiles, participantName } from "@/components/GroupWidgets";
+import { syncGroupArchive } from "@/lib/db";
+import { useGroupArchive } from "@/lib/useGroupData";
+import type { ArchiveEntry } from "@/lib/archive";
+import { entryFinishedAt, entrySummary, entryTables, entryTitle, type ArchiveTable } from "@/lib/archiveFormat";
 import AppLayout from "@/components/AppLayout";
 import { Card, Chip, LoadingScreen, PageHeader, button } from "@/components/ui";
+
+type Tab = "khatm" | "distribution";
+
+const TAB_LABEL: Record<Tab, string> = { khatm: "Xətm", distribution: "Bölgü" };
 
 export default function ArchivePage() {
   const { user, loading, activeGroupId, activeGroup, activeGroupLoaded, isSuperAdmin } = useAuth();
   const canManage = !!user && (isSuperAdmin || activeGroup?.createdBy === user.uid);
-  const { assignments, loaded } = useGroupAssignments(activeGroupId, canManage);
-  const fullNames = useGroupFullNames(activeGroupId, canManage);
-  const [users, setUsers] = useState<UserDoc[]>([]);
+  const { entries, loaded } = useGroupArchive(activeGroupId, canManage);
+  const [tab, setTab] = useState<Tab>("khatm");
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
+  // Copy anything finished since the last visit into the archive
   useEffect(() => {
-    if (!user || !activeGroupId || !canManage) return;
-    const q = query(collection(db, "users"), where("groupIds", "array-contains", activeGroupId));
-    const unsub = onSnapshot(q, (snap) => setUsers(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as UserDoc))),
-      (err) => console.error("Error loading members:", err));
-    return () => unsub();
-  }, [user, activeGroupId, canManage]);
+    if (!canManage || !activeGroupId) return;
+    setSyncError(null);
+    syncGroupArchive(activeGroupId).catch((err) => {
+      console.error("Error syncing archive:", err);
+      setSyncError("Son bitənlər arxivə köçürülmədi. Səhifəni yenilə.");
+    });
+  }, [canManage, activeGroupId]);
 
   if (loading || !user || !activeGroupLoaded || (canManage && !loaded)) return <LoadingScreen text="Arxiv yüklənir..." />;
 
@@ -44,81 +49,141 @@ export default function ArchivePage() {
     );
   }
 
-  const nameOf = (uid: string) => {
-    const u = users.find((x) => x.uid === uid);
-    return u ? participantName(u, user, fullNames) : fullNames[uid] || "Keçmiş üzv";
-  };
+  const byKind = (kind: Tab) => entries
+    .filter((e) => e.kind === kind)
+    .sort((a, b) => entryFinishedAt(b).localeCompare(entryFinishedAt(a)));
+  const list = byKind(tab);
+  const groupName = activeGroup?.name || "Qrup";
 
-  const doneKhatms = khatmSummaries(assignments).filter((k) => k.completedAt).reverse();
-  const active = new Set(activeDistributions(assignments, Number.MAX_SAFE_INTEGER));
-  const doneDistributions = Array.from(new Set(assignments.map((a) => a.distribution)))
-    .filter((d) => !active.has(d))
-    .sort((a, b) => b - a);
+  const exportPdf = async (key: string, items: ArchiveEntry[], heading: string, ...nameParts: string[]) => {
+    setExporting(key);
+    setExportError(null);
+    try {
+      const { exportArchivePdf, pdfFileName } = await import("@/lib/archivePdf");
+      await exportArchivePdf(items, heading, pdfFileName(groupName, ...nameParts, new Date().toISOString().slice(0, 10)));
+    } catch (err) {
+      console.error("Error exporting archive PDF:", err);
+      setExportError("PDF hazırlanmadı. İnterneti yoxla və yenidən cəhd et.");
+    } finally {
+      setExporting(null);
+    }
+  };
 
   return (
     <AppLayout activeTab="admin">
       <div className="max-w-[960px] flex flex-col gap-5 md:gap-7">
         <PageHeader
           title="Arxiv"
-          subtitle={activeGroup?.name}
+          subtitle={groupName}
           actions={<Link href="/admin" className={button("outline", "sm")}>İnzibatçı paneli</Link>}
         />
 
-        <section className="flex flex-col gap-3.5">
-          <h2 className="m-0 text-lg md:text-xl font-extrabold text-ink">Tamamlanmış xətmlər · {doneKhatms.length}</h2>
-          {doneKhatms.length === 0 ? (
-            <Card><p className="m-0 text-sm text-muted">Hələ tamamlanmış xətm yoxdur. 30 cüzün hamısı oxunan xətm buraya köçür.</p></Card>
-          ) : doneKhatms.map((k) => {
-            const start = k.startedAt ? bakuDay(k.startedAt) : null;
-            const end = bakuDay(k.completedAt!);
-            return (
-              <Card key={k.khatm}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="m-0 text-base md:text-lg font-bold text-ink">{khatmLabel(k.khatm)}</h3>
-                  <Chip tone="done">Tamamlanıb</Chip>
-                </div>
-                <div className="text-[13px] text-muted">
-                  {start ? `${formatIsoDateAz(start)} – ` : ""}{formatIsoDateAz(end)}
-                  {start ? ` · ${dayDiff(start, end) + 1} gün` : ""} · {k.pagesRead} səhifə
-                </div>
-                <JuzMap tiles={khatmJuzTiles(assignments, k.khatm)} holderName={nameOf} />
-              </Card>
-            );
-          })}
-        </section>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div role="tablist" aria-label="Arxiv bölməsi" className="inline-flex p-1 rounded-full bg-sand">
+            {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className={`press min-h-[44px] px-5 rounded-full text-[15px] font-bold ${tab === t ? "bg-white text-ink shadow-card" : "text-muted"}`}
+              >
+                {TAB_LABEL[t]} · {byKind(t).length}
+              </button>
+            ))}
+          </div>
+          {list.length > 0 && (
+            <button
+              type="button"
+              disabled={exporting !== null}
+              onClick={() => exportPdf(`all-${tab}`, list, tab === "khatm" ? "Tamamlanmış xətmlər" : "Tamamlanmış bölgülər", tab === "khatm" ? "xetmler" : "bolguler")}
+              className={button("outline", "sm")}
+            >
+              {exporting === `all-${tab}` ? "Hazırlanır..." : "Hamısını PDF et"}
+            </button>
+          )}
+        </div>
 
-        <section className="flex flex-col gap-3.5">
-          <h2 className="m-0 text-lg md:text-xl font-extrabold text-ink">Tamamlanmış bölgülər · {doneDistributions.length}</h2>
-          {doneDistributions.length === 0 ? (
-            <Card><p className="m-0 text-sm text-muted">Hələ tamamlanmış bölgü yoxdur. Hamının cüzünü bitirdiyi bölgü buraya köçür.</p></Card>
-          ) : doneDistributions.map((d) => {
-            const list = assignments.filter((a) => a.distribution === d).sort((a, b) => (a.doneAt || "").localeCompare(b.doneAt || ""));
-            const first = list[0];
-            return (
-              <Card key={d}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="m-0 text-base md:text-lg font-bold text-ink">{ordinalAz(d)} bölgü</h3>
-                  <Chip tone="done">Hamı bitirib</Chip>
-                </div>
-                <div className="text-[13px] text-muted">
-                  {first?.startDate && first.endDate ? `${formatIsoDateAz(first.startDate)} – ${formatIsoDateAz(first.endDate)} · ` : ""}{list.length} cüz
-                </div>
-                <div className="flex flex-col divide-y divide-line border-t border-line">
-                  {list.map((a) => (
-                    <div key={a.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2.5 text-sm">
-                      <span className="font-bold text-ink">{nameOf(a.uid)}</span>
-                      <span className="text-muted">
-                        Cüz {a.juz} · {khatmLabel(a.khatm)}{a.doneAt ? ` · bitib ${formatIsoDateAz(a.doneAt.slice(0, 10))}` : ""}
-                        {a.endDate && a.doneAt && bakuDay(a.doneAt) > a.endDate ? " · gecikib" : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            );
-          })}
+        {syncError && <div className="text-sm font-semibold text-danger">{syncError}</div>}
+        {exportError && <div className="text-sm font-semibold text-danger">{exportError}</div>}
+
+        <section role="tabpanel" aria-label={TAB_LABEL[tab]} className="flex flex-col gap-3.5">
+          {list.length === 0 ? (
+            <Card>
+              <p className="m-0 text-sm text-muted">
+                {tab === "khatm"
+                  ? "Hələ tamamlanmış xətm yoxdur. 30 cüzün hamısı oxunan xətm buraya köçür."
+                  : "Hələ tamamlanmış bölgü yoxdur. Hamının cüzünü bitirdiyi bölgü buraya köçür."}
+              </p>
+            </Card>
+          ) : list.map((e) => (
+            <ArchiveCard
+              key={e.id}
+              entry={e}
+              exporting={exporting === e.id}
+              disabled={exporting !== null}
+              onExport={() => exportPdf(e.id, [e], entryTitle(e), entryTitle(e))}
+            />
+          ))}
         </section>
       </div>
     </AppLayout>
+  );
+}
+
+function ArchiveCard({ entry, exporting, disabled, onExport }: { entry: ArchiveEntry; exporting: boolean; disabled: boolean; onExport: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [summary1, summary2] = entrySummary(entry);
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="m-0 text-base md:text-lg font-bold text-ink">{entryTitle(entry)}</h3>
+        <Chip tone="done">{entry.kind === "khatm" ? "Tamamlanıb" : "Hamı bitirib"}</Chip>
+      </div>
+      <div className="flex flex-col gap-0.5 text-[13px] text-muted">
+        <span>{summary1}</span>
+        <span>{summary2}</span>
+      </div>
+      {open && entryTables(entry).map((t) => <ArchiveTableView key={t.title} table={t} />)}
+      <div className="flex flex-wrap gap-2.5">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className={button("outline", "sm")}>
+          {open ? "Gizlət" : "Ətraflı"}
+        </button>
+        <button type="button" disabled={disabled} onClick={onExport} className={button("outline", "sm")}>
+          {exporting ? "Hazırlanır..." : "PDF"}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function ArchiveTableView({ table }: { table: ArchiveTable }) {
+  return (
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <h4 className="m-0 text-sm font-bold text-ink">{table.title}</h4>
+      <div className="overflow-x-auto -mx-1 px-1">
+        <table className="w-full min-w-[480px] text-[13px] border-collapse">
+          <thead>
+            <tr className="bg-sand text-muted">
+              {table.columns.map((c) => (
+                <th key={c.label} scope="col" style={{ width: `${c.width * 100}%` }} className={`px-2 py-2 font-bold ${c.align === "right" ? "text-right" : "text-left"}`}>
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((r, i) => (
+              <tr key={i} className="border-b border-line">
+                {r.map((v, j) => (
+                  <td key={j} className={`px-2 py-2 text-ink ${table.columns[j].align === "right" ? "text-right tabular-nums" : ""}`}>{v}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
+import OwnerConversations from "@/components/OwnerConversations";
 import { useAuth } from "@/lib/auth";
 import { deleteGroupAsOwner, grantAdmin, listAdmins, listUsers, revokeAdmin, type OwnerAdmin, type OwnerUser } from "@/lib/ownerApi";
 import { Avatar, Card, Chip, IconTrash, LoadingScreen, PageHeader, btn, button, inputCls } from "@/components/ui";
@@ -186,6 +187,8 @@ export default function SystemPage() {
                 )
               )}
             </Card>
+
+            <OwnerConversations />
 
             <p className="m-0 text-[15px] leading-relaxed text-muted">
               Sistemdə <strong className="text-ink tabular-nums">{admins.length}</strong> admin var.

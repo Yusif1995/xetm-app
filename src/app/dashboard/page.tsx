@@ -10,7 +10,7 @@ import {
   isUserApprovedInGroup,
   markMemberMessageRead
 } from "@/lib/db";
-import { useGroupAssignments, useMyGroupMessage } from "@/lib/useGroupData";
+import { useGroupAssignments, useMyGroupMessage, useThreadSummary } from "@/lib/useGroupData";
 import { memberStats, openAssignmentsOf } from "@/lib/khatm";
 import { useCallback, useEffect, useState, useRef, Suspense } from "react";
 import Link from "next/link";
@@ -49,6 +49,7 @@ function DashboardContent() {
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const inviteDialogRef = useRef<HTMLDivElement>(null);
   const ownerMessage = useMyGroupMessage(activeGroupId, user?.uid);
+  const thread = useThreadSummary(activeGroupId, user?.uid);
   const approvedHere = !!user && (isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup));
   const { assignments, loaded: assignmentsLoaded } = useGroupAssignments(activeGroupId, approvedHere);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -427,6 +428,11 @@ function DashboardContent() {
                   <Link href="/groups" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
                     Qruplarım
                   </Link>
+                  {!viewerIsOwner && thread && (
+                    <Link href="/mesajlar" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
+                      Mesajlar
+                    </Link>
+                  )}
                   <Link href="/qurasdir" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
                     Ana ekrana əlavə et
                   </Link>
@@ -460,6 +466,26 @@ function DashboardContent() {
               Bağla
             </button>
           </div>
+        )}
+
+        {thread?.memberUnread && thread.lastFrom === "manager" && (
+          <section
+            aria-label="Qrup rəhbərindən yeni mesaj"
+            className="bg-progress rounded-card p-5 md:p-6 flex flex-wrap items-start justify-between gap-4"
+          >
+            <div className="flex gap-3.5 min-w-0 flex-[1_1_260px]">
+              <div className="w-11 h-11 rounded-full bg-white text-goldtext flex items-center justify-center shrink-0">
+                <IconBell size={22} />
+              </div>
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="text-[13px] font-bold text-goldtext">
+                  Qrup rəhbərindən mesaj{activeGroup?.name ? ` · ${activeGroup.name}` : ""} · {relativeTimeAz(new Date(thread.lastAt).getTime())}
+                </div>
+                <p className="m-0 text-[15px] leading-relaxed text-ink whitespace-pre-line break-words line-clamp-4">{thread.lastText}</p>
+              </div>
+            </div>
+            <Link href="/mesajlar" className={`${btn.outline} bg-white w-full md:w-auto`}>Aç və cavab yaz</Link>
+          </section>
         )}
 
         {showOwnerMessage && ownerMessage && (

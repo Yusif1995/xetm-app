@@ -161,7 +161,9 @@ service cloud.firestore {
       allow create: if false;
 
       // Khatm counters are maintained by the server; members may only join (pending) or leave
-      allow update: if isSuperAdmin()
+      // Nobody may move ownership from the client: the creator reads the member conversations,
+      // so an app admin taking over createdBy would see threads meant for the creator and the owner
+      allow update: if (isSuperAdmin() && request.resource.data.createdBy == resource.data.createdBy)
         || (resource.data.createdBy == request.auth.uid && request.resource.data.createdBy == resource.data.createdBy)
         || isSelfMembershipChange();
 
@@ -176,13 +178,36 @@ service cloud.firestore {
           && (!(request.auth.uid in newMembers) || newMembers[request.auth.uid] == 'pending');
       }
 
-      // Owner -> member messages: readable by the owner, app admins and that member only.
-      // App admins send through the server (/api/group-message).
+      // Legacy single owner -> member message (replaced by threads; no new ones are written).
+      // Readable by the group creator and that member only; the member may mark it read.
       match /messages/{memberId} {
-        allow read: if isOwner(memberId) || isGroupOwner(groupId) || isSuperAdmin();
+        allow read: if isOwner(memberId) || isGroupOwner(groupId);
         allow create, delete: if isGroupOwner(groupId);
         allow update: if isGroupOwner(groupId)
           || (isOwner(memberId) && changedKeys().hasOnly(['read']));
+      }
+
+      // Manager <-> member conversation, one per member. Only that member and the group creator
+      // can read it (other members and other app admins cannot; the app owner reads through
+      // /api/owner). Messages are written by the server (/api/group-message); each side may only
+      // clear its own unread flag.
+      match /threads/{memberId} {
+        allow read: if isOwner(memberId) || isGroupOwner(groupId);
+        allow create, delete: if false;
+        allow update: if (isOwner(memberId) && changedKeys().hasOnly(['memberUnread']) && request.resource.data.memberUnread == false)
+          || (isGroupOwner(groupId) && changedKeys().hasOnly(['managerUnread']) && request.resource.data.managerUnread == false);
+
+        match /messages/{messageId} {
+          allow read: if isOwner(memberId) || isGroupOwner(groupId);
+          allow write: if false;
+        }
+      }
+
+      // Finished khatms and distributions, copied here by the server (/api/archive) and never
+      // changed afterwards. The group's managers can read them.
+      match /archive/{recordId} {
+        allow read: if isGroupOwner(groupId) || isSuperAdmin();
+        allow write: if false;
       }
 
       // One record per juz handed out (khatm, juz, distribution, holder, reading progress).

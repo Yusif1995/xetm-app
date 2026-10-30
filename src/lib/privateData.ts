@@ -135,3 +135,22 @@ export async function senderDisplayName(db: Firestore, uid: string): Promise<str
   const name = privateSnap.data()?.name;
   return typeof name === "string" && name ? name : "Bir iştirakçı";
 }
+
+// Names a group's managers see for its members: the full name from groups/{gid}/profiles when the
+// member gave one, otherwise their nickname. Members with neither are left out of the map.
+export async function getMemberNames(db: Firestore, groupId: string, uids: string[]): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (uids.length === 0) return names;
+  const groupRef = db.collection("groups").doc(groupId);
+  const [profiles, users] = await Promise.all([
+    db.getAll(...uids.map((u) => groupRef.collection("profiles").doc(u))),
+    db.getAll(...uids.map((u) => db.collection("users").doc(u))),
+  ]);
+  uids.forEach((u, i) => {
+    const full = profiles[i].data()?.name;
+    const nick = users[i].data()?.nickname;
+    const name = typeof full === "string" && full ? full : typeof nick === "string" && nick ? nick : "";
+    if (name) names.set(u, name);
+  });
+  return names;
+}

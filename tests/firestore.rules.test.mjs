@@ -246,6 +246,11 @@ describe("groups", () => {
     await assertFails(updateDoc(doc(dbAs(OWNER), "groups", G), { createdBy: MEMBER }));
   });
 
+  test("app admins can edit a group but not take it over", async () => {
+    await assertFails(updateDoc(doc(dbAs(SUPER), "groups", G), { createdBy: SUPER }));
+    await assertSucceeds(updateDoc(doc(dbAs(SUPER), "groups", G), { [`members.${MEMBER}`]: "pending" }));
+  });
+
   test("user can request to join only as pending", async () => {
     await assertSucceeds(updateDoc(doc(dbAs(STRANGER), "groups", G), { [`members.${STRANGER}`]: "pending" }));
     await assertFails(updateDoc(doc(dbAs(STRANGER), "groups", G), { [`members.${STRANGER}`]: "member" }));
@@ -331,9 +336,9 @@ describe("member messages", () => {
     await assertFails(setDoc(msgRef(MEMBER, G, OWNER), message));
   });
 
-  test("owner and app admins can list read status of all members' messages", async () => {
+  test("only the group owner lists legacy messages; app admins and members cannot", async () => {
     await assertSucceeds(getDocs(collection(dbAs(OWNER), "groups", G, "messages")));
-    await assertSucceeds(getDocs(collection(dbAs(SUPER), "groups", G, "messages")));
+    await assertFails(getDocs(collection(dbAs(SUPER), "groups", G, "messages")));
     await assertFails(getDocs(collection(dbAs(MEMBER), "groups", G, "messages")));
   });
 
@@ -352,6 +357,76 @@ describe("member messages", () => {
       [`groupData.${G}.adminMessage`]: deleteField(),
       selfEditedGroup: G,
     }));
+  });
+});
+
+describe("member threads", () => {
+  const OTHER_MEMBER = "member2";
+  const summary = { lastText: "Salam", lastAt: "2026-10-30T10:00:00.000Z", lastFrom: "manager", memberUnread: true, managerUnread: true };
+  const threadRef = (uid, memberId = MEMBER) => doc(dbAs(uid), "groups", G, "threads", memberId);
+  const msgsCol = (uid, memberId = MEMBER) => collection(dbAs(uid), "groups", G, "threads", memberId, "messages");
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, "groups", G), { [`members.${OTHER_MEMBER}`]: "member" });
+      for (const m of [MEMBER, OTHER_MEMBER]) {
+        await setDoc(doc(db, "groups", G, "threads", m), summary);
+        await setDoc(doc(db, "groups", G, "threads", m, "messages", "m1"), { from: "manager", senderUid: OWNER, text: "Salam", sentAt: summary.lastAt });
+      }
+    });
+  });
+
+  test("the member reads their own thread, the group owner reads every thread", async () => {
+    await assertSucceeds(getDoc(threadRef(MEMBER)));
+    await assertSucceeds(getDocs(msgsCol(MEMBER)));
+    await assertSucceeds(getDocs(collection(dbAs(OWNER), "groups", G, "threads")));
+    await assertSucceeds(getDocs(msgsCol(OWNER, OTHER_MEMBER)));
+  });
+
+  test("members cannot read each other's threads; app admins and strangers cannot read any", async () => {
+    await assertFails(getDoc(threadRef(MEMBER, OTHER_MEMBER)));
+    await assertFails(getDocs(msgsCol(MEMBER, OTHER_MEMBER)));
+    await assertFails(getDocs(collection(dbAs(MEMBER), "groups", G, "threads")));
+    await assertFails(getDoc(threadRef(SUPER)));
+    await assertFails(getDocs(msgsCol(SUPER)));
+    await assertFails(getDoc(threadRef(STRANGER)));
+  });
+
+  test("nobody writes messages from the client", async () => {
+    const msg = { from: "member", senderUid: MEMBER, text: "x", sentAt: summary.lastAt };
+    await assertFails(setDoc(doc(msgsCol(MEMBER)), msg));
+    await assertFails(setDoc(doc(msgsCol(OWNER)), { ...msg, from: "manager", senderUid: OWNER }));
+    await assertFails(setDoc(doc(msgsCol(MEMBER, OTHER_MEMBER)), msg));
+    await assertFails(setDoc(threadRef(MEMBER, "newcomer"), summary));
+  });
+
+  test("each side may only clear its own unread flag", async () => {
+    await assertSucceeds(updateDoc(threadRef(MEMBER), { memberUnread: false }));
+    await assertFails(updateDoc(threadRef(MEMBER), { managerUnread: false }));
+    await assertFails(updateDoc(threadRef(MEMBER), { lastText: "changed" }));
+    await assertFails(updateDoc(threadRef(MEMBER, OTHER_MEMBER), { memberUnread: false }));
+    await assertSucceeds(updateDoc(threadRef(OWNER), { managerUnread: false }));
+    await assertFails(updateDoc(threadRef(OWNER, OTHER_MEMBER), { memberUnread: false }));
+    await assertFails(updateDoc(threadRef(OWNER, OTHER_MEMBER), { managerUnread: true }));
+  });
+});
+
+describe("archive", () => {
+  const record = { kind: "khatm", id: "khatm-1-x", khatm: 1, juz: [], readers: [] };
+  const recRef = (uid) => doc(dbAs(uid), "groups", G, "archive", "khatm-1-x");
+
+  test("group owner and app admins read the archive; members and strangers cannot", async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "groups", G, "archive", "khatm-1-x"), record));
+    await assertSucceeds(getDoc(recRef(OWNER)));
+    await assertSucceeds(getDoc(recRef(SUPER)));
+    await assertFails(getDoc(recRef(MEMBER)));
+    await assertFails(getDoc(recRef(STRANGER)));
+  });
+
+  test("archive records are written by the server only", async () => {
+    await assertFails(setDoc(recRef(OWNER), record));
+    await assertFails(setDoc(recRef(SUPER), record));
   });
 });
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { verifyRequestOwner, isRateLimited } from "@/lib/serverAuth";
 import { getAdminDb } from "@/lib/firebaseAdmin";
-import { PRIVATE_DOC } from "@/lib/privateData";
+import { PRIVATE_DOC, getMemberNames } from "@/lib/privateData";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -78,6 +78,57 @@ export async function POST(req: NextRequest) {
       }
       await db.collection("admins").doc(uid).delete();
       return NextResponse.json({ success: true });
+    }
+
+    // Every group, so the owner can open its member conversations
+    if (action === "groups") {
+      const snap = await db.collection("groups").get();
+      const groups = snap.docs
+        .map((g) => ({ id: g.id, name: typeof g.data().name === "string" ? g.data().name : "Qrup" }))
+        .sort((a, b) => a.name.localeCompare(b.name, "az"));
+      return NextResponse.json({ groups });
+    }
+
+    // Read-only view of a group's manager <-> member conversations (other app admins cannot see them)
+    if (action === "threads") {
+      const groupId = body.groupId;
+      if (typeof groupId !== "string" || !ID_PATTERN.test(groupId)) {
+        return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      }
+      const snap = await db.collection("groups").doc(groupId).collection("threads").orderBy("lastAt", "desc").get();
+      const names = await getMemberNames(db, groupId, snap.docs.map((d) => d.id));
+      const threads = snap.docs.map((d) => {
+        const t = d.data();
+        return {
+          memberUid: d.id,
+          name: names.get(d.id) || "Keçmiş üzv",
+          lastText: typeof t.lastText === "string" ? t.lastText : "",
+          lastAt: typeof t.lastAt === "string" ? t.lastAt : "",
+          lastFrom: t.lastFrom === "member" ? "member" : "manager",
+        };
+      });
+      return NextResponse.json({ threads });
+    }
+
+    if (action === "thread") {
+      const { groupId, memberUid } = body;
+      if (typeof groupId !== "string" || !ID_PATTERN.test(groupId) || typeof memberUid !== "string" || !ID_PATTERN.test(memberUid)) {
+        return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      }
+      const snap = await db.collection("groups").doc(groupId).collection("threads").doc(memberUid)
+        .collection("messages").orderBy("sentAt", "asc").limit(500).get();
+      const senderNames = await getMemberNames(db, groupId, Array.from(new Set(snap.docs.map((d) => d.data().senderUid).filter((u) => typeof u === "string"))));
+      const messages = snap.docs.map((d) => {
+        const m = d.data();
+        return {
+          id: d.id,
+          from: m.from === "member" ? "member" : "manager",
+          sender: senderNames.get(m.senderUid) || "",
+          text: typeof m.text === "string" ? m.text : "",
+          sentAt: typeof m.sentAt === "string" ? m.sentAt : "",
+        };
+      });
+      return NextResponse.json({ messages });
     }
 
     if (action === "deleteGroup") {

@@ -289,24 +289,42 @@ export function messageDocRef(groupId: string, uid: string) {
   return doc(db, "groups", groupId, "messages", uid);
 }
 
-// The group owner or an app admin sends (or, with empty text, clears) a message to a member.
-// The server writes it (so admins who did not create the group can send too) and pushes it.
-// Throws with a readable reason when it is not saved.
-export async function sendMemberMessage(uid: string, groupId: string, text: string): Promise<void> {
+// POST to one of our API routes as the signed-in user; throws with the server's readable reason
+async function postAsUser<T>(path: string, body: Record<string, unknown>, fallbackError: string): Promise<T> {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("Hesabına yenidən daxil ol.");
-  const res = await fetch("/api/group-message", {
+  const res = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ groupId, targetUid: uid, text })
+    body: JSON.stringify(body)
   });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(typeof data.error === "string" ? data.error : "Mesaj göndərilmədi.");
-  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : fallbackError);
+  return data as T;
 }
 
-// The member marks the owner's message in this group as read
+// The group owner or an app admin sends one text to one or more members, each in their own
+// thread. The server writes it (so admins who did not create the group can send too) and pushes it.
+export async function sendGroupMessage(groupId: string, targetUids: string[], text: string): Promise<{ sent: number }> {
+  return postAsUser("/api/group-message", { groupId, targetUids, text }, "Mesaj göndərilmədi.");
+}
+
+// A member replies in their own thread; only the group's managers see it
+export async function replyToManagers(groupId: string, reply: string): Promise<void> {
+  await postAsUser("/api/group-message", { groupId, reply }, "Cavab göndərilmədi.");
+}
+
+// Clear the viewer's unread flag on a thread: the member on their own, the group creator on any
+export async function markThreadRead(groupId: string, memberUid: string, side: "member" | "manager"): Promise<void> {
+  await updateDoc(doc(db, "groups", groupId, "threads", memberUid), side === "member" ? { memberUnread: false } : { managerUnread: false });
+}
+
+// Copy the group's finished khatms and distributions into its archive (server side, idempotent)
+export async function syncGroupArchive(groupId: string): Promise<{ created: number }> {
+  return postAsUser("/api/archive", { groupId }, "Arxiv yenilənmədi.");
+}
+
+// The member marks the owner's message in this group as read (legacy single message)
 export async function markMemberMessageRead(uid: string, groupId: string): Promise<void> {
   await updateDoc(messageDocRef(groupId, uid), { read: true });
 }

@@ -10,7 +10,7 @@ import {
   transferAssignment,
   removeAssignment,
   resetGroupAssignments,
-  sendMemberMessage,
+  syncGroupArchive,
   updateUserApproval,
   getUserGroupIds,
   isUserApprovedInGroup,
@@ -20,13 +20,13 @@ import {
 } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
 import AdminSettingsPanel from "@/components/AdminSettingsPanel";
+import { BroadcastDialog, ThreadDialog } from "@/components/MemberMessaging";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
 import { memberShare, participantName, roleOf } from "@/components/GroupWidgets";
-import { useGroupAdmins, useGroupAssignments, useGroupFullNames, useGroupMessages } from "@/lib/useGroupData";
+import { useGroupAdmins, useGroupAssignments, useGroupFullNames, useGroupThreads } from "@/lib/useGroupData";
 import { khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
-import { relativeTimeAz } from "@/lib/dates";
 import {
   Avatar, Bar, Card, Chip, DateInput, IconSettings, IconSparkle, LoadingScreen, PageHeader, btn, button, inputCls
 } from "@/components/ui";
@@ -50,19 +50,21 @@ export default function AdminPage() {
   const [transferFor, setTransferFor] = useState<string | null>(null);
   const [transferUid, setTransferUid] = useState("");
 
-  // Message to a member
+  // Conversation with one member, or one text to many
   const [messageTarget, setMessageTarget] = useState<UserDoc | null>(null);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const closeThread = useCallback(() => setMessageTarget(null), []);
+  const closeBroadcast = useCallback(() => setBroadcastOpen(false), []);
   // Settings panel (invite link, privacy, danger zone) opened from the gear button
   const [settingsOpen, setSettingsOpen] = useState(false);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
-  const [messageText, setMessageText] = useState("");
-  const [messageSending, setMessageSending] = useState(false);
-  const [messageError, setMessageError] = useState<string | null>(null);
 
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
   const canManage = !!currentUser && (isSuperAdmin || activeGroup?.createdBy === currentUser.uid);
   const fullNames = useGroupFullNames(activeGroupId, canManage);
-  const messages = useGroupMessages(activeGroupId, canManage);
+  // Only the group creator reads the conversations (other app admins can send, not read)
+  const isGroupCreator = !!currentUser && activeGroup?.createdBy === currentUser.uid;
+  const threads = useGroupThreads(activeGroupId, isGroupCreator);
   const { assignments } = useGroupAssignments(activeGroupId, canManage);
   const adminUids = useGroupAdmins(activeGroupId, canManage);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
@@ -215,6 +217,8 @@ export default function AdminPage() {
     if (window.confirm("Bütün cüz təyinatları, oxuma tarixçəsi və xətm sayğacı silinəcək və sayma sıfırdan başlayacaq. Davam edilsin?")) {
       try {
         setLoading(true);
+        // Finished khatms and distributions are copied to the archive first, so they survive the reset
+        await syncGroupArchive(activeGroupId);
         await resetGroupAssignments(activeGroupId);
         setAutoMessage("Bütün təyinatlar silindi.");
       } catch (err) {
@@ -226,28 +230,7 @@ export default function AdminPage() {
     }
   };
 
-  const openMessage = (user: UserDoc) => {
-    setMessageTarget(user);
-    setMessageText(messages[user.uid]?.text || "");
-    setMessageError(null);
-  };
 
-  // Empty text clears the current message
-  const submitMessage = async (text: string) => {
-    if (!messageTarget) return;
-    setMessageSending(true);
-    setMessageError(null);
-    try {
-      await sendMemberMessage(messageTarget.uid, activeGroupId, text);
-      setMessageTarget(null);
-      setMessageText("");
-    } catch (err) {
-      console.error("Error sending member message:", err);
-      setMessageError(`Mesaj göndərilmədi: ${err instanceof Error ? err.message : "İnterneti yoxla və yenidən cəhd et."}`);
-    } finally {
-      setMessageSending(false);
-    }
-  };
 
   const handleRemoveUser = async (user: UserDoc) => {
     if (window.confirm(`${nameOf(user)} adlı iştirakçını “${groupName}” qrupundan kənarlaşdırmaq istədiyinizə əminsiniz?`)) {
@@ -550,6 +533,7 @@ export default function AdminPage() {
                     <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{activeGroupUsers.length} nəfər</span>
                   </div>
+                  <button type="button" onClick={() => setBroadcastOpen(true)} className={button("outline", "sm")}>Toplu mesaj</button>
                   <input
                     type="text"
                     value={searchQuery}
@@ -575,9 +559,11 @@ export default function AdminPage() {
                             <div className="text-xs text-muted">
                               {role} · {s.label}
                             </div>
-                            {messages[u.uid] && (
+                            {threads[u.uid]?.managerUnread ? (
+                              <div className="text-xs font-bold text-forest">Yeni cavab var</div>
+                            ) : threads[u.uid]?.lastFrom === "manager" && (
                               <div className="text-xs font-semibold text-goldtext">
-                                Mesaj {messages[u.uid].read ? "oxunub" : "hələ oxunmayıb"}
+                                Mesaj {threads[u.uid].memberUnread ? "hələ oxunmayıb" : "oxunub"}
                               </div>
                             )}
                           </div>
@@ -590,7 +576,7 @@ export default function AdminPage() {
                         {/* No messaging or removing yourself */}
                         {!isSelf && (
                           <div className="flex gap-2">
-                            <button onClick={() => openMessage(u)} className={button("outline", "sm")}>Mesaj</button>
+                            <button onClick={() => setMessageTarget(u)} className={button("outline", "sm")}>Mesaj</button>
                             {!isOwnerRow && <button onClick={() => handleRemoveUser(u)} className={button("danger", "sm")}>Çıxar</button>}
                           </div>
                         )}
@@ -646,52 +632,25 @@ export default function AdminPage() {
       </div>
       {settingsOpen && <AdminSettingsPanel onClose={closeSettings} />}
       {messageTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-4">
-          <form
-            onSubmit={(e) => { e.preventDefault(); submitMessage(messageText); }}
-            className="bg-white border border-line rounded-hero shadow-bar p-6 w-full max-w-md flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-1">
-              <h3 className="m-0 font-bold text-2xl text-ink">Mesaj göndər</h3>
-              <div className="text-sm text-muted">
-                {nameOf(messageTarget)} · {groupName}
-              </div>
-            </div>
-            {messages[messageTarget.uid] && (
-              <div className="text-xs text-muted">
-                Əvvəlki mesaj {relativeTimeAz(new Date(messages[messageTarget.uid].sentAt).getTime())} göndərilib
-                {messages[messageTarget.uid].read ? " və oxunub." : ", hələ oxunmayıb."}
-              </div>
-            )}
-            <label className="flex flex-col gap-2 text-sm font-semibold text-ink">
-              Mesaj
-              <textarea
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                rows={4}
-                maxLength={500}
-                autoFocus
-                placeholder="Məs. Cüzünü cümə gününə qədər bitirməyə çalış"
-                className={`${inputCls} py-3 resize-y`}
-              />
-            </label>
-            <div className="text-xs text-muted">İştirakçı mesajı &quot;Bu gün&quot; ekranında görəcək və telefonuna bildiriş gələcək.</div>
-            {messageError && <div className="text-sm font-semibold text-danger">{messageError}</div>}
-            <div className="flex flex-wrap gap-2.5">
-              <button type="submit" disabled={messageSending || !messageText.trim()} className={`${btn.primary} flex-1`}>
-                {messageSending ? "Göndərilir..." : "Göndər"}
-              </button>
-              {messages[messageTarget.uid] && (
-                <button type="button" disabled={messageSending} onClick={() => submitMessage("")} className={btn.danger}>
-                  Mesajı sil
-                </button>
-              )}
-              <button type="button" disabled={messageSending} onClick={() => setMessageTarget(null)} className={btn.outline}>
-                Ləğv et
-              </button>
-            </div>
-          </form>
-        </div>
+        <ThreadDialog
+          groupId={activeGroupId}
+          groupName={groupName}
+          memberUid={messageTarget.uid}
+          memberName={nameOf(messageTarget)}
+          canRead={isGroupCreator}
+          summary={threads[messageTarget.uid]}
+          onClose={closeThread}
+        />
+      )}
+      {broadcastOpen && currentUser && (
+        <BroadcastDialog
+          groupId={activeGroupId}
+          groupName={groupName}
+          members={activeGroupUsers
+            .filter((u) => u.uid !== currentUser.uid && u.uid !== groupCreatedBy)
+            .map((u) => ({ uid: u.uid, name: nameOf(u), openJuz: openAssignmentsOf(assignments, u.uid).length }))}
+          onClose={closeBroadcast}
+        />
       )}
     </AppLayout>
   );
