@@ -18,7 +18,7 @@ import type { ConversationKind, ThreadMessage, ThreadSummary } from "@/lib/threa
 import { useGroupThreads, useThreadMessages, useThreadSummary } from "@/lib/useGroupData";
 import AppLayout from "@/components/AppLayout";
 import ThreadView from "@/components/ThreadView";
-import { BroadcastDialog } from "@/components/MemberMessaging";
+import { BroadcastDialog, Dialog } from "@/components/MemberMessaging";
 import { Avatar, Card, LoadingScreen, PageHeader, button, inputCls } from "@/components/ui";
 
 const INBOX_REFRESH_MS = 20000;
@@ -95,6 +95,8 @@ function GroupMessages({ groupId }: { groupId: string }) {
   const [tab, setTab] = useState<"bulk" | "private">("bulk");
   const [open, setOpen] = useState<string | null>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
 
   const refresh = useCallback(() => loadInbox(groupId).then((x) => { setInbox(x); setError(null); }).catch((e) => setError(e.message)), [groupId]);
   useEffect(() => {
@@ -226,10 +228,24 @@ function GroupMessages({ groupId }: { groupId: string }) {
         </Card>
       ) : (
         <Card className="!gap-0">
-          <RowList rows={rows.private} empty="Hələ yazışma yoxdur." onOpen={setOpen} />
+          <div className="flex items-center justify-between gap-3 pb-2">
+            <h2 className="m-0 text-base font-bold text-ink">Söhbətlər</h2>
+            <button type="button" onClick={() => setPickerOpen(true)} className={button("primary", "sm")} disabled={!rows.private.some((r) => r.canSend)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              Yeni mesaj
+            </button>
+          </div>
+          <PrivateRows rows={rows.private.filter(hasChat)} onOpen={setOpen} empty="Hələ yazışma yoxdur. Yazmaq üçün “Yeni mesaj” düyməsinə toxun." />
         </Card>
       )}
 
+      {pickerOpen && (
+        <ContactPicker
+          rows={rows.private.filter((r) => r.canSend && r.tone !== "bulk")}
+          onPick={(id) => { setPickerOpen(false); setOpen(id); }}
+          onClose={closePicker}
+        />
+      )}
       {broadcastOpen && (
         <BroadcastDialog
           groupId={groupId}
@@ -239,6 +255,58 @@ function GroupMessages({ groupId }: { groupId: string }) {
         />
       )}
     </>
+  );
+}
+
+// Only conversations with at least one message are listed, as in a messenger
+const hasChat = (r: Row) => !!r.summary?.lastAt;
+
+// "Yeni mesaj": everyone the caller may write to, searchable, staff first; picking one opens the
+// conversation, and it joins the list once the first message is sent
+function ContactPicker({ rows, onPick, onClose }: { rows: Row[]; onPick: (id: string) => void; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLocaleLowerCase("az");
+  const shown = rows
+    .filter((r) => !needle || r.title.toLocaleLowerCase("az").includes(needle))
+    .sort((a, b) => a.title.localeCompare(b.title, "az"));
+  const staff = shown.filter((r) => r.tone !== "member");
+  const members = shown.filter((r) => r.tone === "member");
+  const list = (items: Row[]) => (
+    <div className="flex flex-col divide-y divide-line">
+      {items.map((r) => (
+        <button
+          key={r.id}
+          type="button"
+          onClick={() => onPick(r.id)}
+          className="press text-left min-h-[56px] py-2.5 -mx-2 px-2 rounded-xl flex items-center gap-3 hover:bg-cream"
+        >
+          <RowAvatar row={r} />
+          <span className="flex-1 min-w-0 text-[15px] font-bold text-ink truncate">{r.title}{r.tag && <Tag text={r.tag} tone={r.tone} />}</span>
+          {hasChat(r) && <span className="shrink-0 text-xs text-muted">söhbət var</span>}
+        </button>
+      ))}
+    </div>
+  );
+  return (
+    <Dialog title="Yeni mesaj" subtitle="Kimə yazmaq istəyirsən?" onClose={onClose}>
+      <label className="sr-only" htmlFor="contact-search">Ad ilə axtar</label>
+      <input
+        id="contact-search"
+        type="search"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Ad ilə axtar"
+        className={`${inputCls} text-[16px]`}
+      />
+      {shown.length === 0 ? (
+        <p className="m-0 text-sm text-muted py-2">Heç kim tapılmadı.</p>
+      ) : (
+        <div className="flex flex-col">
+          {staff.length > 0 && <><h3 className="m-0 pb-1 text-[13px] font-bold text-muted">Rəhbər və adminlər</h3>{list(staff)}</>}
+          {members.length > 0 && <><h3 className={`m-0 pb-1 text-[13px] font-bold text-muted ${staff.length ? "pt-4" : ""}`}>İştirakçılar</h3>{list(members)}</>}
+        </div>
+      )}
+    </Dialog>
   );
 }
 
@@ -303,6 +371,32 @@ function RowList({ rows, empty, onOpen }: { rows: Row[]; empty: string; onOpen: 
         );
       })}
     </div>
+  );
+}
+
+// The private list split in two: the leader, the owner and admins first, then members. The
+// member's own bulk conversation stays on top without a heading.
+function PrivateRows({ rows, onOpen, empty }: { rows: Row[]; onOpen: (id: string) => void; empty: string }) {
+  const bulk = rows.filter((r) => r.tone === "bulk");
+  const staff = rows.filter((r) => r.tone === "leader" || r.tone === "owner" || r.tone === "admin");
+  const members = rows.filter((r) => r.tone === "member");
+  if (rows.length === 0) return <RowList rows={rows} empty={empty} onOpen={onOpen} />;
+  return (
+    <>
+      {bulk.length > 0 && <RowList rows={bulk} empty="" onOpen={onOpen} />}
+      {staff.length > 0 && (
+        <>
+          <h2 className={`m-0 pb-1 text-[13px] font-bold text-muted ${bulk.length ? "pt-4" : ""}`}>Rəhbər və adminlər</h2>
+          <RowList rows={staff} empty="" onOpen={onOpen} />
+        </>
+      )}
+      {members.length > 0 && (
+        <>
+          <h2 className={`m-0 pb-1 text-[13px] font-bold text-muted ${bulk.length || staff.length ? "pt-4" : ""}`}>İştirakçılar</h2>
+          <RowList rows={members} empty="" onOpen={onOpen} />
+        </>
+      )}
+    </>
   );
 }
 
