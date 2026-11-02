@@ -646,12 +646,16 @@ function DashboardContent() {
           </MihrabCard>
         )}
 
-        {/* Ayah and hadith of the day, after today's pages */}
-        <section aria-label="Günün ayəsi və hədisi" className="bg-white border border-line rounded-card shadow-card p-5 md:p-7 flex flex-col md:flex-row items-center md:items-stretch gap-5 md:gap-10">
-          <DailyFigure caption="Günün ayəsi" item={ownerAyah ? null : auto.ayah} fallback={ownerAyah} />
-          <OrnamentRule className="md:hidden shrink-0" />
-          <div aria-hidden="true" className="hidden md:block md:w-px bg-leaflight shrink-0" />
-          <DailyFigure caption="Günün hədisi" item={ownerHadith ? null : auto.hadith} fallback={ownerHadith} />
+        {/* Ayah and hadith of the day, after today's pages: a night-green panel with a gold lattice */}
+        <section aria-label="Günün ayəsi və hədisi" className="relative overflow-hidden rounded-hero bg-tile shadow-card px-5 py-7 md:px-9 md:py-9">
+          <div aria-hidden="true" className="girih-night absolute inset-0 pointer-events-none" />
+          <div aria-hidden="true" className="absolute inset-1.5 md:inset-2 rounded-[16px] border border-leaf/50 pointer-events-none" />
+          <div className="relative flex flex-col md:flex-row items-center md:items-stretch gap-6 md:gap-10">
+            <DailyFigure caption="Günün ayəsi" item={ownerAyah ? null : auto.ayah} fallback={ownerAyah} />
+            <OrnamentRule className="md:hidden shrink-0" />
+            <div aria-hidden="true" className="hidden md:block md:w-px bg-leaf/50 shrink-0" />
+            <DailyFigure caption="Günün hədisi" item={ownerHadith ? null : auto.hadith} fallback={ownerHadith} />
+          </div>
         </section>
       </div>
 
@@ -687,20 +691,20 @@ function DashboardContent() {
 
 function DailyFigure({ caption, item, fallback }: { caption: string; item: DailyItem | null; fallback: string }) {
   return (
-    <figure className="flex-1 m-0 flex flex-col gap-2.5 min-w-0">
-      <figcaption className="text-[13px] font-bold text-goldtext">{caption}</figcaption>
+    <figure className="flex-1 m-0 flex flex-col items-center gap-3 min-w-0 text-center">
+      <figcaption className="font-display text-[15px] tracking-[0.04em] text-gold">{caption}</figcaption>
       {item ? (
         <>
           {item.text && (
-            <blockquote dir="rtl" lang="ar" className="m-0 font-amiri text-[24px] md:text-[28px] leading-[1.8] text-ink text-right">
+            <blockquote dir="rtl" lang="ar" className="m-0 w-full font-quran text-[26px] md:text-[30px] leading-[2.15] text-gold text-center [word-spacing:0.06em]">
               {item.text}
             </blockquote>
           )}
-          <p className="m-0 max-w-[65ch] text-[15px] leading-relaxed text-ink">{item.translation}</p>
-          <div className="text-[13px] text-muted">{item.source}</div>
+          <p className="m-0 max-w-[60ch] text-[15px] leading-relaxed text-white/90">{item.translation}</p>
+          <div className="text-[13px] text-onforest/75">{item.source}</div>
         </>
       ) : (
-        <p className="m-0 text-[15px] leading-relaxed text-ink whitespace-pre-line">{fallback}</p>
+        <p className="m-0 text-[15px] leading-relaxed text-white/90 whitespace-pre-line">{fallback}</p>
       )}
     </figure>
   );

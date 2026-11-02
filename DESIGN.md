@@ -104,13 +104,19 @@ Everything else is plain white cards with hairline borders.
 
 - **Emerald** (`forest` #0F5C45, press #0B4836, companion `mint` #E2EEE8): only things you can
   press, the active tab, live selection and marked page medallions.
-- **Lapis** (`lapis`/`done`/`juzdone` #23406B on `donebg` #E4E9F1): finished data. Bar fills,
-  finished juz, chart columns, streak days, "Bitirib" chips.
-- **Saffron** (`accent`/`juzprogress` #C4862A, chips `progress` #F7EBD3 / `progresstext` #6E4B12):
-  data under way. Handed-out-but-unstarted juz use pale saffron (`juzassigned`).
+- **Lapis** (`lapis`/`done` #23406B on `donebg` #E4E9F1): finished data. Bar fills, streak days,
+  "Bitirib" chips.
+- **Saffron** (`accent` #C4862A, chips `progress` #F7EBD3 / `progresstext` #6E4B12): data under way.
+- **Juz states** keep their pre-tezhip colours by the owner's choice: finished `juzdone` green
+  #2F8A5B, in progress `juzprogress` amber #B5651D, handed out `juzassigned` yellow #F7E3A3 (line
+  #DDBB55). Used by the juz octagons, the Qrup reader tabs and analytics charts.
 - **Gold leaf** (`leaf` #A9823A, `leaflight` #E9DDBF): ornament lines only (cartouche, mihrab frame,
   medallion rings, lozenge on bars, tab star, separators). Never a fill for a button or a state.
-- **Logo gold** (#E2B85C) and **night tile** (#0A2C20): the logo mark and its tile only.
+- **Logo gold** (#E2B85C) and **night tile** (#0A2C20): the logo mark and its tile, and the "Günün
+  ayəsi / hədisi" panel at the bottom of Bu gün (night tile with the gold lattice, Arabic in gold
+  Amiri Quran) plus the reader's prostration notice.
+- **Quranic text** uses `font-quran` (Amiri Quran), which draws the Uthmani small marks correctly;
+  plain `font-amiri` is for other Arabic.
 - **Neutrals:** porcelain ground `cream` #F1F2EC, `vellum` #FCFBF6 (mihrab card, messages),
   white cards, `sand` #EAECE3 quiet fills, `track` #E7E8E0, hairline `line` #DEE0D6, `field`
   #C9CCC0 input strokes, lapis `ink` #182235, `muted` #5E6675. Danger #9E3426 / #EBC9BF.

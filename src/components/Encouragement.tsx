@@ -151,7 +151,7 @@ function EncouragementCard({
           )}
         </div>
         {item.text && (
-          <p dir="rtl" lang="ar" className="m-0 font-amiri text-[22px] leading-[1.8] text-ink text-right">
+          <p dir="rtl" lang="ar" className="m-0 font-quran text-[22px] leading-[2.1] text-ink text-right">
             {item.text}
           </p>
         )}

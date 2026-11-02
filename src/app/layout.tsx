@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Amiri, Manrope, Marcellus } from "next/font/google";
+import { Amiri, Amiri_Quran, Manrope, Marcellus } from "next/font/google";
 import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
 
@@ -20,6 +20,13 @@ const amiri = Amiri({
   subsets: ["arabic"],
   weight: ["400", "700"],
   variable: "--font-amiri",
+});
+
+// Quranic text (Uthmani script with its small marks), close to the naskh of the reader's mushaf
+const amiriQuran = Amiri_Quran({
+  subsets: ["arabic"],
+  weight: "400",
+  variable: "--font-quran",
 });
 
 export const viewport: Viewport = {
@@ -46,7 +53,7 @@ export default function RootLayout({
   return (
     <html lang="az" className="h-full">
       <body
-        className={`${manrope.variable} ${marcellus.variable} ${amiri.variable} font-sans antialiased text-ink bg-cream h-full flex flex-col`}
+        className={`${manrope.variable} ${marcellus.variable} ${amiri.variable} ${amiriQuran.variable} font-sans antialiased text-ink bg-cream h-full flex flex-col`}
       >
         <AuthProvider>
           <div className="flex-1 flex flex-col">

@@ -60,6 +60,27 @@ body {
   opacity: 0.3;
 }
 
+/* Reader: the ayah of prostration glows in once, its notice rises from the bottom */
+@keyframes sajdah-glow {
+  0% { opacity: 0; }
+  40% { opacity: 1; }
+  60% { opacity: 0.55; }
+  100% { opacity: 1; }
+}
+.sajdah-mark {
+  animation: sajdah-glow 1600ms ease-out 250ms both;
+}
+@keyframes sajdah-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.sajdah-notice {
+  animation: sajdah-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sajdah-mark, .sajdah-notice { animation: none; }
+}
+
 /* Octagon: juz tiles and their legend swatches */
 .octagon {
   clip-path: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%);

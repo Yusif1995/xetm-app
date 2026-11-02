@@ -36,11 +36,12 @@ const config: Config = {
         done: "#23406B",
         donetext: "#23406B",
         donebg: "#E4E9F1",
-        // 30-juz map: finished lapis, in progress saffron, handed out pale saffron, free track
-        juzdone: "#23406B",
-        juzprogress: "#C4862A",
-        juzassigned: "#F7EBD3",
-        juzassignedline: "#DDB778",
+        // 30-juz map and reader tabs: finished green, in progress a strong amber, handed out yellow, free track
+        // (the owner kept these from before the tezhip palette)
+        juzdone: "#2F8A5B",
+        juzprogress: "#B5651D",
+        juzassigned: "#F7E3A3",
+        juzassignedline: "#DDBB55",
         progress: "#F7EBD3",
         progresstext: "#6E4B12",
         danger: "#9E3426",
@@ -55,6 +56,8 @@ const config: Config = {
         // Inscriptional capitals for page titles and big headings
         display: ["var(--font-display)", "Georgia", "serif"],
         amiri: ["var(--font-amiri)", "serif"],
+        // Quranic text: Amiri Quran draws the Uthmani small marks (ٱ ۟ ۭ ۚ) that plain Amiri misplaces
+        quran: ["var(--font-quran)", "var(--font-amiri)", "serif"],
       },
       borderRadius: {
         card: "18px",

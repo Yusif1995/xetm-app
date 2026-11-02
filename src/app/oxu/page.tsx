@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { isUserApprovedInGroup, toggleAssignmentPages } from "@/lib/db";
 import { openAssignmentsOf, type Assignment } from "@/lib/khatm";
 import { khatmLabel, surahForPage } from "@/lib/quran";
+import { LINE_HEIGHT, LINE_TOP, PAGE_IMAGE, sajdahOnPage, type SajdahAyah } from "@/lib/sajdah";
 import { useGroupAssignments } from "@/lib/useGroupData";
 import { useEncouragement } from "@/components/Encouragement";
 import { IconCheck, IconClose, LoadingScreen, btn, button } from "@/components/ui";
@@ -47,6 +48,9 @@ function Reader() {
   const duaPage = clampInt(params.get("dua"), DUA_PAGES);
   const isDua = duaPage !== null;
   const page = isDua ? duaPage : clampInt(params.get("s"), TOTAL_PAGES) ?? 1;
+  const sajdah = isDua ? null : sajdahOnPage(page);
+  // Arriving on a page with an ayah of prostration shows a notice for a while
+  const [sajdahNotice, setSajdahNotice] = useState(false);
 
   // The juz this page belongs to for this member: the one they can mark now (oldest unfinished),
   // else one they already finished (so the page still shows as theirs right after the last tap),
@@ -97,6 +101,13 @@ function Reader() {
       });
     });
   }, [next, prev, isDua]);
+
+  useEffect(() => {
+    setSajdahNotice(!!sajdah);
+    if (!sajdah) return;
+    const t = setTimeout(() => setSajdahNotice(false), 12000);
+    return () => clearTimeout(t);
+  }, [sajdah]);
 
   if (loading || !user || (approvedHere && !loaded)) {
     return <LoadingScreen text="Quran açılır..." />;
@@ -217,21 +228,53 @@ function Reader() {
         {/* Page 1 is two ornamented panels (al-Fatiha and the opening of al-Baqara): shown one under
             the other at full width and scrolled; every other page fits the screen */}
         <div className={`flex flex-col items-center gap-4 px-1.5 ${!isDua && page === 1 ? "shrink-0" : "flex-1 min-h-0 justify-center"}`}>
-          {imagesOf(page, isDua).map((src) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={src}
-              src={src}
-              alt={isDua ? `Xətm duası, səhifə ${page}` : `Quran, səhifə ${page}`}
-              className={`block w-full object-contain ${!isDua && page === 1 ? "h-auto max-w-[560px]" : "h-full min-h-0"}`}
-              draggable={false}
-            />
-          ))}
+          {imagesOf(page, isDua).map((src) => {
+            const img = (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={src}
+                src={src}
+                alt={isDua ? `Xətm duası, səhifə ${page}` : `Quran, səhifə ${page}`}
+                className={`block w-full object-contain ${!isDua && page === 1 ? "h-auto max-w-[560px]" : "h-full min-h-0"}`}
+                draggable={false}
+              />
+            );
+            return sajdah ? (
+              <div key={src} className="relative w-full h-full min-h-0">
+                {img}
+                <SajdahMark sajdah={sajdah} />
+              </div>
+            ) : img;
+          })}
         </div>
         <div className="shrink-0 pt-1 text-center text-[12px] font-semibold text-muted tabular-nums">
           {info}{isRead && <span className="text-donetext"> · oxunub ✓</span>}
         </div>
       </main>
+
+      {/* Ayah of prostration on this page: shown on arrival while the bars are hidden */}
+      {sajdah && sajdahNotice && !chrome && (
+        <div
+          role="status"
+          className="sajdah-notice absolute inset-x-3 bottom-[max(14px,env(safe-area-inset-bottom))] mx-auto max-w-md flex items-start gap-3 rounded-[16px] bg-tile text-white shadow-bar border border-leaf/60 px-4 py-3.5"
+        >
+          <span aria-hidden="true" className="font-quran text-[30px] leading-none text-gold pt-1">۩</span>
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-[16px] text-gold">Tilavət səcdəsi</div>
+            <p className="m-0 mt-0.5 text-[13px] leading-snug text-white/90">
+              Bu səhifədə səcdə ayəsi var: {sajdah.surah}, {sajdah.ayah}. Ayə səhifədə qızılı rənglə seçilib. Onu oxuyan və ya dinləyən səcdə edir.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSajdahNotice(false)}
+            aria-label="Bağla"
+            className="press shrink-0 w-10 h-10 -mr-2 -mt-1.5 rounded-full flex items-center justify-center text-white/80 hover:bg-white/10"
+          >
+            <IconClose size={18} />
+          </button>
+        </div>
+      )}
 
       {/* Top bar */}
       <header className={`absolute inset-x-0 top-0 flex items-center gap-3 px-3 md:px-5 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-white/95 backdrop-blur border-b border-line shadow-card ${bars} ${chrome ? "" : "-translate-y-full"}`}>
@@ -264,6 +307,11 @@ function Reader() {
       {/* Bottom bar: next is on the left, as in the mushaf */}
       <footer className={`absolute inset-x-0 bottom-0 bg-white/95 backdrop-blur border-t border-line shadow-bar px-3 md:px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] flex flex-col gap-2 ${bars} ${chrome ? "" : "translate-y-full"}`}>
         {error && <p role="alert" className="m-0 text-[13px] font-semibold text-danger text-center">{error}</p>}
+        {sajdah && (
+          <p className="m-0 text-[13px] font-bold text-goldtext text-center">
+            <span aria-hidden="true" className="font-quran text-[17px]">۩</span> Səcdə ayəsi: {sajdah.surah}, {sajdah.ayah}
+          </p>
+        )}
         {juzDone && (
           <p className="m-0 text-[14px] font-bold text-donetext text-center">
             {finishedJuz30 ? "Cüz 30 tamamlandı. Allah qəbul etsin. İndi xətm duasını oxuya bilərsən." : `Cüz ${held!.juz} tamamlandı. Allah qəbul etsin.`}
@@ -282,6 +330,30 @@ function Reader() {
 
       {encouragement.node}
     </div>
+  );
+}
+
+// Tints the ayah of prostration on the page image. The SVG covers the same box as the image and
+// scales the same way (contain, centred), so the marks stay on the lines at any screen size.
+function SajdahMark({ sajdah }: { sajdah: SajdahAyah }) {
+  const { width: W, height: H } = PAGE_IMAGE;
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="xMidYMid meet"
+      className="sajdah-mark absolute inset-0 w-full h-full pointer-events-none mix-blend-multiply"
+    >
+      {sajdah.parts.map(([line, from, to]) => {
+        const y = (LINE_TOP + (line - 1) * LINE_HEIGHT) * H;
+        return (
+          <g key={line}>
+            <rect x={from * W} y={y} width={(to - from) * W} height={LINE_HEIGHT * H} fill="#E8B04B" fillOpacity={0.3} />
+            <rect x={from * W} y={y + LINE_HEIGHT * H - 4} width={(to - from) * W} height={3} fill="#A9823A" fillOpacity={0.7} />
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 

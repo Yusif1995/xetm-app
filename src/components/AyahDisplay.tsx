@@ -88,7 +88,7 @@ export default function AyahDisplay() {
         {item.type === "ayah" ? "Günün ayəsi" : "Günün hədisi"}
       </figcaption>
       {item.text && (
-        <blockquote dir="rtl" lang="ar" className="m-0 font-amiri text-[26px] md:text-[30px] leading-[1.8] text-ink text-right">
+        <blockquote dir="rtl" lang="ar" className="m-0 font-quran text-[26px] md:text-[30px] leading-[2.1] text-ink text-right">
           {item.text}
         </blockquote>
       )}
