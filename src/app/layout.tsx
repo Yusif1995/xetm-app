@@ -1,12 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Amiri, Nunito } from "next/font/google";
+import { Amiri, Manrope, Marcellus } from "next/font/google";
 import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
 
-const nunito = Nunito({
+const manrope = Manrope({
   subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-nunito",
+  variable: "--font-sans",
+});
+
+// Inscriptional capitals, like carved mosque lettering: page titles and big headings only
+const marcellus = Marcellus({
+  subsets: ["latin", "latin-ext"],
+  weight: "400",
+  variable: "--font-display",
 });
 
 const amiri = Amiri({
@@ -16,7 +23,7 @@ const amiri = Amiri({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#F6F1E8",
+  themeColor: "#F1F2EC",
   width: "device-width",
   initialScale: 1,
 };
@@ -39,7 +46,7 @@ export default function RootLayout({
   return (
     <html lang="az" className="h-full">
       <body
-        className={`${nunito.variable} ${amiri.variable} font-sans antialiased text-ink bg-cream h-full flex flex-col`}
+        className={`${manrope.variable} ${marcellus.variable} ${amiri.variable} font-sans antialiased text-ink bg-cream h-full flex flex-col`}
       >
         <AuthProvider>
           <div className="flex-1 flex flex-col">

@@ -1,5 +1,6 @@
 // Shared UI primitives for the Xətm App design system (stroke icons, avatar, progress, chips).
-import type { InputHTMLAttributes, ReactNode } from "react";
+import type { CSSProperties, InputHTMLAttributes, ReactNode } from "react";
+import { Cartouche } from "./ornament";
 
 type IconProps = { size?: number; className?: string };
 
@@ -124,9 +125,9 @@ export function ProgressRing({
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 120 120" aria-hidden="true">
-        <circle cx="60" cy="60" r="52" fill="none" stroke="#EFE5D6" strokeWidth="10" />
+        <circle cx="60" cy="60" r="52" fill="none" stroke="#E7E8E0" strokeWidth="10" />
         <circle
-          cx="60" cy="60" r="52" fill="none" stroke="#6E8F7C" strokeWidth="10" strokeLinecap="round"
+          cx="60" cy="60" r="52" fill="none" stroke="#23406B" strokeWidth="10" strokeLinecap="round"
           strokeDasharray={circumference.toFixed(2)}
           strokeDashoffset={(circumference * (1 - ratio)).toFixed(2)}
           transform="rotate(-90 60 60)"
@@ -141,7 +142,8 @@ export function ProgressRing({
   );
 }
 
-// Horizontal progress bar on the light track
+// Horizontal progress bar on the light track. It fills from empty when it appears; a gold lozenge
+// rides the end of the fill on bars of 8px and up (the leading edge of the reading).
 export function Bar({
   ratio,
   color = "done",
@@ -151,6 +153,8 @@ export function Bar({
 }: { ratio: number; color?: "forest" | "accent" | "done" | "gold"; height?: number; dark?: boolean; label?: string }) {
   const fill = { forest: "bg-forest", accent: "bg-accent", done: "bg-done", gold: "bg-gold" }[color];
   const pct = Math.max(0, Math.min(1, ratio)) * 100;
+  const marker = !dark && height >= 8 && pct > 0 && pct < 100;
+  const lozenge = height + 4;
   return (
     <div
       role="progressbar"
@@ -158,13 +162,20 @@ export function Bar({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
-      className={`rounded-full overflow-hidden ${dark ? "bg-[rgba(247,243,234,0.16)]" : "bg-track"}`}
-      style={{ height }}
+      className={`relative rounded-full ${dark ? "bg-[rgba(247,243,234,0.16)]" : "bg-track"}`}
+      style={{ height, marginBlock: marker ? 2 : 0 }}
     >
       <div
-        className={`h-full rounded-full ${fill}`}
+        className={`bar-fill h-full rounded-full ${fill}`}
         style={{ width: `${pct}%`, minWidth: pct > 0 ? height : 0, transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1)" }}
       />
+      {marker && (
+        <span
+          aria-hidden="true"
+          className="bar-lozenge absolute top-1/2 bg-leaf border-2 border-white rounded-[2px]"
+          style={{ "--to": `${pct}%`, left: `${pct}%`, width: lozenge, height: lozenge, marginTop: -lozenge / 2, marginLeft: -lozenge / 2, transition: "left 0.6s cubic-bezier(0.22, 1, 0.36, 1)" } as CSSProperties}
+        />
+      )}
     </div>
   );
 }
@@ -175,27 +186,27 @@ export function Chip({ tone, children }: { tone: ChipTone; children: ReactNode }
   const cls = {
     done: "bg-donebg text-donetext",
     progress: "bg-progress text-progresstext",
-    owner: "bg-sand text-goldtext",
+    owner: "bg-progress/60 text-goldtext",
     pending: "bg-progress text-progresstext",
     neutral: "bg-sand text-muted",
-    active: "bg-donebg text-donetext",
+    active: "bg-mint text-forest",
   }[tone];
   return (
-    <span className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${cls}`}>
+    <span className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-lg whitespace-nowrap ${cls}`}>
       {children}
     </span>
   );
 }
 
-// Page heading used at the top of every screen
+// Page heading used at the top of every screen: the title sits in a surah-header cartouche over a
+// faint girih lattice, centred, with the subtitle and any actions beneath it
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4">
-      <div className="flex-[1_1_12rem] flex flex-col gap-1.5 min-w-0">
-        <h1 className="m-0 font-extrabold text-[28px] md:text-[36px] leading-[1.15] tracking-[-0.01em] text-ink">{title}</h1>
-        {subtitle && <div className="text-[13px] md:text-[15px] text-muted">{subtitle}</div>}
-      </div>
-      {actions}
+    <header className="relative -mx-4 md:mx-0 px-4 md:px-0 pt-3 md:pt-1 pb-1 flex flex-col items-center gap-3 text-center">
+      <div aria-hidden="true" className="girih absolute inset-x-0 -top-6 md:-top-10 h-[150px] pointer-events-none" />
+      <Cartouche>{title}</Cartouche>
+      {subtitle && <div className="relative text-[13px] md:text-[15px] text-muted">{subtitle}</div>}
+      {actions && <div className="relative flex flex-wrap items-center justify-center gap-2.5">{actions}</div>}
     </header>
   );
 }

@@ -169,10 +169,10 @@ const TILE_STATE_TEXT: Record<JuzTile["state"], string> = {
 };
 
 const TILE_STYLE: Record<JuzTile["state"], string> = {
-  done: "bg-juzdone border border-juzdone text-white",
-  progress: "bg-juzprogress border border-juzprogress text-white ring-2 ring-juzprogress ring-offset-2 ring-offset-white",
-  assigned: "bg-juzassigned border border-juzassignedline text-ink",
-  empty: "bg-white border border-line text-muted",
+  done: "bg-juzdone text-white",
+  progress: "bg-juzprogress text-white",
+  assigned: "bg-juzassigned text-progresstext",
+  empty: "bg-track text-muted",
 };
 
 // Tapping a juz opens a small card with who holds it, how far they are and the dates
@@ -190,14 +190,15 @@ export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (
 
   return (
     <>
-      <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2 md:gap-2.5">
+      <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-1.5 md:gap-2.5">
         {tiles.map((j) => (
           <button
             key={j.juz}
             type="button"
             onClick={() => setOpen(j)}
             aria-label={`Cüz ${j.juz}: ${TILE_STATE_TEXT[j.state]}${j.holderUid && holderName ? `, ${holderName(j.holderUid)}` : ""}`}
-            className={`press flex flex-col items-center justify-center gap-0.5 min-h-[64px] md:min-h-[92px] rounded-[12px] md:rounded-[14px] box-border p-2 text-center ${TILE_STYLE[j.state]}`}
+            className={`press octagon juz-tile flex flex-col items-center justify-center gap-0.5 aspect-square min-h-[60px] md:min-h-[88px] box-border p-2 text-center ${TILE_STYLE[j.state]}`}
+            style={{ animationDelay: `${(j.juz - 1) * 22}ms` }}
           >
             <span className="text-[11px] font-semibold opacity-85">Cüz</span>
             <span className="font-extrabold text-xl md:text-[26px] leading-none">{j.juz}</span>
@@ -218,7 +219,7 @@ export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 id="juz-pop-title" className="m-0 text-xl font-extrabold text-ink">Cüz {open.juz}</h3>
+                <h3 id="juz-pop-title" className="m-0 font-display font-normal text-2xl text-ink">Cüz {open.juz}</h3>
                 <div className="text-[13px] text-muted">
                   {khatmLabel(open.khatm)}{open.distribution ? ` · ${ordinalAz(open.distribution)} bölgü` : ""}
                 </div>
@@ -256,8 +257,8 @@ export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (
       <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs md:text-[13px] text-muted">
         <Legend className="bg-juzdone" label="Tamamlanıb" />
         <Legend className="bg-juzprogress" label="Davam edir" />
-        <Legend className="bg-juzassigned border border-juzassignedline" label="Verilib" />
-        <Legend className="bg-white border border-field" label="Verilməyib" />
+        <Legend className="bg-juzassigned" label="Verilib" />
+        <Legend className="bg-track" label="Verilməyib" />
       </div>
     </>
   );
@@ -266,7 +267,7 @@ export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (
 function Legend({ className, label }: { className: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <span className={`w-3.5 h-3.5 rounded box-border ${className}`} />
+      <span className={`octagon w-3.5 h-3.5 box-border ${className}`} />
       {label}
     </span>
   );

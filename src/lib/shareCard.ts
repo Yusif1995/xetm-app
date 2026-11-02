@@ -10,11 +10,11 @@ const MAX_BLOCK = H * 0.74;  // the text block may take up to this much height
 
 const COLORS = {
   ground: "#FFFFFF",
-  edge: "#F6F1E8",
-  ink: "#2B241F",
-  muted: "#6F625A",
-  gold: "#7A5718",
-  rule: "#E2B85C",
+  edge: "#F1F2EC",
+  ink: "#182235",
+  muted: "#5E6675",
+  gold: "#7A5A1E",
+  rule: "#A9823A",
 };
 
 const KIND_TITLE: Record<Encouragement["kind"], string> = {
@@ -56,7 +56,7 @@ interface Layout {
 }
 
 export async function renderShareImage(item: Encouragement): Promise<Blob> {
-  const sans = fontFamily("--font-nunito", "system-ui, sans-serif");
+  const sans = fontFamily("--font-sans", "system-ui, sans-serif");
   const arabic = fontFamily("--font-amiri", "serif");
   // Make sure the faces are ready before measuring
   await Promise.all([

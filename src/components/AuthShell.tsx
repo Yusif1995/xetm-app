@@ -11,11 +11,11 @@ export default function AuthShell({ aside, children }: { aside?: ReactNode; chil
           <div className="w-11 h-11 rounded-[14px] bg-tile flex items-center justify-center">
             <Logo />
           </div>
-          <span className="font-extrabold text-[22px] tracking-[-0.01em] text-ink">Xətm</span>
+          <span className="font-display text-[26px] leading-none text-ink">Xətm</span>
         </div>
 
         <div className="flex flex-col gap-3">
-          <h1 className="m-0 font-extrabold text-[34px] md:text-[48px] leading-[1.08] tracking-[-0.02em] text-ink">Birlikdə Quranı xətm edək</h1>
+          <h1 className="m-0 font-display font-normal text-[36px] md:text-[52px] leading-[1.08] text-ink">Birlikdə Quranı xətm edək</h1>
           <p className="m-0 text-[15px] md:text-base leading-relaxed text-muted max-w-md">
             Qrup yarat, 30 cüzü iştirakçılar arasında böl, hər kəsin oxuma gedişatını bir yerdən izlə.
           </p>

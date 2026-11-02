@@ -4,66 +4,65 @@ description: Quran Xətm İzləyicisi, a calm group khatm tracker for Azerbaijan
 colors:
   forest: "#0F5C45"
   forestpress: "#0B4836"
-  mint: "#E3EFE8"
-  done: "#6E8F7C"
-  donetext: "#3B5A4A"
-  donebg: "#E6EDE7"
-  accent: "#C98A2B"
-  progress: "#F8E9CC"
-  progresstext: "#6B4D12"
-  goldtext: "#7A5718"
+  mint: "#E2EEE8"
+  lapis: "#23406B"
+  donebg: "#E4E9F1"
+  accent: "#C4862A"
+  progress: "#F7EBD3"
+  progresstext: "#6E4B12"
+  goldtext: "#7A5A1E"
+  leaf: "#A9823A"
+  leaflight: "#E9DDBF"
   gold: "#E2B85C"
   tile: "#0A2C20"
-  cream: "#F6F1E8"
+  cream: "#F1F2EC"
+  vellum: "#FCFBF6"
   card: "#FFFFFF"
-  sand: "#F5EBDD"
-  track: "#EFE5D6"
-  line: "#EADFCF"
-  field: "#D9CCBA"
-  ink: "#2B241F"
-  muted: "#6F625A"
-  danger: "#A33A26"
+  sand: "#EAECE3"
+  track: "#E7E8E0"
+  line: "#DEE0D6"
+  field: "#C9CCC0"
+  ink: "#182235"
+  muted: "#5E6675"
+  danger: "#9E3426"
   dangerline: "#EBC9BF"
 typography:
   display:
-    fontFamily: "Nunito, system-ui, sans-serif"
-    fontSize: "34px (48px from md)"
-    fontWeight: 800
+    fontFamily: "Marcellus, Georgia, serif"
+    fontSize: "36px (52px from md)"
+    fontWeight: 400
     lineHeight: 1.08
-    letterSpacing: "-0.02em"
-  headline:
-    fontFamily: "Nunito, system-ui, sans-serif"
-    fontSize: "28px (36px from md)"
-    fontWeight: 800
-    lineHeight: 1.15
-    letterSpacing: "-0.01em"
+  title-cartouche:
+    fontFamily: "Marcellus, Georgia, serif"
+    fontSize: "clamp(20px, 6.6vw, 30px) (32px from md)"
+    fontWeight: 400
+    lineHeight: 1
   today:
-    fontFamily: "Nunito, system-ui, sans-serif"
-    fontSize: "26px (34px from md)"
-    fontWeight: 800
+    fontFamily: "Marcellus, Georgia, serif"
+    fontSize: "28px (38px from md)"
+    fontWeight: 400
     lineHeight: 1.12
-    letterSpacing: "-0.015em"
   numeral:
-    fontFamily: "Nunito, system-ui, sans-serif"
+    fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "34px"
     fontWeight: 800
     lineHeight: 1
     fontFeature: "tnum"
   title:
-    fontFamily: "Nunito, system-ui, sans-serif"
+    fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "15px"
     fontWeight: 700
   body:
-    fontFamily: "Nunito, system-ui, sans-serif"
+    fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.625
   meta:
-    fontFamily: "Nunito, system-ui, sans-serif"
+    fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 400
   label:
-    fontFamily: "Nunito, system-ui, sans-serif"
+    fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "12px"
     fontWeight: 700
   arabic:
@@ -72,266 +71,112 @@ typography:
     fontWeight: 400
     lineHeight: 1.8
 rounded:
-  tile: "12px"
+  chip: "8px"
   field: "14px"
-  btn: "16px"
-  card: "24px"
-  hero: "28px"
-  pill: "9999px"
+  btn: "14px"
+  card: "18px"
+  hero: "20px"
 spacing:
   card-pad: "18px"
   card-pad-md: "24px"
-  hero-pad: "22px"
-  hero-pad-md: "32px"
   section-gap: "20px"
   section-gap-md: "28px"
   touch: "44px"
-components:
-  button-primary:
-    backgroundColor: "{colors.forest}"
-    textColor: "{colors.card}"
-    typography: "{typography.title}"
-    rounded: "{rounded.btn}"
-    padding: "0 24px"
-    height: "48px"
-  button-primary-hover:
-    backgroundColor: "{colors.forestpress}"
-  button-primary-disabled:
-    backgroundColor: "{colors.track}"
-    textColor: "{colors.muted}"
-  button-outline:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.btn}"
-    padding: "0 24px"
-    height: "48px"
-  button-quiet:
-    backgroundColor: "{colors.sand}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.btn}"
-    padding: "0 24px"
-    height: "52px"
-  button-danger:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.danger}"
-    rounded: "{rounded.btn}"
-    padding: "0 24px"
-    height: "48px"
-  card:
-    backgroundColor: "{colors.card}"
-    rounded: "{rounded.card}"
-    padding: "18px"
-  card-hero:
-    backgroundColor: "{colors.card}"
-    rounded: "{rounded.hero}"
-    padding: "22px"
-  input:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.field}"
-    padding: "0 14px"
-    height: "48px"
-  chip-done:
-    backgroundColor: "{colors.donebg}"
-    textColor: "{colors.donetext}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "4px 10px"
-  chip-progress:
-    backgroundColor: "{colors.progress}"
-    textColor: "{colors.progresstext}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "4px 10px"
-  chip-neutral:
-    backgroundColor: "{colors.sand}"
-    textColor: "{colors.muted}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "4px 10px"
-  page-tile-marked:
-    backgroundColor: "{colors.forest}"
-    textColor: "{colors.card}"
-    rounded: "{rounded.tile}"
-    height: "44px"
-  page-tile-next:
-    backgroundColor: "{colors.mint}"
-    textColor: "{colors.forest}"
-    rounded: "{rounded.tile}"
-    height: "44px"
-  page-tile-open:
-    backgroundColor: "{colors.cream}"
-    textColor: "{colors.muted}"
-    rounded: "{rounded.tile}"
-    height: "44px"
-  tab-active:
-    backgroundColor: "{colors.mint}"
-    textColor: "{colors.forest}"
-    rounded: "20px"
-    height: "56px"
 ---
 
 # Design System: Xətm
 
 ## Overview
 
-**Creative North Star: "The Quiet Rehal"**
+**Creative North Star: "Təzhib" (mushaf illumination)**
 
-Xətm is a warm consumer app for people reading the Quran together. The world is a tinted cream ground holding soft white cards, with exactly one saturated colour on screen: the forest green of something you can press. Everything else (progress, finished juz, streak days, status) speaks in muted sage and warm amber, so a member's eye always lands on the next action, and the group's progress reads as calm encouragement, never as a scoreboard.
+Xətm borrows its ornament from the illuminated Ottoman mushaf the group reads from: surah-header
+cartouches, ayah-end medallions, the mihrab arch, the 8-point star (khatam) and the girih lattice.
+The ground is a cool porcelain white; text is lapis ink; the one saturated action colour is emerald;
+gold leaf only ever draws lines. The result should read as a well-made devotional object, quiet and
+professional, never as a game.
 
-Density is relaxed and mobile-first. One column of cards on the phone, a floating white tab bar within thumb reach, a white sidebar and a two-column flow on wide screens. Summaries are written as a sentence ("6 / 30 cüz oxunub, 6 cüz paylanıb · 3 iştirakçı") under one large numeral rather than broken into rows of equal stat tiles. Motion is limited to a soft press and smooth bar fills.
-
-**Key Characteristics:**
-- Warm cream ground, white cards with 24-28px corners, a hairline warm border and a low ambient shadow.
-- One action colour (forest), reserved for pressable things, the active tab, live selection and marked page tiles.
-- Data fills in sage (finished) and amber (in progress), never in the action green.
-- Nunito for every Latin glyph, extra-bold for headings and numerals; Amiri for Arabic text only.
-- Drawn stroke icons at one weight (24px grid, 2px stroke, round caps and joins).
-- A soft spring press (scale 0.97) on everything tappable.
+**Spend the ornament in a few places.** Page titles (cartouche), the one prominent card on a screen
+(mihrab), today's page tiles (medallions) and the juz map (octagons) carry the Islamic geometry.
+Everything else is plain white cards with hairline borders.
 
 ## Colors
 
-A warm paper palette with one deep green voice and two quiet data tones.
-
-### Primary
-- **Forest** (#0F5C45): the action colour. Primary buttons, the marked page tile and its border, the active tab's icon and label, selected khatm tabs and filters, inline text links, the keyboard focus outline. Nothing that cannot be pressed or is not the live selection wears it.
-- **Forest Press** (#0B4836): hover and pressed state of forest buttons.
-- **Mint** (#E3EFE8): the quiet companion of forest. Background of the active tab and active sidebar item, the "next page" tile, icon discs and the invite panel.
-
-### Secondary
-- **Sage** (`done`, #6E8F7C): completed data. Bar fills for finished shares and the khatm total, finished juz tiles, read streak days, activity dots.
-- **Deep Sage** (`donetext`, #3B5A4A) on **Sage Mist** (`donebg`, #E6EDE7): finished-status chips and the "Tamamlandı" confirmation block.
-
-### Tertiary
-- **Amber** (`accent`, #C98A2B): in-progress data. Bar fills for unfinished shares, the in-progress juz tile border, the unread-notification dot, the newest activity dot.
-- **Wheat** (`progress`, #F8E9CC) with **Brown Wheat** text (`progresstext`, #6B4D12): in-progress and pending chips, in-progress juz tiles, the owner-message panel, other members' avatars.
-- **Old Gold text** (`goldtext`, #7A5718): figure captions ("Günün ayəsi"), the owner chip text and owner-message meta line.
-- **Logo Gold** (#E2B85C) and **Night Tile** (`tile`, #0A2C20): the logo mark and its rounded tile only.
-
-### Neutral
-- **Cream** (#F6F1E8): page ground, theme colour, open page tiles.
-- **Card White** (#FFFFFF): every card, the tab bar, the sidebar, inputs.
-- **Sand** (#F5EBDD): quiet fills; quiet buttons, hover on outline buttons, own avatar, neutral chips.
-- **Track** (#EFE5D6): empty bar tracks, skeletons, disabled buttons.
-- **Hairline** (`line`, #EADFCF): card, tab bar and sidebar borders; dividers.
-- **Field** (#D9CCBA): input and outline-button strokes.
-- **Ink** (#2B241F): all primary text and numerals.
-- **Muted** (#6F625A): secondary text, meta lines, inactive tab labels, disabled text.
-- **Danger** (#A33A26) with **Danger Line** (#EBC9BF): sign-out, destructive buttons, write errors.
+- **Emerald** (`forest` #0F5C45, press #0B4836, companion `mint` #E2EEE8): only things you can
+  press, the active tab, live selection and marked page medallions.
+- **Lapis** (`lapis`/`done`/`juzdone` #23406B on `donebg` #E4E9F1): finished data. Bar fills,
+  finished juz, chart columns, streak days, "Bitirib" chips.
+- **Saffron** (`accent`/`juzprogress` #C4862A, chips `progress` #F7EBD3 / `progresstext` #6E4B12):
+  data under way. Handed-out-but-unstarted juz use pale saffron (`juzassigned`).
+- **Gold leaf** (`leaf` #A9823A, `leaflight` #E9DDBF): ornament lines only (cartouche, mihrab frame,
+  medallion rings, lozenge on bars, tab star, separators). Never a fill for a button or a state.
+- **Logo gold** (#E2B85C) and **night tile** (#0A2C20): the logo mark and its tile only.
+- **Neutrals:** porcelain ground `cream` #F1F2EC, `vellum` #FCFBF6 (mihrab card, messages),
+  white cards, `sand` #EAECE3 quiet fills, `track` #E7E8E0, hairline `line` #DEE0D6, `field`
+  #C9CCC0 input strokes, lapis `ink` #182235, `muted` #5E6675. Danger #9E3426 / #EBC9BF.
 
 ### Named Rules
-**The Pressable Green Rule.** Forest appears only on things you can press, the active tab, the live selection and the page tiles a member has marked. If it cannot be tapped and is not "yours, now", it is not forest.
-
-**The Disabled Loses Colour Rule.** A disabled button drops to track (#EFE5D6) with muted text and no border, so colour on screen always means "you can press this".
-
-**The Sage Data Rule.** Progress is drawn in sage when finished and amber when under way, on a track background. Never draw a bar, ring or finished state in forest.
+**The Pressable Emerald Rule.** If it cannot be tapped and is not "yours, now", it is not emerald.
+**The Lapis Data Rule.** Finished is lapis, under way is saffron, on a track. Never emerald.
+**The Gold Leaf Rule.** Gold draws, it never fills a control or encodes status.
+**The Disabled Loses Colour Rule.** Disabled buttons drop to track with muted text.
 
 ## Typography
 
-**Body Font:** Nunito (with system-ui, sans-serif), weights 400-800, Latin and Latin Extended for Azerbaijani.
-**Arabic Font:** Amiri (with serif), right-to-left, for Quran and hadith text only.
+- **Marcellus** (inscriptional capitals, like carved mosque lettering): page titles inside the
+  cartouche, the today heading, signed-out display heading, the app name, dialog titles. One weight.
+- **Manrope** 400–800: everything else. Card headings 700, big numerals 800 tabular.
+- **Amiri**: Arabic (Quran, hadith) only, right-to-left, line height 1.8.
 
-**Character:** Nunito's rounded terminals make the app feel friendly and soft at heavy weights; Amiri gives the Arabic its traditional naskh dignity at generous leading.
-
-### Hierarchy
-- **Display** (800, 34px / 48px md, 1.08, -0.02em): the signed-out welcome heading only.
-- **Headline** (800, 28px / 36px md, 1.15, -0.01em): page h1 on every screen, including the greeting.
-- **Today** (800, 26px / 34px md, 1.12, -0.015em): the today card's heading (juz and page range, or the finished state).
-- **Numeral** (800, 34px, 1, tabular): the one big number in a summary card, followed by a 15px muted unit ("/ 604 səhifə").
-- **Title** (700, 15px): card headings ("Qrup xətmi", "İştirakçılar", "Ardıcıl gün").
-- **Body** (400, 15px, relaxed, max 65ch): translations, messages, explanatory sentences.
-- **Meta** (400, 13px, muted): dates, summaries, row sub-lines, helper text.
-- **Label** (700, 12px): chips. Tab bar labels are 11px, bold when idle and extra-bold when active.
-- **Arabic** (Amiri 400, 24px / 28px md, line-height 1.8, right-aligned): daily ayah and hadith.
-
-### Named Rules
-**The Two Heavy Weights Rule.** Card headings are 700; page h1, the today heading and big numerals are 800. Nothing in between is used for headings.
-
-**The Sentence Summary Rule.** A card states one numeral, then one sentence of meta text. Don't split a summary into a row of equal stat tiles.
-
-**The Caption Not Kicker Rule.** A small old-gold caption may name a content figure ("Günün ayəsi"); it never sits above a page or card heading as an eyebrow, and nothing is uppercased or letter-spaced.
+**The Sentence Summary Rule.** One numeral and one sentence, not rows of equal stat tiles.
+**The Caption Not Kicker Rule.** A small old-gold caption may name a figure ("Günün ayəsi"); no
+eyebrows above headings, nothing uppercased or letter-spaced.
 
 ## Layout
 
-Mobile-first. On phones, content runs in one column with 16px side padding, 24px top padding and 128px bottom padding to clear the floating tab bar. Sections stack with 20px gaps (28px from md).
+Mobile-first, one column, 16px side padding. Page headers are centred: girih lattice behind, the
+cartouche, then one muted sentence and any actions. From md a 264px white sidebar holds the logo,
+the active group and the navigation (active item mint with a small gold star). Content max 1120px.
+Every target is at least 44px.
 
-From md (768px) a 264px white sidebar with a hairline right border holds the logo, the active-group switcher and the navigation; content gets 48px side padding inside a 1120px max-width column. The dashboard becomes a flex-wrap pair: a wide work column (basis 520px) and a group column (basis 320px) on the right. The page tile grid is 5 columns on phones and 10 from sm.
+## Ornament components (`src/components/ornament.tsx`)
 
-Every interactive target is at least 44px tall; buttons are 40, 48 or 52px.
+- **Cartouche:** the page title in a surah-header frame (double gold line, lozenge ends). Used by
+  `PageHeader` on every screen and by the dashboard greeting. Lines draw in on mount.
+- **MihrabCard:** vellum card under a pointed arch with a double gold frame. One per screen at most:
+  today's target on the dashboard.
+- **PageMedal:** a page of today's share as an 8-point star medallion in a thin gold ring. Open:
+  white with a pale gold outline. Next: mint with an emerald outline. Read: solid emerald, white
+  number; it turns in when it becomes read.
+- **OrnamentRule:** gold rule with a centred lozenge, between figures (ayah and hadith).
+- **StarMark / starPath:** the khatam star; marks the active tab and sidebar item.
+- **Juz map tiles** are octagons (`.octagon`) in lapis / saffron / pale saffron / track, opening in
+  a left-to-right wave.
+- **Bar:** fully round on track, lapis or saffron, fills from empty on appear; bars 8px and up carry a
+  gold lozenge at the leading edge.
+- `.girih` (globals.css): the lattice behind page titles, lapis at 7% and faded downward.
 
-## Elevation & Depth
+## Elevation & Shapes
 
-Soft, ambient, single-layer. Cards lift slightly off the cream with a two-part warm shadow; floating chrome (tab bar, menus, dialogs) gets one deeper shadow. Depth never encodes state; state is carried by colour.
+Shadows are tinted with lapis ink: card `0 1px 2px rgba(24,34,53,.05), 0 10px 28px -16px
+rgba(24,34,53,.22)`; floating `0 8px 28px -10px rgba(24,34,53,.24)`. Radii: chips 8px, inputs and
+buttons 14px, cards 18px, hero and dialogs 20px. The tab bar is docked to the bottom edge, white
+with a hairline top border.
 
-### Shadow Vocabulary
-- **Card** (`box-shadow: 0 1px 2px rgba(43,36,31,0.04), 0 8px 24px -12px rgba(43,36,31,0.12)`): every card, the header bell and profile buttons, the selected segment in a segmented filter.
-- **Float** (`box-shadow: 0 8px 28px -10px rgba(43,36,31,0.22)`): the floating tab bar, the profile menu, dialogs.
+## Motion
 
-### Named Rules
-**The Warm Shadow Rule.** Shadows are tinted with ink (43,36,31), never neutral black, and never hard-offset.
+- Screen change (`PageMotion.tsx`): content slides 24px in from the side you travel towards, a faint
+  gold khatam star opens and fades at the centre, the tab bar's gold star glides from the previous
+  tab. The previous screen is kept in sessionStorage because each screen mounts its own layout.
+- Cartouche and mihrab lines draw in; medallions pop in centre-out; bars fill; juz tiles wave in.
+- Soft press (scale 0.97) on everything tappable.
+- Everything respects `prefers-reduced-motion`.
 
-## Shapes
+## Don'ts
 
-Everything is softly rounded and grows with size: page tiles 12px, inputs and small controls 14px, buttons 16px, the active tab 20px, cards 24px, hero and dialog cards 28px, the tab bar 26px. Chips, avatars, bars and streak dots are fully round. Borders are 1px hairlines; the only 2px borders mark the next page tile and today's streak day.
-
-## Components
-
-### Buttons
-Soft, solid, tactile.
-- **Shape:** gently rounded (16px).
-- **Primary:** forest fill, white bold text, 48px (52px large, full-width on phones for the today action); hover forest press.
-- **Outline:** white with a field stroke, ink text; hover sand. A stronger ink-stroke variant exists for emphasis.
-- **Quiet:** sand fill, ink text; hover track.
-- **Danger:** white with a danger-line stroke and danger text; hover a pale blush.
-- **Disabled:** track fill, muted text, no border, not-allowed cursor.
-- **Press:** all pressables carry the soft press: scale 0.97 on active, 160ms cubic-bezier(0.22, 1, 0.36, 1), disabled under reduced motion.
-
-### Chips
-- **Style:** full pill, 12px bold, 4px by 10px padding, no border.
-- **Tones:** finished (sage mist / deep sage), in progress and pending (wheat / brown wheat), owner (sand / old gold), neutral (sand / muted).
-
-### Cards / Containers
-- **Corner Style:** 24px; the today card, empty states and dialogs use 28px.
-- **Background:** white on cream.
-- **Shadow Strategy:** Card shadow (see Elevation).
-- **Border:** 1px hairline; danger cards swap to the danger line.
-- **Internal Padding:** 18px (24px md); hero cards 22px (32px md); 14px gap between children.
-
-### Inputs / Fields
-- **Style:** 48px tall, white, 1px field stroke, 14px corners, 16px ink text (prevents iOS zoom), warm grey placeholder.
-- **Focus:** border turns forest with a 2px forest ring at 15% opacity. Keyboard focus elsewhere is a 2px forest outline offset 2px.
-- **Date fields:** leading calendar stroke icon; the whole field opens the native picker.
-
-### Navigation
-- **Mobile:** a floating white pill tab bar (95% white with backdrop blur, 26px corners, hairline border, float shadow) inset 12px from the edges above the safe area; four equal tabs of icon over 11px label. Active tab: mint background, forest icon and extra-bold label; idle: muted.
-- **Desktop:** white sidebar, 48px items with icon and 15px label; active item mint with forest extra-bold text, idle items semibold sidebar text with cream hover. Sign-out sits at the bottom in danger red.
-
-### Page Tile Grid (signature)
-The member's 20 pages of the day as 44px tiles, 12px corners, bold tabular numbers. Open: cream with hairline and muted number. Next: mint with a 2px forest border. Marked: solid forest with white number; tapping fills it with the press motion. This is the one place the action colour fills a data cell, because each tile is itself a button.
-
-### Juz Map
-Thirty juz tiles (5 columns on phones, auto-fill 88px on wide screens): finished in solid sage with white text, in progress in wheat with an amber border, assigned in white with a grey stroke, unassigned in pale dashed cream. A legend follows the grid.
-
-### Progress Bar
-Fully round, 8-14px tall, on track; sage when finished, amber while under way; width animates over 600ms with the same easing as the press.
-
-## Do's and Don'ts
-
-### Do:
-- **Do** keep forest (#0F5C45) for pressables, the active tab, live selection and marked page tiles only.
-- **Do** draw finished data in sage (#6E8F7C) and in-progress data in amber (#C98A2B) on the track (#EFE5D6).
-- **Do** drop disabled buttons to track with muted text.
-- **Do** set page h1 and the today heading in Nunito 800, card headings in Nunito 700.
-- **Do** summarise with one 34px extra-bold numeral and one 13px muted sentence.
-- **Do** give every tappable element the soft press and a 44px minimum target.
-- **Do** use Amiri, right-to-left, at 1.8 line height for all Arabic text.
-- **Do** use the one-weight stroke icon set (24px grid, 2px stroke, round caps).
-
-### Don't:
-- **Don't** use forest for bars, rings, finished juz, streak days or any non-pressable decoration.
-- **Don't** build rows of equal stat tiles, dark hero slabs or progress rings as the main summary device.
-- **Don't** put eyebrow or kicker labels above headings, and don't uppercase or letter-space labels.
-- **Don't** use emoji or text glyphs as icons.
-- **Don't** use any font other than Nunito for Latin text or Amiri for Arabic.
-- **Don't** use neutral-black or hard-offset shadows.
-- **Don't** present streaks or member status as a ranking, score or leaderboard.
+- No emerald on bars, rings, finished juz, streak days or decoration.
+- No dark hero slabs, no gold fills on controls.
+- No rows of equal stat tiles; no rankings, points or leaderboards (see PRODUCT.md).
+- No eyebrows, uppercase or letter-spaced labels; no emoji as icons.
+- No fonts beyond Marcellus, Manrope and Amiri.
+- No neutral-black or hard-offset shadows.

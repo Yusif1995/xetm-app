@@ -18,6 +18,8 @@ import {
   LoadingScreen,
   btn,
 } from "./ui";
+import { StarMark } from "./ornament";
+import { PageTransition, TabStar, useNavFrom } from "./PageMotion";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -25,6 +27,9 @@ interface AppLayoutProps {
 }
 
 type NavKey = "dashboard" | "readings" | "progress" | "analytics" | "admin" | "groups";
+
+// Left-to-right order of the screens: decides which side a screen slides in from
+const NAV_ORDER: NavKey[] = ["dashboard", "readings", "progress", "analytics", "groups", "admin"];
 
 // Map every screen to the navigation item it belongs to
 const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
@@ -40,6 +45,7 @@ const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
 
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const { user, loading, logout, activeGroupId, activeGroup, activeGroupLoaded, isSuperAdmin } = useAuth();
+  const navFrom = useNavFrom(NAV_FOR_TAB[activeTab]);
   // Keep this browser's push subscription up to date once permission has been granted.
   // Permission itself is only requested from the bell button (a user gesture), never on load.
   useEffect(() => {
@@ -96,7 +102,7 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
           <div className="w-11 h-11 rounded-[14px] bg-tile flex items-center justify-center">
             <Logo />
           </div>
-          <span className="font-extrabold text-[22px] tracking-[-0.01em] text-ink">Xətm</span>
+          <span className="font-display text-[26px] leading-none text-ink">Xətm</span>
         </Link>
 
         <div className="flex flex-col gap-2 px-1">
@@ -130,7 +136,8 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                 }`}
               >
                 {item.icon}
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {isCurrent && <StarMark size={11} className="text-leaf" />}
               </Link>
             );
           })}
@@ -151,17 +158,20 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       {/* Content */}
       <main className="flex-1 min-w-0 box-border px-4 pt-6 pb-32 md:px-12 md:pt-10 md:pb-14">
         <div className="max-w-[1120px] mx-auto">
-          {isApproved || activeTab === "groups" ? children : <ApprovalPendingScreen user={user} logout={logout} />}
+          <PageTransition from={navFrom} current={current} order={NAV_ORDER}>
+            {isApproved || activeTab === "groups" ? children : <ApprovalPendingScreen user={user} logout={logout} />}
+          </PageTransition>
         </div>
       </main>
 
-      {/* Floating tab bar (mobile), within thumb reach */}
-      <div className="fixed-layer md:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pb-safe pointer-events-none">
+      {/* Tab bar (mobile), docked within thumb reach; a gold star marks the current screen */}
+      <div className="fixed-layer md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-line pb-safe">
         <nav
           aria-label="Əsas naviqasiya"
-          className="pointer-events-auto grid bg-white border border-line rounded-[26px] shadow-bar px-1.5 py-1.5"
+          className="relative grid px-1.5 pt-2"
           style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }}
         >
+          <TabStar items={mobileItems.map((i) => i.key)} current={current} from={navFrom} />
           {mobileItems.map((item) => {
             const isCurrent = current === item.key;
             return (
@@ -169,8 +179,8 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                 key={item.key}
                 href={item.href}
                 aria-current={isCurrent ? "page" : undefined}
-                className={`press min-h-[56px] rounded-[20px] flex flex-col items-center justify-center gap-0.5 text-[11px] ${
-                  isCurrent ? "font-extrabold text-forest bg-mint" : "font-bold text-muted"
+                className={`press min-h-[52px] rounded-[14px] flex flex-col items-center justify-center gap-0.5 text-[11px] ${
+                  isCurrent ? "font-extrabold text-forest" : "font-semibold text-muted"
                 }`}
               >
                 {item.icon}
@@ -208,7 +218,7 @@ function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => 
         <div className="w-20 h-20 rounded-full bg-mint flex items-center justify-center text-forest">
           <IconGroup size={40} />
         </div>
-        <h1 className="m-0 font-extrabold text-2xl text-ink">{hasGroup ? "Təsdiq gözlənilir" : "Hələ qrupun yoxdur"}</h1>
+        <h1 className="m-0 font-display font-normal text-[26px] text-ink">{hasGroup ? "Təsdiq gözlənilir" : "Hələ qrupun yoxdur"}</h1>
         <p className="m-0 text-sm leading-relaxed text-muted">
           {!hasGroup ? (
             "Qrup sahibindən dəvət linkini al və Qruplarım bölməsində yapışdır. Təsdiq ediləndən sonra qrupa daxil olacaqsan."

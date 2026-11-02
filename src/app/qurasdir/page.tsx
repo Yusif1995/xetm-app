@@ -55,10 +55,10 @@ export default function InstallGuidePage() {
         <header className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-[14px] bg-tile flex items-center justify-center"><Logo /></div>
-            <span className="font-extrabold text-[22px] tracking-[-0.01em]">Xətm</span>
+            <span className="font-display text-[26px] leading-none">Xətm</span>
           </div>
           <div className="flex flex-col gap-2">
-            <h1 className="m-0 font-extrabold text-[30px] md:text-[40px] leading-[1.1] tracking-[-0.02em]">
+            <h1 className="m-0 font-display font-normal text-[30px] md:text-[42px] leading-[1.1]">
               Xətm-i telefonun ana ekranına əlavə et
             </h1>
             <p className="m-0 max-w-[60ch] text-[15px] md:text-base leading-relaxed text-muted">

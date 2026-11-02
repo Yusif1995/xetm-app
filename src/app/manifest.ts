@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Qrup şəklində Quran Xətm İzləmə Tətbiqi',
     start_url: '/',
     display: 'standalone',
-    background_color: '#F6F1E8',
-    theme_color: '#F6F1E8',
+    background_color: '#F1F2EC',
+    theme_color: '#F1F2EC',
     icons: [
       {
         src: '/favicon.ico',

@@ -4,14 +4,18 @@
 
 :root {
   /* Design tokens */
-  --ink: #2B241F;
+  --ink: #182235;
   --forest: #0F5C45;
-  --cream: #F6F1E8;
-  --line: #EADFCF;
-  --track: #EFE5D6;
+  --cream: #F1F2EC;
+  --vellum: #FCFBF6;
+  --line: #DEE0D6;
+  --track: #E7E8E0;
   --gold: #E2B85C;
-  --accent: #C98A2B;
-  --muted: #6F625A;
+  --leaf: #A9823A;
+  --leaflight: #E9DDBF;
+  --lapis: #23406B;
+  --accent: #C4862A;
+  --muted: #5E6675;
 
   --background: var(--cream);
   --foreground: var(--ink);
@@ -20,13 +24,13 @@
   --secondary-green: #1C6B48;
   --cream-bg: var(--cream);
   --card-bg: #FFFFFF;
-  --gold-dark: #b0913e;
+  --gold-dark: #A9823A;
 }
 
 body {
   color: var(--foreground);
   background-color: var(--cream);
-  font-family: var(--font-nunito), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   min-height: 100vh;
 }
 
@@ -36,8 +40,34 @@ body {
   outline-offset: 2px;
 }
 ::selection {
-  background: #D4E7DC;
+  background: #D6E5DD;
   color: var(--ink);
+}
+
+/* Girih lattice (8-point star) in lapis, faded downward: sits behind page title cartouches */
+.girih {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' fill='none' stroke='%2323406B' stroke-width='1'%3E%3Cpath d='M24 6 42 24 24 42 6 24Z'/%3E%3Cpath d='M11 11h26v26H11Z'/%3E%3Cpath d='M0 0 11 11M48 0 37 11M0 48 11 37M48 48 37 37M24 0v6M24 42v6M0 24h6M42 24h6'/%3E%3C/svg%3E");
+  background-position: center top;
+  opacity: 0.07;
+  -webkit-mask-image: linear-gradient(#000 30%, transparent);
+  mask-image: linear-gradient(#000 30%, transparent);
+}
+
+/* Octagon: juz tiles and their legend swatches */
+.octagon {
+  clip-path: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%);
+}
+
+/* Juz map: tiles open in a wave, left to right */
+@keyframes juz-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+.juz-tile {
+  animation: juz-in 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .juz-tile { animation: none; }
 }
 
 /* Light Card styles matching the mockup */
@@ -78,6 +108,26 @@ body {
   .rise-in { animation: none; }
 }
 
+/* Progress bars fill from empty when they first appear; the gold lozenge rides the leading edge */
+@keyframes bar-grow {
+from { transform: scaleX(0); }
+to { transform: scaleX(1); }
+}
+@keyframes lozenge-ride {
+from { left: 0; transform: rotate(-135deg); }
+to { left: var(--to); transform: rotate(45deg); }
+}
+.bar-fill {
+transform-origin: left center;
+animation: bar-grow 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.bar-lozenge {
+transform: rotate(45deg);
+animation: lozenge-ride 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+.bar-fill, .bar-lozenge { animation: none; }
+}
 /* Add-to-home-screen guide: a ring pulsing out from the spot to tap */
 @keyframes tap-pulse {
   from { transform: scale(1); opacity: 0.7; }

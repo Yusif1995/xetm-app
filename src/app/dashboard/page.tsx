@@ -24,6 +24,7 @@ import { enablePushFromUserGesture, isPushSupported } from "@/lib/push";
 import { bakuDateKey, dailyContent, type DailyItem } from "@/lib/dailyContent";
 import { useEncouragement } from "@/components/Encouragement";
 import { Avatar, IconBell, IconCalendar, IconCheck, IconLogout, LoadingScreen, ProgressRing, btn, button } from "@/components/ui";
+import { Cartouche, MihrabCard, OrnamentRule, PageMedal } from "@/components/ornament";
 
 const CHUNK_SIZE = 5;
 const UNDO_MS = 6000;
@@ -352,29 +353,23 @@ function DashboardContent() {
 
   const pageGrid = (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-        {sortedPages.map((p) => {
+      <div className="grid grid-cols-5 sm:grid-cols-10 gap-x-1 gap-y-1.5">
+        {sortedPages.map((p, i) => {
           const isDone = completedPages.includes(p);
           const isNext = p === nextPage;
           return (
-            <Link
+            <PageMedal
               key={p}
+              page={p}
+              index={i}
               href={`/oxu?s=${p}`}
-              aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}. Quranda aç`}
-              className={`press min-h-[44px] rounded-[12px] font-bold text-[15px] tabular-nums box-border flex items-center justify-center ${
-                isDone
-                  ? "bg-forest text-white border border-forest"
-                  : isNext
-                    ? "bg-mint text-forest border-2 border-forest"
-                    : "bg-cream text-muted border border-line"
-              }`}
-            >
-              {p}
-            </Link>
+              state={isDone ? "done" : isNext ? "next" : "open"}
+              label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}. Quranda aç`}
+            />
           );
         })}
       </div>
-      <p className="m-0 text-[13px] text-muted">Səhifəyə toxun, Quranda açılsın. Yaşıl xanalar oxunub.</p>
+      <p className="m-0 text-[13px] text-muted text-center">Səhifəyə toxun, Quranda açılsın. Yaşıl ulduzlar oxunub.</p>
     </div>
   );
 
@@ -383,12 +378,9 @@ function DashboardContent() {
       <div className="max-w-[880px] flex flex-col gap-5 md:gap-7">
         <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
 
-        <header className="flex flex-col gap-1.5">
-          <div className="flex items-start justify-between gap-3">
-          <h1 className="m-0 min-w-0 flex-1 font-extrabold text-[28px] md:text-[36px] leading-[1.15] tracking-[-0.01em] text-ink">
-            {firstName ? `Xoş gördük, ${firstName}` : "Xoş gördük"}
-          </h1>
-          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+        <header className="relative -mx-4 md:mx-0 px-4 md:px-0 flex flex-col items-center gap-3 text-center">
+          <div aria-hidden="true" className="girih absolute inset-x-0 -top-6 md:-top-10 h-[170px] pointer-events-none" />
+          <div className="relative self-end flex items-center gap-2 md:gap-3 shrink-0">
             <button
               type="button"
               onClick={handleEnablePush}
@@ -448,10 +440,10 @@ function DashboardContent() {
               )}
             </div>
           </div>
-          </div>
+          <Cartouche>{firstName ? `Xoş gördük, ${firstName}` : "Xoş gördük"}</Cartouche>
           {/* One line across the full width; the font shrinks with the screen so it never wraps */}
-          <div className="whitespace-nowrap overflow-hidden text-ellipsis text-[clamp(11px,3.5vw,15px)] text-muted">
-            {gregorian}{hijri && ` · ${hijri}`}
+          <div className="relative max-w-full whitespace-nowrap overflow-hidden text-ellipsis text-[clamp(11px,3.5vw,15px)] text-muted">
+            {gregorian}{hijri && `, ${hijri}`}
           </div>
         </header>
 
@@ -471,10 +463,10 @@ function DashboardContent() {
         {thread?.memberUnread && thread.lastFrom === "manager" && (
           <section
             aria-label="Qrup rəhbərindən yeni mesaj"
-            className="bg-progress rounded-card p-5 md:p-6 flex flex-wrap items-start justify-between gap-4"
+            className="bg-vellum border-l-[3px] border-leaf rounded-r-card rounded-l-md shadow-card p-5 md:p-6 flex flex-wrap items-start justify-between gap-4"
           >
             <div className="flex gap-3.5 min-w-0 flex-[1_1_260px]">
-              <div className="w-11 h-11 rounded-full bg-white text-goldtext flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-full bg-progress text-goldtext flex items-center justify-center shrink-0">
                 <IconBell size={22} />
               </div>
               <div className="flex flex-col gap-1 min-w-0">
@@ -491,10 +483,10 @@ function DashboardContent() {
         {showOwnerMessage && ownerMessage && (
           <section
             aria-label="Qrup sahibindən mesaj"
-            className="bg-progress rounded-card p-5 md:p-6 flex flex-wrap items-start justify-between gap-4"
+            className="bg-vellum border-l-[3px] border-leaf rounded-r-card rounded-l-md shadow-card p-5 md:p-6 flex flex-wrap items-start justify-between gap-4"
           >
             <div className="flex gap-3.5 min-w-0 flex-[1_1_260px]">
-              <div className="w-11 h-11 rounded-full bg-white text-goldtext flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-full bg-progress text-goldtext flex items-center justify-center shrink-0">
                 <IconBell size={22} />
               </div>
               <div className="flex flex-col gap-1 min-w-0">
@@ -554,21 +546,22 @@ function DashboardContent() {
             <div className="h-[52px] w-full sm:w-64 rounded-btn bg-track animate-pulse" />
           </section>
         ) : (
-          <section
+          <MihrabCard
             aria-labelledby="hedef"
-            className="bg-white border border-line rounded-hero shadow-card p-[22px] md:p-8 flex flex-wrap items-center justify-between gap-4 md:gap-7"
+            className="px-5 pt-5 pb-6 md:px-10 md:pt-6 md:pb-9"
           >
+            <div className="flex flex-wrap items-center justify-between gap-4 md:gap-7">
             <div className="flex-[1_1_220px] flex flex-col gap-4 md:gap-[18px] min-w-0">
-              <div className="flex flex-col gap-1.5 md:gap-2">
-                <h2 id="hedef" className="m-0 font-extrabold text-[26px] md:text-[34px] leading-[1.12] tracking-[-0.015em] text-ink">{targetTitle}</h2>
+              <div className="flex flex-col items-center text-center gap-1.5 md:gap-2">
+                <h2 id="hedef" className="m-0 font-display font-normal text-[28px] md:text-[38px] leading-[1.12] text-ink">{targetTitle}</h2>
                 <div className="text-[14px] md:text-[15px] text-muted leading-relaxed">{remainingText}</div>
                 {current?.startDate && current.endDate && (
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    <span className="inline-flex items-center gap-1.5 min-h-[32px] px-3 rounded-full bg-sand text-[13px] font-semibold text-ink">
+                  <div className="flex flex-wrap justify-center gap-2 mt-1">
+                    <span className="inline-flex items-center gap-1.5 min-h-[32px] px-3 rounded-lg bg-white border border-line text-[13px] font-semibold text-ink">
                       <IconCalendar size={15} className="text-muted" />
                       Başlama: {formatIsoDateAz(current.startDate)}
                     </span>
-                    <span className="inline-flex items-center gap-1.5 min-h-[32px] px-3 rounded-full bg-sand text-[13px] font-semibold text-ink">
+                    <span className="inline-flex items-center gap-1.5 min-h-[32px] px-3 rounded-lg bg-white border border-line text-[13px] font-semibold text-ink">
                       <IconCalendar size={15} className="text-muted" />
                       Bitmə: {formatIsoDateAz(current.endDate)}
                     </span>
@@ -591,7 +584,7 @@ function DashboardContent() {
               )}
               {current && pageGrid}
               {current && (
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap justify-center gap-3">
                   {activeChunk.length > 0 ? (
                     <>
                       {nextPage && (
@@ -649,13 +642,15 @@ function DashboardContent() {
             {current && (
               <div className="hidden lg:block self-start"><ProgressRing value={myCompleted} total={sortedPages.length} /></div>
             )}
-          </section>
+            </div>
+          </MihrabCard>
         )}
 
         {/* Ayah and hadith of the day, after today's pages */}
-        <section aria-label="Günün ayəsi və hədisi" className="bg-white border border-line rounded-card shadow-card p-5 md:p-7 flex flex-col md:flex-row gap-5 md:gap-10">
+        <section aria-label="Günün ayəsi və hədisi" className="bg-white border border-line rounded-card shadow-card p-5 md:p-7 flex flex-col md:flex-row items-center md:items-stretch gap-5 md:gap-10">
           <DailyFigure caption="Günün ayəsi" item={ownerAyah ? null : auto.ayah} fallback={ownerAyah} />
-          <div aria-hidden="true" className="h-px md:h-auto md:w-px bg-line shrink-0" />
+          <OrnamentRule className="md:hidden shrink-0" />
+          <div aria-hidden="true" className="hidden md:block md:w-px bg-leaflight shrink-0" />
           <DailyFigure caption="Günün hədisi" item={ownerHadith ? null : auto.hadith} fallback={ownerHadith} />
         </section>
       </div>

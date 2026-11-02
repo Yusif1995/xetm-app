@@ -243,7 +243,7 @@ function Reader() {
           <IconClose size={20} />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="m-0 text-[15px] md:text-base font-extrabold truncate">{title}</h1>
+          <h1 className="m-0 font-display font-normal text-[18px] md:text-[20px] leading-tight truncate">{title}</h1>
           <div className="text-xs text-muted truncate">{subtitle}</div>
         </div>
         <div className="shrink-0 text-right">
@@ -256,7 +256,7 @@ function Reader() {
         </div>
         {held && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-track" aria-hidden="true">
-            <div className="h-full bg-juzdone transition-[width] duration-500" style={{ width: `${(done.length / juzPages.length) * 100}%` }} />
+            <div className="h-full bg-leaf transition-[width] duration-500" style={{ width: `${(done.length / juzPages.length) * 100}%` }} />
           </div>
         )}
       </header>
