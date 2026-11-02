@@ -2,9 +2,9 @@
 // Conversations of a group (see src/lib/threads.ts for the kinds and who may do what).
 //  - Member: their bulk conversation ("Toplu mesajlar", answered by the leader), the leader, and the
 //    app owner if the owner wrote to them.
-//  - Leader, group admins and the app owner get two tabs: "Toplu mesajlar" (send to many, every
-//    reply; only the leader answers) and "Şəxsi" (the leader with members, admins with the leader
-//    and the owner, the owner privately with anyone).
+//  - Leader, group admins and the app owner get two tabs: "Şəxsi" (the leader with members, admins
+//    with the leader and the owner, the owner privately with anyone) and "Toplu mesajlar" (send to
+//    many, every reply; only the leader answers).
 // Your own conversations update live; the ones only the server may show you refresh every few seconds.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
@@ -92,7 +92,7 @@ function GroupMessages({ groupId }: { groupId: string }) {
   const uid = user?.uid || "";
   const [inbox, setInbox] = useState<Inbox | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"bulk" | "private">("bulk");
+  const [tab, setTab] = useState<"bulk" | "private">("private");
   const [open, setOpen] = useState<string | null>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -187,7 +187,7 @@ function GroupMessages({ groupId }: { groupId: string }) {
     <>
       {isManager && (
         <div role="tablist" aria-label="Mesajlar" className="grid grid-cols-2 gap-1 p-1 rounded-[14px] bg-sand">
-          {([["bulk", "Toplu mesajlar", unread(rows.bulk)], ["private", "Şəxsi", unread(rows.private)]] as const).map(([v, label, dot]) => (
+          {([["private", "Şəxsi", unread(rows.private)], ["bulk", "Toplu mesajlar", unread(rows.bulk)]] as const).map(([v, label, dot]) => (
             <button
               key={v}
               type="button"
@@ -381,19 +381,25 @@ function PrivateRows({ rows, onOpen, empty }: { rows: Row[]; onOpen: (id: string
   const staff = rows.filter((r) => r.tone === "leader" || r.tone === "owner" || r.tone === "admin");
   const members = rows.filter((r) => r.tone === "member");
   if (rows.length === 0) return <RowList rows={rows} empty={empty} onOpen={onOpen} />;
+  // Private chats first, the bulk conversation after them
   return (
     <>
-      {bulk.length > 0 && <RowList rows={bulk} empty="" onOpen={onOpen} />}
       {staff.length > 0 && (
         <>
-          <h2 className={`m-0 pb-1 text-[13px] font-bold text-muted ${bulk.length ? "pt-4" : ""}`}>Rəhbər və adminlər</h2>
+          <h2 className="m-0 pb-1 text-[13px] font-bold text-muted">Rəhbər və adminlər</h2>
           <RowList rows={staff} empty="" onOpen={onOpen} />
         </>
       )}
       {members.length > 0 && (
         <>
-          <h2 className={`m-0 pb-1 text-[13px] font-bold text-muted ${bulk.length || staff.length ? "pt-4" : ""}`}>İştirakçılar</h2>
+          <h2 className={`m-0 pb-1 text-[13px] font-bold text-muted ${staff.length ? "pt-4" : ""}`}>İştirakçılar</h2>
           <RowList rows={members} empty="" onOpen={onOpen} />
+        </>
+      )}
+      {bulk.length > 0 && (
+        <>
+          {(staff.length > 0 || members.length > 0) && <h2 className="m-0 pt-4 pb-1 text-[13px] font-bold text-muted">Toplu mesajlar</h2>}
+          <RowList rows={bulk} empty="" onOpen={onOpen} />
         </>
       )}
     </>

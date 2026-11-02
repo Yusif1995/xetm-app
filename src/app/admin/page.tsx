@@ -275,7 +275,7 @@ export default function AdminPage() {
       await removeAssignment(activeGroupId, a.id);
     } catch (err) {
       console.error("Error removing assignment:", err);
-      alert("Təyinatı silərkən xəta baş verdi.");
+      alert(err instanceof Error ? err.message : "Təyinatı silərkən xəta baş verdi.");
     }
   };
 
@@ -287,7 +287,7 @@ export default function AdminPage() {
       setTransferUid("");
     } catch (err) {
       console.error("Error transferring assignment:", err);
-      alert("Cüzü ötürərkən xəta baş verdi.");
+      alert(err instanceof Error ? err.message : "Cüzü ötürərkən xəta baş verdi.");
     }
   };
 

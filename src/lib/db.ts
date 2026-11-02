@@ -2,7 +2,6 @@ import { auth, db } from "./firebase";
 import {
   eligibleMembers,
   newAssignmentData,
-  pagesReadBy,
   planDistribution,
   type Assignment,
 } from "./khatm.ts";
@@ -20,7 +19,6 @@ import {
   orderBy,
   serverTimestamp,
   deleteField,
-  deleteDoc,
   runTransaction,
   where,
   type DocumentData
@@ -806,19 +804,34 @@ export async function assignJuzManually(
   }
 }
 
-// Owner: hand an unfinished juz to another member; pages already read stay credited to the old holder
+// Manager (group creator or app admin): hand an unfinished juz to another member, or take a juz
+// back. Goes through the server, because the rules let only the creator write assignments.
+async function manageAssignment(groupId: string, body: Record<string, string>, fallback: string): Promise<void> {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("Hesabına yenidən daxil ol.");
+  const res = await fetch("/api/assignments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ groupId, ...body })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(typeof data.error === "string" && res.status !== 500 && res.status !== 403 ? data.error : fallback);
+  }
+}
+
+// Pages already read stay credited to the old holder
 export async function transferAssignment(groupId: string, a: Assignment, newUid: string): Promise<void> {
   if (newUid === a.uid) return;
-  await updateDoc(doc(assignmentsCol(groupId), a.id), {
-    uid: newUid,
-    previousHolders: [...(a.previousHolders || []), { uid: a.uid, pagesRead: pagesReadBy(a, a.uid) }]
-  });
+  await manageAssignment(groupId, { action: "transfer", assignmentId: a.id, to: newUid }, "Cüzü ötürmək alınmadı.");
   // The new holder hears about it like any other assignment
   notifyNewAssignments(groupId, [a.id]);
+  refreshGroupProgress(groupId);
 }
 
 export async function removeAssignment(groupId: string, assignmentId: string): Promise<void> {
-  await deleteDoc(doc(assignmentsCol(groupId), assignmentId));
+  await manageAssignment(groupId, { action: "remove", assignmentId }, "Təyinatı silmək alınmadı.");
+  refreshGroupProgress(groupId);
 }
 
 // Holder marks/unmarks pages of their juz. Runs in a transaction so "done" always matches the pages.
