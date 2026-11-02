@@ -199,19 +199,28 @@ function Segmented<T extends string>({ label, value, onChange, options }: {
   );
 }
 
+// Headline figures sit on a lapis plinth with a gold lattice and frame; `flat` tiles go inside cards
 function Tiles({ items, flat = false }: { items: { label: string; value: ReactNode; sub?: ReactNode }[]; flat?: boolean }) {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3 md:gap-4">
+  const grid = (
+    <div className="relative grid grid-cols-2 md:grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5 md:gap-3">
       {items.map((t) => (
         <div
           key={t.label}
-          className={`${flat ? "bg-cream" : "bg-white border border-line shadow-card"} rounded-[20px] px-4 py-3.5 flex flex-col gap-1 min-w-0`}
+          className={`${flat ? "bg-cream rounded-[20px]" : "bg-white rounded-[14px] shadow-card"} px-4 py-3.5 flex flex-col gap-1 min-w-0`}
         >
           <div className="text-[13px] font-bold text-muted">{t.label}</div>
           <div className="font-extrabold text-[26px] md:text-[30px] leading-none tabular-nums text-ink">{t.value}</div>
           {t.sub && <div className="text-xs text-muted">{t.sub}</div>}
         </div>
       ))}
+    </div>
+  );
+  if (flat) return grid;
+  return (
+    <div className="relative overflow-hidden rounded-hero bg-ink p-3.5 md:p-5 shadow-card">
+      <div aria-hidden="true" className="girih-night absolute inset-0 pointer-events-none" />
+      <div aria-hidden="true" className="absolute inset-1.5 md:inset-2 rounded-[16px] border border-leaf/50 pointer-events-none" />
+      {grid}
     </div>
   );
 }

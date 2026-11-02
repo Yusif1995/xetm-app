@@ -53,6 +53,13 @@ body {
   mask-image: linear-gradient(#000 30%, transparent);
 }
 
+/* The same lattice in gold leaf on lapis ink: the plinth under the analytics headline figures */
+.girih-night {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' fill='none' stroke='%23A9823A' stroke-width='1'%3E%3Cpath d='M24 6 42 24 24 42 6 24Z'/%3E%3Cpath d='M11 11h26v26H11Z'/%3E%3Cpath d='M0 0 11 11M48 0 37 11M0 48 11 37M48 48 37 37M24 0v6M24 42v6M0 24h6M42 24h6'/%3E%3C/svg%3E");
+  background-position: center;
+  opacity: 0.3;
+}
+
 /* Octagon: juz tiles and their legend swatches */
 .octagon {
   clip-path: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%);

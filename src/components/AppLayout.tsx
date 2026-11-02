@@ -13,23 +13,25 @@ import {
   IconShield,
   IconLayers,
   IconChart,
+  IconMessage,
   IconLogout,
   IconChevronDown,
   LoadingScreen,
   btn,
 } from "./ui";
 import { StarMark } from "./ornament";
-import { PageTransition, TabStar, useNavFrom } from "./PageMotion";
+import { PageTransition, TabPill, useNavFrom } from "./PageMotion";
+import { useGroupThreads, useThreadSummary } from "@/lib/useGroupData";
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  activeTab: "dashboard" | "readings" | "progress" | "stats" | "groups" | "analytics" | "admin" | "ai";
+  activeTab: "dashboard" | "readings" | "progress" | "stats" | "groups" | "analytics" | "messages" | "admin" | "ai";
 }
 
-type NavKey = "dashboard" | "readings" | "progress" | "analytics" | "admin" | "groups";
+type NavKey = "dashboard" | "readings" | "progress" | "messages" | "analytics" | "admin" | "groups";
 
 // Left-to-right order of the screens: decides which side a screen slides in from
-const NAV_ORDER: NavKey[] = ["dashboard", "readings", "progress", "analytics", "groups", "admin"];
+const NAV_ORDER: NavKey[] = ["dashboard", "readings", "progress", "messages", "analytics", "groups", "admin"];
 
 // Map every screen to the navigation item it belongs to
 const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
@@ -39,6 +41,7 @@ const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
   stats: "progress",
   groups: "groups",
   analytics: "analytics",
+  messages: "messages",
   admin: "admin",
   ai: "admin",
 };
@@ -46,6 +49,11 @@ const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const { user, loading, logout, activeGroupId, activeGroup, activeGroupLoaded, isSuperAdmin } = useAuth();
   const navFrom = useNavFrom(NAV_FOR_TAB[activeTab]);
+  // Unread conversations: the group creator sees every member's thread, a member only their own
+  const isCreator = !!user && !!activeGroup && activeGroup.createdBy === user.uid;
+  const threads = useGroupThreads(activeGroupId, isCreator);
+  const ownThread = useThreadSummary(activeGroupId, user && !isCreator ? user.uid : undefined);
+  const hasUnread = isCreator ? Object.values(threads).some((t) => t.managerUnread) : !!ownThread?.memberUnread;
   // Keep this browser's push subscription up to date once permission has been granted.
   // Permission itself is only requested from the bell button (a user gesture), never on load.
   useEffect(() => {
@@ -79,20 +87,21 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const activeGroupName = activeGroup?.name || "Qrup seçilməyib";
 
   const navItems: { key: NavKey; href: string; label: string; short: string; icon: ReactNode }[] = [
-    { key: "dashboard", href: "/dashboard", label: "Bu gün", short: "Bu gün", icon: <IconToday /> },
-    { key: "readings", href: "/readings", label: "Səhifələrim", short: "Səhifələrim", icon: <IconBook /> },
-    { key: "progress", href: "/progress", label: "Qrup", short: "Qrup", icon: <IconGroup /> },
-    { key: "analytics", href: "/analytics", label: "Analitika", short: "Analitika", icon: <IconChart /> },
+    { key: "dashboard", href: "/dashboard", label: "Bu gün", short: "Bu gün", icon: <IconToday size={22} /> },
+    { key: "readings", href: "/readings", label: "Səhifələrim", short: "Səhifələrim", icon: <IconBook size={22} /> },
+    { key: "progress", href: "/progress", label: "Qrup", short: "Qrup", icon: <IconGroup size={22} /> },
+    { key: "messages", href: "/mesajlar", label: "Mesajlar", short: "Mesajlar", icon: <IconMessage size={22} /> },
+    { key: "analytics", href: "/analytics", label: "Analitika", short: "Analitika", icon: <IconChart size={22} /> },
   ];
   if (canManageGroup) {
-    navItems.push({ key: "admin", href: "/admin", label: "İnzibatçı paneli", short: "Admin", icon: <IconShield /> });
+    navItems.push({ key: "admin", href: "/admin", label: "İnzibatçı paneli", short: "Admin", icon: <IconShield size={22} /> });
   }
-  // Mobile tab bar keeps four tabs: analytics is reached from the "Qrup" screen there,
-  // and members without admin rights get "Qruplarım" as the fourth tab
+  // Mobile tab bar keeps five tabs: analytics is reached from the "Qrup" screen there,
+  // and members without admin rights get "Qruplarım" as the last tab
   const mobileBase = navItems.filter((i) => i.key !== "analytics");
   const mobileItems = canManageGroup
     ? mobileBase
-    : [...mobileBase, { key: "groups" as NavKey, href: "/groups", label: "Qruplarım", short: "Qruplarım", icon: <IconLayers /> }];
+    : [...mobileBase, { key: "groups" as NavKey, href: "/groups", label: "Qruplarım", short: "Qruplarım", icon: <IconLayers size={22} /> }];
 
   return (
     <div className="min-h-screen bg-cream text-ink md:flex">
@@ -135,7 +144,10 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                   isCurrent ? "bg-mint text-forest font-extrabold" : "text-sidebartext font-semibold hover:bg-cream"
                 }`}
               >
-                {item.icon}
+                <span className="relative">
+                  {item.icon}
+                  {item.key === "messages" && hasUnread && <UnreadDot />}
+                </span>
                 <span className="flex-1">{item.label}</span>
                 {isCurrent && <StarMark size={11} className="text-leaf" />}
               </Link>
@@ -164,14 +176,14 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
         </div>
       </main>
 
-      {/* Tab bar (mobile), docked within thumb reach; a gold star marks the current screen */}
+      {/* Tab bar (mobile), docked within thumb reach: icon over label, a mint pill behind the current one */}
       <div className="fixed-layer md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-line pb-safe">
         <nav
           aria-label="Əsas naviqasiya"
-          className="relative grid px-1.5 pt-2"
+          className="relative grid px-1 pt-2.5 pb-1.5"
           style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }}
         >
-          <TabStar items={mobileItems.map((i) => i.key)} current={current} from={navFrom} />
+          <TabPill items={mobileItems.map((i) => i.key)} current={current} from={navFrom} />
           {mobileItems.map((item) => {
             const isCurrent = current === item.key;
             return (
@@ -179,12 +191,16 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
                 key={item.key}
                 href={item.href}
                 aria-current={isCurrent ? "page" : undefined}
-                className={`press min-h-[52px] rounded-[14px] flex flex-col items-center justify-center gap-0.5 text-[11px] ${
-                  isCurrent ? "font-extrabold text-forest" : "font-semibold text-muted"
+                aria-label={item.key === "messages" && hasUnread ? `${item.short}, yeni mesaj var` : undefined}
+                className={`press relative min-h-[60px] flex flex-col items-center gap-1 text-[12px] leading-tight ${
+                  isCurrent ? "font-extrabold text-ink" : "font-semibold text-muted"
                 }`}
               >
-                {item.icon}
-                {item.short}
+                <span className={`relative h-9 grid place-items-center ${isCurrent ? "text-forest" : ""}`}>
+                  {item.icon}
+                  {item.key === "messages" && hasUnread && <UnreadDot />}
+                </span>
+                <span className="max-w-full truncate px-0.5">{item.short}</span>
               </Link>
             );
           })}
@@ -192,6 +208,10 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       </div>
     </div>
   );
+}
+
+function UnreadDot() {
+  return <span aria-hidden="true" className="absolute -top-0.5 -right-1 w-[9px] h-[9px] rounded-full bg-accent border-2 border-white" />;
 }
 
 function ApprovalPendingScreen({ user, logout }: { user: UserDoc; logout: () => Promise<void> }) {

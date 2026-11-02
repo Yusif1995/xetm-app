@@ -1,14 +1,19 @@
 "use client";
-// The member's conversation with the group's managers in the active group. They see only their
-// own thread and can reply to the managers; other members never see it.
-import { useEffect } from "react";
-import Link from "next/link";
+// Conversations in the active group, one tap from the tab bar.
+//  - A member sees only their own thread with the group's managers and can write to them.
+//  - The group creator sees every member, newest replies first, and opens a conversation or
+//    writes to many members at once.
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { markThreadRead, replyToManagers } from "@/lib/db";
-import { useThreadMessages, useThreadSummary } from "@/lib/useGroupData";
+import { getGroupMembers, isUserApprovedInGroup, markThreadRead, replyToManagers, type UserDoc } from "@/lib/db";
+import { relativeTimeAz } from "@/lib/dates";
+import { openAssignmentsOf } from "@/lib/khatm";
+import { useGroupAssignments, useGroupFullNames, useGroupThreads, useThreadMessages, useThreadSummary } from "@/lib/useGroupData";
 import AppLayout from "@/components/AppLayout";
 import ThreadView from "@/components/ThreadView";
-import { Card, LoadingScreen, PageHeader, button } from "@/components/ui";
+import { BroadcastDialog, ThreadDialog } from "@/components/MemberMessaging";
+import { participantName } from "@/components/GroupWidgets";
+import { Avatar, Card, LoadingScreen, PageHeader, button } from "@/components/ui";
 
 export default function MessagesPage() {
   const { user, loading, activeGroupId, activeGroup, activeGroupLoaded } = useAuth();
@@ -25,20 +30,11 @@ export default function MessagesPage() {
   if (loading || !user || !activeGroupLoaded || (!isCreator && !loaded)) return <LoadingScreen text="Mesajlar yüklənir..." />;
 
   return (
-    <AppLayout activeTab="dashboard">
-      <div className="max-w-[720px] flex flex-col gap-5 md:gap-7">
-        <PageHeader
-          title="Mesajlar"
-          subtitle={activeGroup?.name}
-          actions={<Link href="/dashboard" className={button("outline", "sm")}>Bu gün</Link>}
-        />
+    <AppLayout activeTab="messages">
+      <div className="max-w-[720px] w-full mx-auto flex flex-col gap-5 md:gap-7">
+        <PageHeader title="Mesajlar" subtitle={activeGroup?.name} />
         {isCreator ? (
-          <Card>
-            <p className="m-0 text-sm text-muted">
-              Bu qrupun rəhbəri sənsən. İştirakçılarla yazışmalar İnzibatçı panelində, hər iştirakçının yanındakı &quot;Mesaj&quot; düyməsindədir.
-            </p>
-            <Link href="/admin" className={button("outline")}>İnzibatçı paneli</Link>
-          </Card>
+          <Inbox />
         ) : (
           <Card>
             <p className="m-0 text-[13px] text-muted">
@@ -48,13 +44,103 @@ export default function MessagesPage() {
               messages={messages}
               mySide="member"
               memberLabel="Sən"
-              emptyText="Hələ mesaj yoxdur. Qrup rəhbəri yazanda burada görünəcək."
-              placeholder="Qrup rəhbərinə cavab yaz"
-              onSend={messages.length > 0 ? (text) => replyToManagers(activeGroupId, text) : undefined}
+              emptyText="Hələ mesaj yoxdur. Qrup rəhbərinə ilk mesajı sən yaza bilərsən."
+              placeholder="Qrup rəhbərinə yaz"
+              onSend={(text) => replyToManagers(activeGroupId, text)}
             />
           </Card>
         )}
       </div>
     </AppLayout>
+  );
+}
+
+// The group creator's list of conversations: unread replies first, then the latest, then members
+// nobody has written to yet
+function Inbox() {
+  const { user, activeGroupId, activeGroup } = useAuth();
+  const [members, setMembers] = useState<UserDoc[] | null>(null);
+  const [open, setOpen] = useState<UserDoc | null>(null);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const threads = useGroupThreads(activeGroupId, true);
+  const fullNames = useGroupFullNames(activeGroupId, true);
+  const { assignments } = useGroupAssignments(activeGroupId, true);
+  const closeThread = useCallback(() => setOpen(null), []);
+  const closeBroadcast = useCallback(() => setBroadcastOpen(false), []);
+
+  useEffect(() => {
+    setMembers(null);
+    getGroupMembers(activeGroupId).then((list) => setMembers(
+      list.filter((u) => u.uid !== activeGroup?.createdBy && isUserApprovedInGroup(u, activeGroupId, activeGroup))
+    ));
+  }, [activeGroupId, activeGroup]);
+
+  const nameOf = useCallback((u: UserDoc) => participantName(u, user, fullNames), [user, fullNames]);
+  const rows = useMemo(() => (members || []).map((u) => ({ u, t: threads[u.uid] })).sort((a, b) =>
+    Number(!!b.t?.managerUnread) - Number(!!a.t?.managerUnread) ||
+    (b.t?.lastAt || "").localeCompare(a.t?.lastAt || "") ||
+    nameOf(a.u).localeCompare(nameOf(b.u), "az")
+  ), [members, threads, nameOf]);
+  const groupName = activeGroup?.name || "Qrup";
+
+  if (!user) return null;
+  return (
+    <>
+      <Card className="!gap-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
+          <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
+          <button type="button" onClick={() => setBroadcastOpen(true)} className={button("primary", "sm")} disabled={!members?.length}>
+            Hamıya yaz
+          </button>
+        </div>
+        {members === null ? (
+          <p className="m-0 text-sm text-muted py-3">Yüklənir...</p>
+        ) : rows.length === 0 ? (
+          <p className="m-0 text-sm text-muted py-3">Qrupda hələ təsdiqlənmiş iştirakçı yoxdur.</p>
+        ) : (
+          <div className="flex flex-col divide-y divide-line border-t border-line">
+            {rows.map(({ u, t }) => (
+              <button
+                key={u.uid}
+                type="button"
+                onClick={() => setOpen(u)}
+                className="press text-left min-h-[64px] py-3 -mx-2 px-2 rounded-xl flex items-center gap-3 hover:bg-cream"
+              >
+                <Avatar name={nameOf(u)} gold />
+                <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className={`text-[15px] truncate ${t?.managerUnread ? "font-extrabold text-ink" : "font-bold text-ink"}`}>{nameOf(u)}</span>
+                    {t?.lastAt && <span className="shrink-0 text-xs text-muted">{relativeTimeAz(new Date(t.lastAt).getTime())}</span>}
+                  </span>
+                  <span className={`text-[13px] truncate ${t?.managerUnread ? "font-semibold text-ink" : "text-muted"}`}>
+                    {t ? `${t.lastFrom === "member" ? "" : "Sən: "}${t.lastText}` : "Hələ yazışma yoxdur"}
+                  </span>
+                </span>
+                {t?.managerUnread && <span aria-label="Yeni cavab" className="shrink-0 w-2.5 h-2.5 rounded-full bg-accent" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+      {open && (
+        <ThreadDialog
+          groupId={activeGroupId}
+          groupName={groupName}
+          memberUid={open.uid}
+          memberName={nameOf(open)}
+          canRead
+          summary={threads[open.uid]}
+          onClose={closeThread}
+        />
+      )}
+      {broadcastOpen && members && (
+        <BroadcastDialog
+          groupId={activeGroupId}
+          groupName={groupName}
+          members={members.map((u) => ({ uid: u.uid, name: nameOf(u), openJuz: openAssignmentsOf(assignments, u.uid).length }))}
+          onClose={closeBroadcast}
+        />
+      )}
+    </>
   );
 }

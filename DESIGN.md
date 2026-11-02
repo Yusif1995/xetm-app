@@ -149,7 +149,10 @@ Every target is at least 44px.
   white with a pale gold outline. Next: mint with an emerald outline. Read: solid emerald, white
   number; it turns in when it becomes read.
 - **OrnamentRule:** gold rule with a centred lozenge, between figures (ayah and hadith).
-- **StarMark / starPath:** the khatam star; marks the active tab and sidebar item.
+- **StarMark / starPath:** the khatam star; marks the active sidebar item.
+- **Analytics plinth:** the group's headline figures on the Analitika screen sit as white tiles on
+  a lapis-ink plinth (`bg-ink`) with the gold lattice (`.girih-night`) and an inset gold frame. The
+  one dark surface in the app; nowhere else.
 - **Juz map tiles** are octagons (`.octagon`) in lapis / saffron / pale saffron / track, opening in
   a left-to-right wave.
 - **Bar:** fully round on track, lapis or saffron, fills from empty on appear; bars 8px and up carry a
@@ -161,12 +164,14 @@ Every target is at least 44px.
 Shadows are tinted with lapis ink: card `0 1px 2px rgba(24,34,53,.05), 0 10px 28px -16px
 rgba(24,34,53,.22)`; floating `0 8px 28px -10px rgba(24,34,53,.24)`. Radii: chips 8px, inputs and
 buttons 14px, cards 18px, hero and dialogs 20px. The tab bar is docked to the bottom edge, white
-with a hairline top border.
+with a hairline top border: five tabs (Bu gün, Səhifələrim, Qrup, Mesajlar, Admin or Qruplarım),
+22px icon over a 12px label, the current one with a 64×36 mint pill behind an emerald icon and an
+ink label. A saffron dot on Mesajlar marks an unread conversation.
 
 ## Motion
 
 - Screen change (`PageMotion.tsx`): content slides 24px in from the side you travel towards, a faint
-  gold khatam star opens and fades at the centre, the tab bar's gold star glides from the previous
+  gold khatam star opens and fades at the centre, the tab bar's mint pill glides from the previous
   tab. The previous screen is kept in sessionStorage because each screen mounts its own layout.
 - Cartouche and mihrab lines draw in; medallions pop in centre-out; bars fill; juz tiles wave in.
 - Soft press (scale 0.97) on everything tappable.
@@ -175,7 +180,7 @@ with a hairline top border.
 ## Don'ts
 
 - No emerald on bars, rings, finished juz, streak days or decoration.
-- No dark hero slabs, no gold fills on controls.
+- No dark hero slabs (the analytics plinth is the single exception), no gold fills on controls.
 - No rows of equal stat tiles; no rankings, points or leaderboards (see PRODUCT.md).
 - No eyebrows, uppercase or letter-spaced labels; no emoji as icons.
 - No fonts beyond Marcellus, Manrope and Amiri.

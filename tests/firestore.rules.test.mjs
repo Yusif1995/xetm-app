@@ -526,3 +526,15 @@ describe("settings", () => {
     await assertSucceeds(setDoc(doc(dbAs(SUPER), "settings", "config"), { currentAyah: "x" }));
   });
 });
+
+describe("reminders", () => {
+  test("next-distribution reminder claims are server only", async () => {
+    for (const who of [OWNER, MEMBER, SUPER]) {
+      const ref = doc(dbAs(who), "groups", G, "reminders", "2026-11-02");
+      await assertFails(getDoc(ref));
+      await assertFails(getDocs(collection(dbAs(who), "groups", G, "reminders")));
+      await assertFails(setDoc(ref, { nextDistribution2355: true }));
+      await assertFails(deleteDoc(ref));
+    }
+  });
+});

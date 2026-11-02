@@ -2,10 +2,10 @@
 
 // Motion between the main screens. Every screen mounts its own AppLayout, so the screen we came from
 // is remembered in sessionStorage: content slides in from the side we are travelling towards, a faint
-// gold star opens and fades in the middle, and the tab bar's star glides over from the previous tab.
+// gold star opens and fades in the middle, and the tab bar's pill glides over from the previous tab.
 import { animate, useReducedMotion } from "framer-motion";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { StarMark, starPath } from "./ornament";
+import { starPath } from "./ornament";
 
 const KEY = "xetm:lastNav";
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -55,24 +55,29 @@ export function PageTransition({ from, current, order, children }: { from: strin
   );
 }
 
-// Gold star above the active tab; glides over from the tab we came from
-export function TabStar({ items, current, from }: { items: string[]; current: string; from: string | null }) {
+// Mint pill behind the active tab's icon; glides over from the tab we came from
+export function TabPill({ items, current, from }: { items: string[]; current: string; from: string | null }) {
   const ref = useRef<HTMLSpanElement>(null);
   const reduce = useReducedMotion();
   const index = items.indexOf(current);
-  const pct = (i: number) => `${((i + 0.5) / items.length) * 100}%`;
+  const pct = (i: number) => `${(i / items.length) * 100}%`;
 
   useLayoutEffect(() => {
     const a = from ? items.indexOf(from) : -1;
     if (reduce || !ref.current || a < 0 || index < 0 || a === index) return;
-    animate(ref.current, { left: [pct(a), pct(index)], rotate: [-90, 0] }, { duration: 0.55, ease: EASE });
+    animate(ref.current, { left: [pct(a), pct(index)] }, { duration: 0.45, ease: EASE });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (index < 0) return null;
   return (
-    <span ref={ref} aria-hidden="true" className="absolute top-1 -ml-[6px] text-leaf pointer-events-none" style={{ left: pct(index) }}>
-      <StarMark size={12} />
+    <span
+      ref={ref}
+      aria-hidden="true"
+      className="absolute top-2.5 h-9 grid place-items-center pointer-events-none"
+      style={{ left: pct(index), width: `${100 / items.length}%` }}
+    >
+      <span className="w-16 h-9 rounded-full bg-mint" />
     </span>
   );
 }

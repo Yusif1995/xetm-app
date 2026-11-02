@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       const batch = db.batch();
       addMessage(db, batch, groupId, uid, "member", uid, text, sentAt);
       await batch.commit();
-      await push(db, group.createdBy, `${group.name} — iştirakçıdan cavab`, text, "/admin");
+      await push(db, group.createdBy, `${group.name} — iştirakçıdan cavab`, text, "/mesajlar");
       return NextResponse.json({ success: true });
     }
 

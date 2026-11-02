@@ -41,6 +41,9 @@ export const IconLogout = (p: IconProps) => (
 export const IconBell = (p: IconProps) => (
   <Svg {...p}><path d="M6 17V11a6 6 0 0112 0v6l1.5 2h-15z" /><path d="M10 21h4" /></Svg>
 );
+export const IconMessage = (p: IconProps) => (
+  <Svg {...p}><path d="M4 5.5A2.5 2.5 0 016.5 3h11A2.5 2.5 0 0120 5.5v9a2.5 2.5 0 01-2.5 2.5H10l-4.5 4v-4h0A1.5 1.5 0 014 15.5z" /><path d="M8 8.5h8M8 12h5" /></Svg>
+);
 export const IconChevronDown = (p: IconProps) => (
   <Svg {...p}><path d="M6 9l6 6 6-6" /></Svg>
 );
