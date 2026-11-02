@@ -1,10 +1,5 @@
 import { auth, db } from "./firebase";
-import {
-  eligibleMembers,
-  newAssignmentData,
-  planDistribution,
-  type Assignment,
-} from "./khatm.ts";
+import type { Assignment } from "./khatm.ts";
 import type { ConversationKind, ThreadMessage, ThreadSummary } from "./threads";
 import { 
   doc, 
@@ -754,7 +749,7 @@ export interface DistributionResult {
   skipped: string[];
 }
 
-// Owner: hand one juz to every approved member who is not behind, in random order.
+// Manager: hand one juz to every approved member who is not behind, in random order.
 // Members with too many unfinished juz are skipped; the sequence continues into the next khatm.
 export async function distributeJuz(
   groupId: string,
@@ -762,30 +757,14 @@ export async function distributeJuz(
   startDate: string,
   endDate: string
 ): Promise<DistributionResult> {
-  const { writeBatch } = await import("firebase/firestore");
-  const [assignments, group] = await Promise.all([getGroupAssignments(groupId), getGroupDoc(groupId)]);
-  const distribution = (group?.distributionCount || 0) + 1;
-  const { eligible, skipped } = eligibleMembers(memberUids, assignments);
-  const plan = planDistribution(eligible, assignments);
-  const now = new Date().toISOString();
-
-  const batch = writeBatch(db);
-  const newIds: string[] = [];
-  plan.forEach((p) => {
-    const ref = doc(assignmentsCol(groupId));
-    newIds.push(ref.id);
-    batch.set(ref, newAssignmentData(p, distribution, startDate, endDate, now));
-  });
-  batch.update(doc(db, "groups", groupId), {
-    distributionCount: distribution,
-    lastDistribution: { number: distribution, startDate, endDate, at: now }
-  });
-  await batch.commit();
-  notifyNewAssignments(groupId, newIds, skipped);
-  return { distribution, assigned: plan.length, skipped };
+  const r = await manageAssignment<DistributionResult & { assignmentIds: string[] }>(
+    groupId, { action: "distribute", memberUids, startDate, endDate }, "Paylanma alınmadı."
+  );
+  notifyNewAssignments(groupId, r.assignmentIds, r.skipped);
+  return { distribution: r.distribution, assigned: r.assigned, skipped: r.skipped };
 }
 
-// Owner: give a specific free juz of a khatm to a member (counts as the current distribution)
+// Manager: give a specific free juz of a khatm to a member (counts as the current distribution)
 export async function assignJuzManually(
   groupId: string,
   uid: string,
@@ -794,19 +773,16 @@ export async function assignJuzManually(
   startDate: string,
   endDate: string
 ): Promise<void> {
-  const group = await getGroupDoc(groupId);
-  const distribution = Math.max(1, group?.distributionCount || 0);
-  const ref = doc(assignmentsCol(groupId));
-  await setDoc(ref, newAssignmentData({ uid, khatm, juz }, distribution, startDate, endDate, new Date().toISOString()));
-  notifyNewAssignments(groupId, [ref.id]);
-  if (!group?.distributionCount) {
-    await updateDoc(doc(db, "groups", groupId), { distributionCount: distribution });
-  }
+  const r = await manageAssignment<{ assignmentId: string }>(
+    groupId, { action: "assign", to: uid, khatm, juz, startDate, endDate }, "Cüz təyin olunmadı."
+  );
+  notifyNewAssignments(groupId, [r.assignmentId]);
 }
 
-// Manager (group creator or app admin): hand an unfinished juz to another member, or take a juz
-// back. Goes through the server, because the rules let only the creator write assignments.
-async function manageAssignment(groupId: string, body: Record<string, string>, fallback: string): Promise<void> {
+// Changes a manager (group creator or app admin) makes to the group's juz go through the server:
+// the rules let only the creator write assignments, and app admins run groups they did not create.
+// The server also recomputes the group's khatm progress afterwards.
+async function manageAssignment<T = unknown>(groupId: string, body: Record<string, unknown>, fallback: string): Promise<T> {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("Hesabına yenidən daxil ol.");
   const res = await fetch("/api/assignments", {
@@ -818,6 +794,7 @@ async function manageAssignment(groupId: string, body: Record<string, string>, f
     const data = await res.json().catch(() => ({}));
     throw new Error(typeof data.error === "string" && res.status !== 500 && res.status !== 403 ? data.error : fallback);
   }
+  return res.json() as Promise<T>;
 }
 
 // Pages already read stay credited to the old holder
@@ -826,12 +803,10 @@ export async function transferAssignment(groupId: string, a: Assignment, newUid:
   await manageAssignment(groupId, { action: "transfer", assignmentId: a.id, to: newUid }, "Cüzü ötürmək alınmadı.");
   // The new holder hears about it like any other assignment
   notifyNewAssignments(groupId, [a.id]);
-  refreshGroupProgress(groupId);
 }
 
 export async function removeAssignment(groupId: string, assignmentId: string): Promise<void> {
   await manageAssignment(groupId, { action: "remove", assignmentId }, "Təyinatı silmək alınmadı.");
-  refreshGroupProgress(groupId);
 }
 
 // Holder marks/unmarks pages of their juz. Runs in a transaction so "done" always matches the pages.
@@ -874,20 +849,7 @@ export async function toggleAssignmentPages(
   queueReadNotice(groupId, result.changed, isCompleted);
 }
 
-// Owner: delete every assignment of the group and start counting from scratch
+// Manager: delete every assignment of the group and start counting from scratch
 export async function resetGroupAssignments(groupId: string): Promise<void> {
-  const { writeBatch } = await import("firebase/firestore");
-  const snap = await getDocs(assignmentsCol(groupId));
-  for (let i = 0; i < snap.docs.length; i += 400) {
-    const batch = writeBatch(db);
-    snap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-  }
-  await updateDoc(doc(db, "groups", groupId), {
-    distributionCount: 0,
-    lastDistribution: deleteField(),
-    completedKhatms: 0,
-    khatmCompletedAt: {},
-    isCurrentKhatmCompleted: false
-  });
+  await manageAssignment(groupId, { action: "reset" }, "Təmizləmə alınmadı.");
 }

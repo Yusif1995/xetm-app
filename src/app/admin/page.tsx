@@ -221,7 +221,7 @@ export default function AdminPage() {
         setAutoMessage("Bütün təyinatlar silindi.");
       } catch (err) {
         console.error("Error clearing assignments:", err);
-        alert("Təmizləmə zamanı xəta baş verdi.");
+        alert(err instanceof Error ? err.message : "Təmizləmə zamanı xəta baş verdi.");
       } finally {
         setLoading(false);
       }
@@ -262,7 +262,7 @@ export default function AdminPage() {
       setPickedUid("");
     } catch (err) {
       console.error("Error assigning juz:", err);
-      alert("Cüz təyinatı zamanı xəta baş verdi.");
+      alert(err instanceof Error ? err.message : "Cüz təyinatı zamanı xəta baş verdi.");
     } finally {
       setLoading(false);
     }
@@ -309,12 +309,12 @@ export default function AdminPage() {
         return m ? nameOf(m) : "İştirakçı";
       });
       setAutoMessage(
-        `${ordinalAz(r.distribution)} bölgü: ${r.assigned} cüz paylandı.` +
+        (r.assigned === 0 ? "Heç kimə cüz düşmədi, bölgü sayılmadı." : `${ordinalAz(r.distribution)} bölgü: ${r.assigned} cüz paylandı.`) +
         (skippedNames.length > 0 ? ` Geri qaldığı üçün cüz verilmədi: ${skippedNames.join(", ")}.` : "")
       );
     } catch (err) {
       console.error(err);
-      setAutoMessage("Paylanma zamanı xəta baş verdi.");
+      setAutoMessage(err instanceof Error ? err.message : "Paylanma zamanı xəta baş verdi.");
     } finally {
       setAutoLoading(false);
     }
