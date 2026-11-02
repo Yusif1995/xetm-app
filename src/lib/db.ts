@@ -314,9 +314,10 @@ export async function replyToManagers(groupId: string, reply: string): Promise<v
   await postAsUser("/api/group-message", { groupId, reply }, "Cavab göndərilmədi.");
 }
 
-// Clear the viewer's unread flag on a thread: the member on their own, the group creator on any
+// Mark a thread read: the member their own, the group creator any (server side, stamps the read time
+// the other side sees as read ticks)
 export async function markThreadRead(groupId: string, memberUid: string, side: "member" | "manager"): Promise<void> {
-  await updateDoc(doc(db, "groups", groupId, "threads", memberUid), side === "member" ? { memberUnread: false } : { managerUnread: false });
+  await postAsUser("/api/group-message", { groupId, markRead: side, memberUid }, "Oxundu kimi qeyd olunmadı.");
 }
 
 // Copy the group's finished khatms and distributions into its archive (server side, idempotent)

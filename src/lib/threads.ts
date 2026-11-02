@@ -11,6 +11,8 @@ export interface ThreadSummary {
   lastFrom: ThreadSide;
   memberUnread: boolean;   // a manager wrote and the member has not opened the thread since
   managerUnread: boolean;  // the member replied and the group creator has not opened it since
+  memberReadAt?: string;   // ISO, when the member last opened the thread with unread messages
+  managerReadAt?: string;  // ISO, the same for the group creator
 }
 
 export interface ThreadMessage {

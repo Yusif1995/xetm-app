@@ -89,7 +89,7 @@ export default function OwnerConversations() {
           {messages === null ? (
             <p className="m-0 text-sm text-muted">Yüklənir...</p>
           ) : (
-            <ThreadView messages={messages} mySide="manager" memberLabel={open.name} emptyText="Yazışma boşdur." />
+            <ThreadView messages={messages} mySide="manager" emptyText="Yazışma boşdur." />
           )}
         </div>
       )}

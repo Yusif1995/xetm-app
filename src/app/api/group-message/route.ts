@@ -14,6 +14,9 @@ const BATCH_LIMIT = 200; // two writes per member, Firestore allows 500 per batc
 //    members: { groupId, targetUids, text }. Each member gets it in their own thread and a push.
 //  - A member replies to the managers: { groupId, reply }. Only their own thread is written and
 //    the group creator is pushed. Members can never write to anyone else's thread.
+//  - Either side marks a thread read: { groupId, markRead: "member" | "manager", memberUid }.
+//    Clears that side's unread flag and stamps memberReadAt / managerReadAt, which the other side
+//    shows as read ticks. The member marks only their own thread, the group creator any thread.
 // Written here with the Admin SDK; firestore.rules do not let clients write threads.
 export async function POST(req: NextRequest) {
   try {
@@ -21,12 +24,16 @@ export async function POST(req: NextRequest) {
     if (!uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const body = await req.json().catch(() => ({}));
+    const groupId = body?.groupId;
+
+    if (body?.markRead === "member" || body?.markRead === "manager") {
+      return markRead(uid, groupId, body.markRead, body.memberUid);
+    }
+
     if (isRateLimited(`message:${uid}`, 40, 10 * 60 * 1000)) {
       return NextResponse.json({ error: "Çox mesaj göndərildi. Bir az sonra yenidən cəhd et." }, { status: 429 });
     }
-
-    const body = await req.json().catch(() => ({}));
-    const groupId = body?.groupId;
     const raw = typeof body?.reply === "string" ? body.reply : body?.text;
     if (typeof groupId !== "string" || !ID_PATTERN.test(groupId) || typeof raw !== "string") {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
@@ -90,6 +97,36 @@ export async function POST(req: NextRequest) {
     console.error("Error in group-message API route:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
+}
+
+async function markRead(uid: string, groupId: unknown, side: ThreadSide, memberUidRaw: unknown) {
+  const memberUid = side === "member" ? uid : memberUidRaw;
+  if (typeof groupId !== "string" || !ID_PATTERN.test(groupId) || typeof memberUid !== "string" || !ID_PATTERN.test(memberUid)) {
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+  if (isRateLimited(`read:${uid}`, 120, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+  const db = getAdminDb();
+  if (!db) {
+    return NextResponse.json({ error: "Server is not configured" }, { status: 500 });
+  }
+  const group = await getGroupInfo(db, groupId);
+  if (!group) {
+    return NextResponse.json({ error: "Qrup tapılmadı." }, { status: 404 });
+  }
+  const allowed = side === "member" ? uid !== group.createdBy && isApprovedMember(group, uid) : uid === group.createdBy;
+  if (!allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const thread = db.collection("groups").doc(groupId).collection("threads").doc(memberUid);
+  const now = new Date().toISOString();
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(thread);
+    if (!snap.exists) return;
+    tx.update(thread, side === "member" ? { memberUnread: false, memberReadAt: now } : { managerUnread: false, managerReadAt: now });
+  });
+  return NextResponse.json({ success: true });
 }
 
 function addMessage(

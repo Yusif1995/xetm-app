@@ -37,13 +37,22 @@ export default function MessagesPage() {
           <Inbox />
         ) : (
           <Card>
-            <p className="m-0 text-[13px] text-muted">
-              Burada yalnız sənlə qrup rəhbəri arasındakı yazışma görünür. Digər iştirakçılar bunu görmür.
-            </p>
+            <div className="flex items-center gap-3">
+              <Avatar name="Qrup rəhbəri" gold />
+              <div className="min-w-0 flex flex-col">
+                <span className="text-[15px] font-bold text-ink">Qrup rəhbəri</span>
+                <span className="flex items-center gap-1 text-[12px] text-muted">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                    <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 018 0v3" />
+                  </svg>
+                  Yalnız sən və qrup rəhbəri görür
+                </span>
+              </div>
+            </div>
             <ThreadView
               messages={messages}
               mySide="member"
-              memberLabel="Sən"
+              receipt={summary ? { unread: summary.managerUnread, readAt: summary.managerReadAt } : undefined}
               emptyText="Hələ mesaj yoxdur. Qrup rəhbərinə ilk mesajı sən yaza bilərsən."
               placeholder="Qrup rəhbərinə yaz"
               onSend={(text) => replyToManagers(activeGroupId, text)}

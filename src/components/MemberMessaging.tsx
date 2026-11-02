@@ -65,14 +65,13 @@ export function ThreadDialog({
   };
 
   return (
-    <Dialog title="Mesajlar" subtitle={`${memberName} · ${groupName}`} onClose={onClose}>
+    <Dialog title={memberName} subtitle={groupName} onClose={onClose}>
       {canRead ? (
         loaded ? (
           <ThreadView
             messages={messages}
             mySide="manager"
-            managerLabel="Sən"
-            memberLabel={memberName}
+            receipt={{ unread: !!summary?.memberUnread, readAt: summary?.memberReadAt }}
             emptyText="Hələ yazışma yoxdur. İlk mesajı yaz."
             placeholder="Məs. Cüzünü cümə gününə qədər bitirməyə çalış"
             onSend={send}
