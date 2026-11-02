@@ -538,3 +538,51 @@ describe("reminders", () => {
     }
   });
 });
+
+describe("bulk messages and owner chats", () => {
+  const seedConv = (col, key) => env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "groups", G, col, key), { lastText: "x", lastAt: "t", lastFrom: "manager", memberUnread: true, managerUnread: false });
+    await setDoc(doc(ctx.firestore(), "groups", G, col, key, "messages", "m1"), { from: "manager", senderUid: OWNER, text: "x", sentAt: "t" });
+  });
+
+  test("a member and the group creator read the member's bulk conversation; nobody writes", async () => {
+    await seedConv("broadcasts", MEMBER);
+    await assertSucceeds(getDoc(doc(dbAs(MEMBER), "groups", G, "broadcasts", MEMBER)));
+    await assertSucceeds(getDocs(collection(dbAs(MEMBER), "groups", G, "broadcasts", MEMBER, "messages")));
+    await assertSucceeds(getDocs(collection(dbAs(OWNER), "groups", G, "broadcasts")));
+    await assertSucceeds(getDocs(collection(dbAs(OWNER), "groups", G, "broadcasts", MEMBER, "messages")));
+    await assertFails(getDoc(doc(dbAs(STRANGER), "groups", G, "broadcasts", MEMBER)));
+    await assertFails(getDoc(doc(dbAs(SUPER), "groups", G, "broadcasts", MEMBER)));
+    await assertFails(setDoc(doc(dbAs(MEMBER), "groups", G, "broadcasts", MEMBER, "messages", "m2"), { text: "y" }));
+    await assertFails(updateDoc(doc(dbAs(MEMBER), "groups", G, "broadcasts", MEMBER), { memberUnread: false }));
+    await assertFails(setDoc(doc(dbAs(OWNER), "groups", G, "broadcasts", MEMBER), { lastText: "y" }));
+  });
+
+  test("an owner chat is readable only by its person, not even by the group creator", async () => {
+    await seedConv("ownerChats", MEMBER);
+    await assertSucceeds(getDoc(doc(dbAs(MEMBER), "groups", G, "ownerChats", MEMBER)));
+    await assertSucceeds(getDocs(collection(dbAs(MEMBER), "groups", G, "ownerChats", MEMBER, "messages")));
+    await assertFails(getDoc(doc(dbAs(OWNER), "groups", G, "ownerChats", MEMBER)));
+    await assertFails(getDocs(collection(dbAs(OWNER), "groups", G, "ownerChats", MEMBER, "messages")));
+    await assertFails(getDocs(collection(dbAs(OWNER), "groups", G, "ownerChats")));
+    await assertFails(getDoc(doc(dbAs(SUPER), "groups", G, "ownerChats", MEMBER)));
+    await assertFails(setDoc(doc(dbAs(MEMBER), "groups", G, "ownerChats", MEMBER, "messages", "m2"), { text: "y" }));
+  });
+
+  test("the bulk message log is server only", async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "groups", G, "broadcastLog", "b1"), { text: "x" }));
+    for (const who of [OWNER, MEMBER, SUPER]) {
+      await assertFails(getDoc(doc(dbAs(who), "groups", G, "broadcastLog", "b1")));
+    }
+  });
+});
+
+describe("app admins and membership", () => {
+  test("an app admin cannot approve themselves into a group", async () => {
+    await assertFails(updateDoc(doc(dbAs(SUPER), "groups", G), { [`members.${SUPER}`]: "member" }));
+  });
+
+  test("an app admin can still approve someone else", async () => {
+    await assertSucceeds(updateDoc(doc(dbAs(SUPER), "groups", G), { [`members.${STRANGER}`]: "member" }));
+  });
+});

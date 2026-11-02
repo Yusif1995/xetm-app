@@ -13,7 +13,8 @@ export interface ThreadBubble {
   from: ThreadSide;
   text: string;
   sentAt: string;
-  sender?: string; // shown above manager messages when several managers write
+  sender?: string;      // shown above a run of messages
+  senderLabel?: string; // stored "Yusif · Admin"; shown when the view asks for labels
 }
 
 // What the other side has seen: their unread flag and when they last opened the thread
@@ -27,6 +28,8 @@ interface Props {
   mySide: ThreadSide;          // whose messages sit on the right
   emptyText: string;
   receipt?: ReadReceipt;       // omitted: no ticks (read-only views)
+  labels?: boolean;            // show who wrote each run (bulk conversations)
+  locked?: string;             // shown instead of the composer, e.g. only the leader answers
   onSend?: (text: string) => Promise<void>;
   placeholder?: string;
 }
@@ -35,6 +38,7 @@ type Status = "sending" | "failed" | "sent" | "read";
 interface Pending { key: number; text: string; at: number; failed: boolean; sent: boolean }
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
+const author = (m: ThreadBubble) => m.sender ?? m.senderLabel ?? "";
 const bakuDay = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Baku" });
 const bakuTime = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Baku", hour: "2-digit", minute: "2-digit" });
 
@@ -47,7 +51,7 @@ function dayLabel(day: string): string {
   return formatGregorianAz(d, d.getUTCFullYear() !== new Date().getUTCFullYear());
 }
 
-export default function ThreadView({ messages, mySide, emptyText, receipt, onSend, placeholder }: Props) {
+export default function ThreadView({ messages, mySide, emptyText, receipt, labels = false, locked, onSend, placeholder }: Props) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState<Pending[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -129,9 +133,10 @@ export default function ThreadView({ messages, mySide, emptyText, receipt, onSen
           const next = rows[i + 1]?.bubble;
           const day = bakuDay(m.sentAt);
           const newDay = !prev || bakuDay(prev.sentAt) !== day;
-          const joinsPrev = !newDay && prev!.from === m.from && prev!.sender === m.sender && Date.parse(m.sentAt) - Date.parse(prev!.sentAt) < GROUP_GAP_MS;
-          const joinsNext = !!next && bakuDay(next.sentAt) === day && next.from === m.from && next.sender === m.sender && Date.parse(next.sentAt) - Date.parse(m.sentAt) < GROUP_GAP_MS;
+          const joinsPrev = !newDay && prev!.from === m.from && author(prev!) === author(m) && Date.parse(m.sentAt) - Date.parse(prev!.sentAt) < GROUP_GAP_MS;
+          const joinsNext = !!next && bakuDay(next.sentAt) === day && next.from === m.from && author(next) === author(m) && Date.parse(next.sentAt) - Date.parse(m.sentAt) < GROUP_GAP_MS;
           const mine = m.from === mySide;
+          const who = m.sender ?? (labels ? m.senderLabel : undefined);
           return (
             <div key={row.key} className="flex flex-col">
               {newDay && (
@@ -139,8 +144,8 @@ export default function ThreadView({ messages, mySide, emptyText, receipt, onSen
                   {dayLabel(day)}
                 </div>
               )}
-              {!mine && m.sender && !joinsPrev && (
-                <div className="text-[12px] font-bold text-goldtext px-3 mt-2 mb-1">{m.sender}</div>
+              {who && !joinsPrev && (
+                <div className={`text-[12px] font-bold text-goldtext px-3 mt-2 -mb-1 ${mine ? "self-end" : "self-start"}`}>{who}</div>
               )}
               <div
                 className={`relative max-w-[82%] px-3.5 pt-2 pb-1.5 text-[15px] leading-snug whitespace-pre-line break-words rounded-[18px] ${
@@ -171,7 +176,15 @@ export default function ThreadView({ messages, mySide, emptyText, receipt, onSen
         })}
       </div>
 
-      {onSend && (
+      {locked && (
+        <div className="flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 rounded-[16px] border border-dashed border-field bg-sand text-[13px] text-muted text-center">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" className="shrink-0">
+            <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 018 0v3" />
+          </svg>
+          {locked}
+        </div>
+      )}
+      {onSend && !locked && (
         <form
           onSubmit={(e) => { e.preventDefault(); submit(); }}
           className="flex items-end gap-2"

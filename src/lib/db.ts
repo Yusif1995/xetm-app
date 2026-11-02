@@ -6,6 +6,7 @@ import {
   planDistribution,
   type Assignment,
 } from "./khatm.ts";
+import type { ConversationKind, ThreadMessage, ThreadSummary } from "./threads";
 import { 
   doc, 
   getDoc, 
@@ -303,21 +304,50 @@ async function postAsUser<T>(path: string, body: Record<string, unknown>, fallba
   return data as T;
 }
 
-// The group owner or an app admin sends one text to one or more members, each in their own
-// thread. The server writes it (so admins who did not create the group can send too) and pushes it.
-export async function sendGroupMessage(groupId: string, targetUids: string[], text: string): Promise<{ sent: number }> {
-  return postAsUser("/api/group-message", { groupId, targetUids, text }, "Mesaj göndərilmədi.");
+// Group conversations, all through /api/messages (see src/lib/threads.ts for who may do what)
+const MESSAGES_API = "/api/messages";
+
+// One bulk message to many members of the group (leader, group admins, app owner)
+export async function sendBroadcast(groupId: string, targetUids: string[], text: string): Promise<{ sent: number }> {
+  return postAsUser(MESSAGES_API, { action: "send", groupId, kind: "broadcast", targetUids, text }, "Mesaj göndərilmədi.");
 }
 
-// A member replies in their own thread; only the group's managers see it
-export async function replyToManagers(groupId: string, reply: string): Promise<void> {
-  await postAsUser("/api/group-message", { groupId, reply }, "Cavab göndərilmədi.");
+// One message in a conversation. `to` is the other person when the caller is the manager side
+// (the leader writing to a member, the owner writing to someone); omitted when writing in your own.
+export async function sendMessage(groupId: string, kind: ConversationKind, text: string, to?: string): Promise<void> {
+  await postAsUser(MESSAGES_API, { action: "send", groupId, kind, text, ...(to ? { to } : {}) }, "Mesaj göndərilmədi.");
 }
 
-// Mark a thread read: the member their own, the group creator any (server side, stamps the read time
-// the other side sees as read ticks)
-export async function markThreadRead(groupId: string, memberUid: string, side: "member" | "manager"): Promise<void> {
-  await postAsUser("/api/group-message", { groupId, markRead: side, memberUid }, "Oxundu kimi qeyd olunmadı.");
+// Mark a conversation read for the caller's side (stamps the time the other side sees as ✓✓)
+export async function markConversationRead(groupId: string, kind: ConversationKind, key: string): Promise<void> {
+  await postAsUser(MESSAGES_API, { action: "read", groupId, kind, key }, "Oxundu kimi qeyd olunmadı.");
+}
+
+// Kept for the admin panel: the leader's thread with one member
+export async function markThreadRead(groupId: string, memberUid: string): Promise<void> {
+  await markConversationRead(groupId, "thread", memberUid);
+}
+
+export interface InboxPerson { uid: string; name: string; admin: boolean; openJuz?: number }
+export interface InboxSummary extends ThreadSummary { uid: string; name?: string }
+export interface InboxFeedItem { id: string; senderLabel: string; text: string; sentAt: string; count: number }
+export interface Inbox {
+  role: { owner: boolean; creator: boolean; admin: boolean; member: boolean };
+  groupName: string;
+  leader: InboxPerson | null;
+  ownerContact: InboxPerson | null;
+  members?: InboxPerson[];
+  feed?: InboxFeedItem[];
+  bulk?: InboxSummary[];
+  ownerChats?: InboxSummary[];
+}
+
+export function loadInbox(groupId: string): Promise<Inbox> {
+  return postAsUser(MESSAGES_API, { action: "inbox", groupId }, "Mesajlar yüklənmədi.");
+}
+
+export function loadConversation(groupId: string, kind: ConversationKind, key: string): Promise<{ summary: ThreadSummary | null; messages: ThreadMessage[] }> {
+  return postAsUser(MESSAGES_API, { action: "messages", groupId, kind, key }, "Yazışma yüklənmədi.");
 }
 
 // Copy the group's finished khatms and distributions into its archive (server side, idempotent)

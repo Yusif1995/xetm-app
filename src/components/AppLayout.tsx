@@ -49,11 +49,17 @@ const NAV_FOR_TAB: Record<AppLayoutProps["activeTab"], NavKey> = {
 export default function AppLayout({ children, activeTab }: AppLayoutProps) {
   const { user, loading, logout, activeGroupId, activeGroup, activeGroupLoaded, isSuperAdmin } = useAuth();
   const navFrom = useNavFrom(NAV_FOR_TAB[activeTab]);
-  // Unread conversations: the group creator sees every member's thread, a member only their own
+  // Unread conversations: the leader sees every member's thread and bulk conversation, a member
+  // their own; anyone their private chat with the app owner
   const isCreator = !!user && !!activeGroup && activeGroup.createdBy === user.uid;
   const threads = useGroupThreads(activeGroupId, isCreator);
+  const bulk = useGroupThreads(activeGroupId, isCreator, "broadcasts");
   const ownThread = useThreadSummary(activeGroupId, user && !isCreator ? user.uid : undefined);
-  const hasUnread = isCreator ? Object.values(threads).some((t) => t.managerUnread) : !!ownThread?.memberUnread;
+  const ownBulk = useThreadSummary(activeGroupId, user && !isCreator ? user.uid : undefined, "broadcasts");
+  const ownerChat = useThreadSummary(activeGroupId, user?.uid, "ownerChats");
+  const hasUnread = !!ownerChat?.memberUnread || (isCreator
+    ? [...Object.values(threads), ...Object.values(bulk)].some((t) => t.managerUnread)
+    : !!ownThread?.memberUnread || !!ownBulk?.memberUnread);
   // Keep this browser's push subscription up to date once permission has been granted.
   // Permission itself is only requested from the bell button (a user gesture), never on load.
   useEffect(() => {

@@ -10,7 +10,8 @@ const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const BATCH_LIMIT = 200; // two writes per member, Firestore allows 500 per batch
 
 // Conversations between a group's managers and its members (see src/lib/threads.ts).
-//  - A manager (the group's creator or an app admin) sends one text to one or more approved
+//  - Superseded by /api/messages; kept for app versions still cached on phones.
+//  - The group's creator sends one text to one or more approved
 //    members: { groupId, targetUids, text }. Each member gets it in their own thread and a push.
 //  - A member replies to the managers: { groupId, reply }. Only their own thread is written and
 //    the group creator is pushed. Members can never write to anyone else's thread.
@@ -66,8 +67,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Managers -> members
-    const isAppAdmin = (await db.collection("admins").doc(uid).get()).exists;
-    if (group.createdBy !== uid && !isAppAdmin) {
+    // Only the leader writes to one member here; bulk messages go through /api/messages
+    if (group.createdBy !== uid) {
       return NextResponse.json({ error: "Bu qrupa mesaj göndərmək icazən yoxdur." }, { status: 403 });
     }
     const targets: unknown = body.targetUids;

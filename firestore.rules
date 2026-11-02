@@ -162,8 +162,11 @@ service cloud.firestore {
 
       // Khatm counters are maintained by the server; members may only join (pending) or leave
       // Nobody may move ownership from the client: the creator reads the member conversations,
-      // so an app admin taking over createdBy would see threads meant for the creator and the owner
-      allow update: if (isSuperAdmin() && request.resource.data.createdBy == resource.data.createdBy)
+      // so an app admin taking over createdBy would see threads meant for the creator and the owner.
+      // An app admin may manage others' membership but not their own: being an approved member makes
+      // them that group's admin in Mesajlar, so only the creator can let them in.
+      allow update: if (isSuperAdmin() && request.resource.data.createdBy == resource.data.createdBy
+            && !request.resource.data.get('members', {}).diff(resource.data.get('members', {})).affectedKeys().hasAny([request.auth.uid]))
         || (resource.data.createdBy == request.auth.uid && request.resource.data.createdBy == resource.data.createdBy)
         || isSelfMembershipChange();
 
@@ -199,6 +202,31 @@ service cloud.firestore {
 
         match /messages/{messageId} {
           allow read: if isOwner(memberId) || isGroupOwner(groupId);
+          allow write: if false;
+        }
+      }
+
+      // Bulk messages to one member and the replies (see src/lib/threads.ts). The member and the
+      // group creator read them live; group admins and the app owner read through /api/messages.
+      // Written only by the server.
+      match /broadcasts/{memberId} {
+        allow read: if isOwner(memberId) || isGroupOwner(groupId);
+        allow write: if false;
+
+        match /messages/{messageId} {
+          allow read: if isOwner(memberId) || isGroupOwner(groupId);
+          allow write: if false;
+        }
+      }
+
+      // The app owner's private conversation with one person of the group: only that person reads
+      // it here (the owner reads through /api/messages). Not even the group creator.
+      match /ownerChats/{uid} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+
+        match /messages/{messageId} {
+          allow read: if isOwner(uid);
           allow write: if false;
         }
       }

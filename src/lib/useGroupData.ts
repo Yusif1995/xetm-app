@@ -7,6 +7,8 @@ import { db } from "./firebase";
 import { assignmentsCol, messageDocRef, type GroupMessage } from "./db";
 import type { Assignment } from "./khatm.ts";
 import type { ThreadMessage, ThreadSummary } from "./threads";
+
+type ConversationCollection = "threads" | "broadcasts" | "ownerChats";
 import type { ArchiveEntry } from "./archive";
 
 // Full names of the group's members; only the group owner (or a super admin) may read them
@@ -28,38 +30,40 @@ export function useGroupFullNames(groupId: string, enabled: boolean): Record<str
   return names;
 }
 
-// Thread summaries of every member of the group, keyed by member uid (group creator only)
-export function useGroupThreads(groupId: string, enabled: boolean): Record<string, ThreadSummary> {
+// Conversation summaries of every member of the group, keyed by member uid (group creator only):
+// the leader's threads by default, or the bulk conversations ("broadcasts")
+export function useGroupThreads(groupId: string, enabled: boolean, col: "threads" | "broadcasts" = "threads"): Record<string, ThreadSummary> {
   const [threads, setThreads] = useState<Record<string, ThreadSummary>>({});
   useEffect(() => {
     setThreads({});
     if (!enabled || !groupId || groupId === "default") return;
-    const unsub = onSnapshot(collection(db, "groups", groupId, "threads"), (snap) => {
+    const unsub = onSnapshot(collection(db, "groups", groupId, col), (snap) => {
       const map: Record<string, ThreadSummary> = {};
       snap.forEach((d) => { map[d.id] = d.data() as ThreadSummary; });
       setThreads(map);
     }, (err) => console.error("Error loading threads:", err));
     return () => unsub();
-  }, [groupId, enabled]);
+  }, [groupId, enabled, col]);
   return threads;
 }
 
-// One member's thread summary (the member themselves or the group creator)
-export function useThreadSummary(groupId: string, memberUid: string | undefined): ThreadSummary | null {
+// One conversation's summary, live: the member's own (any kind) or, for the leader, a member's
+// thread or bulk conversation
+export function useThreadSummary(groupId: string, memberUid: string | undefined, col: ConversationCollection = "threads"): ThreadSummary | null {
   const [summary, setSummary] = useState<ThreadSummary | null>(null);
   useEffect(() => {
     setSummary(null);
     if (!memberUid || !groupId || groupId === "default") return;
-    const unsub = onSnapshot(doc(db, "groups", groupId, "threads", memberUid), (snap) => {
+    const unsub = onSnapshot(doc(db, "groups", groupId, col, memberUid), (snap) => {
       setSummary(snap.exists() ? (snap.data() as ThreadSummary) : null);
     }, (err) => console.error("Error loading thread:", err));
     return () => unsub();
-  }, [groupId, memberUid]);
+  }, [groupId, memberUid, col]);
   return summary;
 }
 
-// The messages of one member's thread, oldest first
-export function useThreadMessages(groupId: string, memberUid: string | undefined, enabled = true): { messages: ThreadMessage[]; loaded: boolean } {
+// The messages of one conversation, oldest first, live
+export function useThreadMessages(groupId: string, memberUid: string | undefined, enabled = true, col: ConversationCollection = "threads"): { messages: ThreadMessage[]; loaded: boolean } {
   const [state, setState] = useState<{ messages: ThreadMessage[]; loaded: boolean }>({ messages: [], loaded: false });
   useEffect(() => {
     setState({ messages: [], loaded: false });
@@ -67,7 +71,7 @@ export function useThreadMessages(groupId: string, memberUid: string | undefined
       setState({ messages: [], loaded: true });
       return;
     }
-    const q = query(collection(db, "groups", groupId, "threads", memberUid, "messages"), orderBy("sentAt", "asc"));
+    const q = query(collection(db, "groups", groupId, col, memberUid, "messages"), orderBy("sentAt", "asc"));
     const unsub = onSnapshot(q, (snap) => {
       setState({ messages: snap.docs.map((d) => ({ id: d.id, ...d.data() } as ThreadMessage)), loaded: true });
     }, (err) => {
@@ -75,7 +79,7 @@ export function useThreadMessages(groupId: string, memberUid: string | undefined
       setState({ messages: [], loaded: true });
     });
     return () => unsub();
-  }, [groupId, memberUid, enabled]);
+  }, [groupId, memberUid, enabled, col]);
   return state;
 }
 

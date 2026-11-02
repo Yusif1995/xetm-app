@@ -1,14 +1,14 @@
 "use client";
-// Admin panel dialogs for talking to members: one member's conversation, and one text sent to
-// many members at once (each copy lands in that member's own thread).
+// Messaging dialogs: the leader's conversation with one member (admin panel), and one bulk text to
+// many members at once (Mesajlar > Toplu mesajlar; each copy lands in that member's bulk conversation).
 import { useEffect, useMemo, useState } from "react";
-import { markThreadRead, sendGroupMessage } from "@/lib/db";
+import { markThreadRead, sendBroadcast, sendMessage } from "@/lib/db";
 import { useThreadMessages } from "@/lib/useGroupData";
 import { MAX_THREAD_MESSAGE_LENGTH, type ThreadSummary } from "@/lib/threads";
 import ThreadView from "./ThreadView";
 import { IconClose, btn, inputCls } from "./ui";
 
-function Dialog({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
+export function Dialog({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -38,57 +38,39 @@ function Dialog({ title, subtitle, onClose, children }: { title: string; subtitl
   );
 }
 
-// The group creator sees the whole conversation; an app admin who did not create the group can
-// write but not read it (replies are for the group creator and the app owner only)
+// The group leader's conversation with one member (admin panel)
 export function ThreadDialog({
-  groupId, groupName, memberUid, memberName, canRead, summary, onClose,
+  groupId, groupName, memberUid, memberName, summary, onClose,
 }: {
   groupId: string;
   groupName: string;
   memberUid: string;
   memberName: string;
-  canRead: boolean;
   summary?: ThreadSummary;
   onClose: () => void;
 }) {
-  const { messages, loaded } = useThreadMessages(groupId, memberUid, canRead);
+  const { messages, loaded } = useThreadMessages(groupId, memberUid);
 
   useEffect(() => {
-    if (!canRead || !summary?.managerUnread) return;
-    markThreadRead(groupId, memberUid, "manager").catch((err) => console.error("Error marking thread read:", err));
-  }, [canRead, summary?.managerUnread, groupId, memberUid]);
-
-  const [sentNote, setSentNote] = useState<string | null>(null);
-  const send = async (text: string) => {
-    await sendGroupMessage(groupId, [memberUid], text);
-    if (!canRead) setSentNote("Mesaj göndərildi. Cavabları qrup rəhbəri görür.");
-  };
+    if (!summary?.managerUnread) return;
+    markThreadRead(groupId, memberUid).catch((err) => console.error("Error marking thread read:", err));
+  }, [summary?.managerUnread, groupId, memberUid]);
 
   return (
     <Dialog title={memberName} subtitle={groupName} onClose={onClose}>
-      {canRead ? (
-        loaded ? (
-          <ThreadView
-            messages={messages}
-            mySide="manager"
-            receipt={{ unread: !!summary?.memberUnread, readAt: summary?.memberReadAt }}
-            emptyText="Hələ yazışma yoxdur. İlk mesajı yaz."
-            placeholder="Məs. Cüzünü cümə gününə qədər bitirməyə çalış"
-            onSend={send}
-          />
-        ) : (
-          <p className="m-0 text-sm text-muted">Yüklənir...</p>
-        )
+      {loaded ? (
+        <ThreadView
+          messages={messages}
+          mySide="manager"
+          receipt={{ unread: !!summary?.memberUnread, readAt: summary?.memberReadAt }}
+          emptyText="Hələ yazışma yoxdur. İlk mesajı yaz."
+          placeholder="Məs. Cüzünü cümə gününə qədər bitirməyə çalış"
+          onSend={(text) => sendMessage(groupId, "thread", text, memberUid)}
+        />
       ) : (
-        <>
-          <p className="m-0 text-[13px] text-muted">
-            Bu qrupu sən yaratmamısan: mesaj göndərə bilərsən, amma yazışmanı və cavabları yalnız qrup rəhbəri görür.
-          </p>
-          {sentNote && <div className="text-sm font-semibold text-forest">{sentNote}</div>}
-          <ThreadView messages={[]} mySide="manager" emptyText="" placeholder="Mesajını yaz" onSend={send} />
-        </>
+        <p className="m-0 text-sm text-muted">Yüklənir...</p>
       )}
-      <div className="text-xs text-muted">İştirakçı mesajı &quot;Bu gün&quot; ekranında görəcək və telefonuna bildiriş gələcək.</div>
+      <div className="text-xs text-muted">İştirakçı mesajı &quot;Mesajlar&quot; bölməsində görəcək və telefonuna bildiriş gələcək.</div>
     </Dialog>
   );
 }
@@ -127,7 +109,7 @@ export function BroadcastDialog({ groupId, groupName, members, onClose }: {
     setSending(true);
     setError(null);
     try {
-      const res = await sendGroupMessage(groupId, Array.from(selected), text.trim());
+      const res = await sendBroadcast(groupId, Array.from(selected), text.trim());
       setDone(`${res.sent} iştirakçıya göndərildi. Hər kəs mesajı öz yazışmasında görür, bir-birinin mesajını görmür.`);
       setText("");
     } catch (err) {

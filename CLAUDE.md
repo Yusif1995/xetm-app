@@ -46,8 +46,13 @@ Next.js 15 (App Router) + React 19 + TypeScript + Tailwind 3, Firebase Auth (Goo
   `/admin/sistem` via `/api/owner` (grant/revoke admins, delete groups).
 - **Super admins** = docs in `admins/{uid}`, written only through the Admin SDK.
 - **Group creator** = `groups/{id}.createdBy`; approved members in `groups/{id}.members`. Only admins
-  create groups (`/api/create-group`; rules forbid client creates). Member messages via
-  `/api/group-message`.
+  create groups (`/api/create-group`; rules forbid client creates).
+- **Messages** (`/mesajlar`, `/api/messages`, kinds in `src/lib/threads.ts`): bulk messages go to
+  `broadcasts/{member}` and can be sent by the leader, group admins (super admins who are approved
+  members of that group) and the owner; everyone of those reads every reply but only the leader
+  answers. `threads/{member}` is leader <-> member; `ownerChats/{uid}` is the owner <-> one person,
+  seen only by those two. The owner reads leader <-> member threads in `/admin/sistem`. The owner
+  shows to everyone as "Name · Admin".
 - Private data (email, push subscriptions) in `users/{uid}/private/profile`.
 - Prefer a server route with the Admin SDK over loosening `firestore.rules`: rules publishing is manual
   and this is the pattern the owner chose. Every API route must verify the caller itself.

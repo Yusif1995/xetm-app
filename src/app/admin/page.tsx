@@ -20,7 +20,7 @@ import {
 } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
 import AdminSettingsPanel from "@/components/AdminSettingsPanel";
-import { BroadcastDialog, ThreadDialog } from "@/components/MemberMessaging";
+import { ThreadDialog } from "@/components/MemberMessaging";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
@@ -50,11 +50,9 @@ export default function AdminPage() {
   const [transferFor, setTransferFor] = useState<string | null>(null);
   const [transferUid, setTransferUid] = useState("");
 
-  // Conversation with one member, or one text to many
+  // The leader's conversation with one member (bulk messages live in Mesajlar)
   const [messageTarget, setMessageTarget] = useState<UserDoc | null>(null);
-  const [broadcastOpen, setBroadcastOpen] = useState(false);
   const closeThread = useCallback(() => setMessageTarget(null), []);
-  const closeBroadcast = useCallback(() => setBroadcastOpen(false), []);
   // Settings panel (invite link, privacy, danger zone) opened from the gear button
   const [settingsOpen, setSettingsOpen] = useState(false);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
@@ -533,7 +531,7 @@ export default function AdminPage() {
                     <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{activeGroupUsers.length} nəfər</span>
                   </div>
-                  <button type="button" onClick={() => setBroadcastOpen(true)} className={button("outline", "sm")}>Toplu mesaj</button>
+                  <Link href="/mesajlar" className={button("outline", "sm")}>Toplu mesaj</Link>
                   <input
                     type="text"
                     value={searchQuery}
@@ -576,7 +574,7 @@ export default function AdminPage() {
                         {/* No messaging or removing yourself */}
                         {!isSelf && (
                           <div className="flex gap-2">
-                            <button onClick={() => setMessageTarget(u)} className={button("outline", "sm")}>Mesaj</button>
+                            {isGroupCreator && <button onClick={() => setMessageTarget(u)} className={button("outline", "sm")}>Mesaj</button>}
                             {!isOwnerRow && <button onClick={() => handleRemoveUser(u)} className={button("danger", "sm")}>Çıxar</button>}
                           </div>
                         )}
@@ -637,19 +635,8 @@ export default function AdminPage() {
           groupName={groupName}
           memberUid={messageTarget.uid}
           memberName={nameOf(messageTarget)}
-          canRead={isGroupCreator}
           summary={threads[messageTarget.uid]}
           onClose={closeThread}
-        />
-      )}
-      {broadcastOpen && currentUser && (
-        <BroadcastDialog
-          groupId={activeGroupId}
-          groupName={groupName}
-          members={activeGroupUsers
-            .filter((u) => u.uid !== currentUser.uid && u.uid !== groupCreatedBy)
-            .map((u) => ({ uid: u.uid, name: nameOf(u), openJuz: openAssignmentsOf(assignments, u.uid).length }))}
-          onClose={closeBroadcast}
         />
       )}
     </AppLayout>
