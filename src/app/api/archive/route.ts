@@ -68,6 +68,7 @@ async function syncGroupArchive(db: Firestore, groupId: string, groupName: strin
   assignments.forEach((a) => {
     uids.add(a.uid);
     (a.previousHolders || []).forEach((h) => uids.add(h.uid));
+    Object.values(a.readBy || {}).forEach((u) => uids.add(u));
   });
   const names = await getMemberNames(db, groupId, Array.from(uids));
   const records = buildArchive(assignments, (u) => names.get(u) || "Keçmiş üzv").filter((r) => !existing.has(r.id));

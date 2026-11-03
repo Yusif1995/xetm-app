@@ -805,6 +805,21 @@ export async function transferAssignment(groupId: string, a: Assignment, newUid:
   notifyNewAssignments(groupId, [a.id]);
 }
 
+// Give some unread pages of a juz to a friend; the juz stays with its holder and is credited to them
+export async function giveHelpPages(groupId: string, a: Assignment, helperUid: string, pages: number[]): Promise<void> {
+  await manageAssignment(groupId, { action: "help", assignmentId: a.id, to: helperUid, pages }, "Səhifələri vermək alınmadı.");
+}
+
+// Take back the pages the friend has not read yet
+export async function takeBackHelpPages(groupId: string, a: Assignment, helperUid: string): Promise<void> {
+  await manageAssignment(groupId, { action: "unhelp", assignmentId: a.id, to: helperUid }, "Səhifələri geri almaq alınmadı.");
+}
+
+// The friend marks (or unmarks) pages they were given to read
+export async function markHelpPages(groupId: string, assignmentId: string, pages: number[], read: boolean): Promise<void> {
+  await manageAssignment(groupId, { action: "helpRead", assignmentId, pages, read }, read ? "Səhifə qeyd olunmadı." : "Səhifə geri qaytarılmadı.");
+}
+
 export async function removeAssignment(groupId: string, assignmentId: string): Promise<void> {
   await manageAssignment(groupId, { action: "remove", assignmentId }, "Təyinatı silmək alınmadı.");
 }

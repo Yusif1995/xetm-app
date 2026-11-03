@@ -17,6 +17,7 @@ export interface ArchivedJuz {
   doneAt: string | null;
   late: boolean;           // finished after the distribution's end date
   handedOverBy: string[];  // earlier holders when the juz was transferred
+  helpedBy?: string[];     // friends who read some of its pages; older records have none
 }
 
 export interface ArchivedReader {
@@ -68,6 +69,7 @@ function archivedJuz(a: Assignment, nameOf: (uid: string) => string): ArchivedJu
     doneAt: a.doneAt,
     late: !!(a.doneAt && a.endDate && bakuDay(a.doneAt) > a.endDate),
     handedOverBy: (a.previousHolders || []).map((h) => nameOf(h.uid)),
+    helpedBy: Array.from(new Set(Object.values(a.readBy || {}))).map(nameOf),
   };
 }
 
@@ -76,6 +78,7 @@ function readersOf(list: Assignment[], nameOf: (uid: string) => string): Archive
   list.forEach((a) => {
     uids.add(a.uid);
     (a.previousHolders || []).forEach((h) => uids.add(h.uid));
+    Object.values(a.readBy || {}).forEach((u) => uids.add(u));
   });
   return Array.from(uids)
     .map((uid) => ({

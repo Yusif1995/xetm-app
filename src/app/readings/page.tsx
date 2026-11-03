@@ -7,7 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
 import { khatmLabel, surahForPage } from "@/lib/quran";
 import { formatIsoDateAz } from "@/lib/dates";
-import { memberStats, openAssignmentsOf } from "@/lib/khatm";
+import { helperPages, memberStats, openAssignmentsOf } from "@/lib/khatm";
 import { useGroupAssignments } from "@/lib/useGroupData";
 import { Bar, Card, IconBook, LoadingScreen, PageHeader, btn } from "@/components/ui";
 
@@ -65,8 +65,10 @@ export default function ReadingsPage() {
 
   const pages = [...current.pages].sort((a, b) => a - b);
   const done = current.completedPages;
-  const nextPage = pages.find((p) => !done.includes(p));
-  const remaining = pages.length - done.length;
+  // Pages a friend reads for you: not yours to read, though the juz stays yours
+  const helped = helperPages(current);
+  const nextPage = pages.find((p) => !done.includes(p) && !helped.has(p));
+  const remaining = pages.filter((p) => !done.includes(p) && !helped.has(p)).length;
   const ratio = pages.length > 0 ? done.length / pages.length : 0;
   const counts = {
     all: pages.length,
@@ -98,7 +100,7 @@ export default function ReadingsPage() {
                 <div className="flex flex-col gap-1 md:gap-1.5">
                   <div className="text-[13px] font-bold text-muted">Növbəti səhifə</div>
                   <h2 id="novbeti" className="m-0 font-bold text-[22px] md:text-[28px] leading-tight text-ink">
-                    {nextPage ? surahForPage(nextPage) : "Hamısı oxunub"}
+                    {nextPage ? surahForPage(nextPage) : remaining === 0 && pages.length > done.length ? "Qalanını dostun oxuyur" : "Hamısı oxunub"}
                   </h2>
                   <div className="text-[14px] md:text-[15px] text-muted">
                     Cüz {current.juz} · {khatmLabel(current.khatm)} · {remaining} səhifə qalıb
@@ -150,17 +152,20 @@ export default function ReadingsPage() {
                   {visiblePages.map((p) => {
                     const isDone = done.includes(p);
                     const isNext = p === nextPage;
+                    const isHelped = !isDone && helped.has(p);
                     return (
                       <Link
                         key={p}
                         href={`/oxu?s=${p}`}
-                        aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}. Quranda aç`}
+                        aria-label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : isHelped ? ", dostun oxuyur" : ", gözləyir"}. Quranda aç`}
                         className={`press min-h-[48px] rounded-[14px] font-bold text-[15px] tabular-nums box-border flex items-center justify-center ${
                           isDone
                             ? "bg-forest text-white border border-forest"
                             : isNext
                               ? "bg-mint text-forest border-2 border-forest"
-                              : "bg-cream text-muted border border-line"
+                              : isHelped
+                                ? "bg-donebg text-lapis border border-dashed border-lapis"
+                                : "bg-cream text-muted border border-line"
                         }`}
                       >
                         {p}

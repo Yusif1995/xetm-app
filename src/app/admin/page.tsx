@@ -8,6 +8,8 @@ import {
   distributeJuz,
   assignJuzManually,
   transferAssignment,
+  giveHelpPages,
+  takeBackHelpPages,
   removeAssignment,
   resetGroupAssignments,
   syncGroupArchive,
@@ -26,7 +28,7 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
 import { memberShare, participantName, roleOf } from "@/components/GroupWidgets";
 import { useGroupAdmins, useGroupAssignments, useGroupFullNames, useGroupThreads } from "@/lib/useGroupData";
-import { khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
+import { helperPages, khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
 import {
   Avatar, Bar, Card, Chip, DateInput, IconSettings, IconSparkle, LoadingScreen, PageHeader, btn, button, inputCls
 } from "@/components/ui";
@@ -49,6 +51,9 @@ export default function AdminPage() {
   // Transfer an unfinished juz to another member
   const [transferFor, setTransferFor] = useState<string | null>(null);
   const [transferUid, setTransferUid] = useState("");
+  // "pages": a friend only helps with the chosen pages; "juz": the whole juz moves to them
+  const [transferMode, setTransferMode] = useState<"juz" | "pages">("pages");
+  const [helpPages, setHelpPages] = useState<number[]>([]);
 
   // The leader's conversation with one member (bulk messages live in Mesajlar)
   const [messageTarget, setMessageTarget] = useState<UserDoc | null>(null);
@@ -282,13 +287,41 @@ export default function AdminPage() {
   const handleTransfer = async (a: Assignment) => {
     if (!transferUid) return;
     try {
-      await transferAssignment(activeGroupId, a, transferUid);
+      if (transferMode === "pages") {
+        if (helpPages.length === 0) return;
+        await giveHelpPages(activeGroupId, a, transferUid, helpPages);
+      } else {
+        await transferAssignment(activeGroupId, a, transferUid);
+      }
       setTransferFor(null);
       setTransferUid("");
     } catch (err) {
       console.error("Error transferring assignment:", err);
       alert(err instanceof Error ? err.message : "Cüzü ötürərkən xəta baş verdi.");
     }
+  };
+
+  const handleTakeBackHelp = async (a: Assignment, helperUid: string) => {
+    try {
+      await takeBackHelpPages(activeGroupId, a, helperUid);
+    } catch (err) {
+      console.error("Error taking back help pages:", err);
+      alert(err instanceof Error ? err.message : "Səhifələri geri almaq alınmadı.");
+    }
+  };
+
+  // Unread pages of a juz that nobody is helping with yet: these can be given to a friend
+  const freePagesOf = (a: Assignment) => {
+    const given = helperPages(a);
+    return [...a.pages].sort((x, y) => x - y).filter((p) => !a.completedPages.includes(p) && !given.has(p));
+  };
+
+  const openTransfer = (a: Assignment) => {
+    const opening = transferFor !== a.id;
+    setTransferFor(opening ? a.id : null);
+    setTransferUid("");
+    setTransferMode("pages");
+    setHelpPages(opening ? freePagesOf(a) : []);
   };
 
   // Random distribution: one juz per member who is not behind
@@ -453,24 +486,90 @@ export default function AdminPage() {
                                 <span className="text-muted"> · {khatmLabel(a.khatm)} · {a.completedPages.length} / {a.pages.length} səhifə</span>
                               </div>
                               <div className="flex gap-2">
-                                <button type="button" onClick={() => { setTransferFor(transferFor === a.id ? null : a.id); setTransferUid(""); }} className={button("outline", "sm")}>Ötür</button>
+                                <button type="button" onClick={() => openTransfer(a)} className={button("outline", "sm")}>Ötür</button>
                                 <button type="button" onClick={() => handleRemoveAssignment(a)} className={button("danger", "sm")}>Ləğv et</button>
                               </div>
                             </div>
-                            {transferFor === a.id && (
-                              <div className="flex flex-wrap items-end gap-2">
-                                <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-1.5 text-xs font-semibold text-ink">
-                                  Kimə ötürülsün? Oxunmuş səhifələr {nameOf(u)} adına qalır.
-                                  <select value={transferUid} onChange={(e) => setTransferUid(e.target.value)} className={inputCls}>
-                                    <option value="">İştirakçı seç...</option>
-                                    {activeGroupUsers.filter((m) => m.uid !== u.uid).map((m) => (
-                                      <option key={m.uid} value={m.uid}>{nameOf(m)}</option>
+                            {(a.helpers || []).map((h) => {
+                              const helper = memberByUid(h.uid);
+                              const unread = h.pages.filter((p) => !a.completedPages.includes(p));
+                              return (
+                                <div key={h.uid} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-mint px-3 py-2 text-[13px] text-forest">
+                                  <span>
+                                    <strong>{helper ? nameOf(helper) : "Keçmiş üzv"}</strong> kömək edir · səhifə {h.pages.join(", ")}
+                                    {unread.length < h.pages.length ? ` · ${h.pages.length - unread.length} oxunub` : ""}
+                                  </span>
+                                  {unread.length > 0 && (
+                                    <button type="button" onClick={() => handleTakeBackHelp(a, h.uid)} className="press min-h-[36px] px-2.5 rounded-lg font-bold hover:bg-white/60">Geri al</button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {transferFor === a.id && (() => {
+                              const free = freePagesOf(a);
+                              const canSend = !!transferUid && (transferMode === "juz" || helpPages.length > 0);
+                              return (
+                                <div className="flex flex-col gap-3 pt-1">
+                                  <div role="radiogroup" aria-label="Nə ötürülsün" className="grid grid-cols-2 gap-1 rounded-xl bg-sand p-1">
+                                    {([["pages", "Qalan səhifələr"], ["juz", "Bütün cüz"]] as const).map(([v, label]) => (
+                                      <button
+                                        key={v}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={transferMode === v}
+                                        onClick={() => setTransferMode(v)}
+                                        className={`press min-h-[40px] rounded-[10px] text-[13px] ${transferMode === v ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"}`}
+                                      >
+                                        {label}
+                                      </button>
                                     ))}
-                                  </select>
-                                </label>
-                                <button type="button" disabled={!transferUid} onClick={() => handleTransfer(a)} className={btn.primary}>Ötür</button>
-                              </div>
-                            )}
+                                  </div>
+                                  {transferMode === "pages" ? (
+                                    <div className="flex flex-col gap-2">
+                                      <p className="m-0 text-xs text-muted">
+                                        Seçilən səhifələri dostu oxuyur. Cüz {nameOf(u)} adında qalır və bitəndə ona yazılır; dostun oxuduğu səhifələr dostun hesabına düşür.
+                                      </p>
+                                      {free.length === 0 ? (
+                                        <p className="m-0 text-xs font-semibold text-ink">Verilə biləcək oxunmamış səhifə qalmayıb.</p>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {free.map((p) => {
+                                            const on = helpPages.includes(p);
+                                            return (
+                                              <button
+                                                key={p}
+                                                type="button"
+                                                aria-pressed={on}
+                                                onClick={() => setHelpPages((prev) => on ? prev.filter((x) => x !== p) : [...prev, p].sort((x, y) => x - y))}
+                                                className={`press min-w-[48px] min-h-[40px] px-2 rounded-lg text-[13px] font-bold tabular-nums border ${on ? "bg-forest border-forest text-white" : "bg-white border-line text-muted"}`}
+                                              >
+                                                {p}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="m-0 text-xs text-muted">Cüz tam olaraq seçilən şəxsə keçir və bitəndə onun adına yazılır. Oxunmuş səhifələr {nameOf(u)} adına qalır.</p>
+                                  )}
+                                  <div className="flex flex-wrap items-end gap-2">
+                                    <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-1.5 text-xs font-semibold text-ink">
+                                      {transferMode === "pages" ? "Kim kömək etsin?" : "Kimə ötürülsün?"}
+                                      <select value={transferUid} onChange={(e) => setTransferUid(e.target.value)} className={inputCls}>
+                                        <option value="">İştirakçı seç...</option>
+                                        {activeGroupUsers.filter((m) => m.uid !== u.uid).map((m) => (
+                                          <option key={m.uid} value={m.uid}>{nameOf(m)}</option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <button type="button" disabled={!canSend} onClick={() => handleTransfer(a)} className={btn.primary}>
+                                      {transferMode === "pages" ? `${helpPages.length} səhifəni ver` : "Cüzü ötür"}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         ))}
                       </div>

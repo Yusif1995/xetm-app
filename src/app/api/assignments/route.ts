@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { verifyRequestUser, isRateLimited } from "@/lib/serverAuth";
 import { getAdminDb } from "@/lib/firebaseAdmin";
-import { getGroupInfo, isApprovedMember } from "@/lib/privateData";
+import { getGroupInfo, getPushSubscriptions, isApprovedMember, removePushSubscriptions } from "@/lib/privateData";
+import { ensureVapidConfigured, sendToSubscriptions } from "@/lib/pushServer";
 import { recomputeKhatm } from "@/lib/groupProgress";
 import {
-  eligibleMembers, newAssignmentData, openKhatmForAssignment, pagesReadBy, planDistribution, type Assignment,
+  eligibleMembers, helperPages, newAssignmentData, openKhatmForAssignment, pagesReadBy, planDistribution, type Assignment,
 } from "@/lib/khatm";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -16,12 +17,15 @@ const MAX_MEMBERS = 450;
 // A real calendar day written as YYYY-MM-DD
 const isDay = (v: unknown): v is string =>
   typeof v === "string" && DATE_PATTERN.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
-const ACTIONS = ["transfer", "remove", "distribute", "assign", "reset"] as const;
+const ACTIONS = ["transfer", "remove", "distribute", "assign", "reset", "help", "unhelp", "helpRead"] as const;
 type Action = (typeof ACTIONS)[number];
 
 // Everything a group manager does with the juz of a group: hand out one juz to every member
 // ("distribute"), give one juz by hand ("assign"), hand a juz to someone else ("transfer"), take
-// one back ("remove") and start counting from scratch ("reset"). The rules let only the group
+// one back ("remove") and start counting from scratch ("reset"); give some unread pages of a juz
+// to a friend ("help") and take them back ("unhelp"), while the juz stays with its holder.
+// "helpRead" is that friend marking those pages: the one action a non-manager may call.
+// The rules let only the group
 // creator write assignments; app admins (and the owner, who is one) run groups they did not
 // create with the same rights, so these go through the Admin SDK after the same check as the
 // other manager routes: the group creator or an app admin.
@@ -35,13 +39,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
     const body = await req.json().catch(() => ({}));
-    const { action, groupId, assignmentId, to, memberUids, startDate, endDate, khatm, juz } = body || {};
+    const { action, groupId, assignmentId, to, memberUids, startDate, endDate, khatm, juz, pages, read } = body || {};
     const isId = (v: unknown): v is string => typeof v === "string" && ID_PATTERN.test(v);
+    const onOneJuz = ["transfer", "remove", "help", "unhelp", "helpRead"].includes(action);
     if (
       !ACTIONS.includes(action as Action)
       || !isId(groupId)
-      || ((action === "transfer" || action === "remove") && !isId(assignmentId))
-      || ((action === "transfer" || action === "assign") && !isId(to))
+      || (onOneJuz && !isId(assignmentId))
+      || (["transfer", "assign", "help", "unhelp"].includes(action) && !isId(to))
+      || ((action === "help" || action === "helpRead")
+        && (!Array.isArray(pages) || pages.length < 1 || pages.length > 20 || !pages.every((p: unknown) => Number.isInteger(p))))
+      || (action === "helpRead" && typeof read !== "boolean")
       || ((action === "distribute" || action === "assign") && (!isDay(startDate) || !isDay(endDate) || startDate > endDate))
       || (action === "distribute" && (!Array.isArray(memberUids) || memberUids.length > MAX_MEMBERS || !memberUids.every(isId)))
       || (action === "assign" && (!Number.isInteger(khatm) || khatm < 1 || !Number.isInteger(juz) || juz < 1 || juz > 30))
@@ -57,12 +65,100 @@ export async function POST(req: NextRequest) {
     if (!group) {
       return NextResponse.json({ error: "Qrup tapılmadı." }, { status: 404 });
     }
+    const groupRef = db.collection("groups").doc(groupId);
+
+    // The friend marks or unmarks the pages they were given; nobody else goes through here
+    if (action === "helpRead") {
+      if (!isApprovedMember(group, uid)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const ref = groupRef.collection("assignments").doc(assignmentId);
+      const now = new Date().toISOString();
+      const outcome = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return { error: "Bu cüz artıq yoxdur.", status: 404 };
+        const a = { id: snap.id, ...snap.data() } as Assignment;
+        const given = new Set((a.helpers || []).filter((h) => h.uid === uid).flatMap((h) => h.pages));
+        if (given.size === 0) return { error: "Forbidden", status: 403 };
+        if (!(pages as number[]).every((p) => given.has(p))) return { error: "Bu səhifələr sənə verilməyib.", status: 400 };
+        // A finished juz is history (khatm totals, archive): nobody reopens it from here
+        if (a.done) return { error: "Bu cüz artıq tamamlanıb.", status: 409 };
+        const current = new Set(a.completedPages || []);
+        // Marking skips pages already read by anyone; unmarking only takes back the helper's own marks
+        const changed = Array.from(new Set(pages as number[])).filter((p) =>
+          read ? !current.has(p) : current.has(p) && a.readBy?.[String(p)] === uid);
+        if (changed.length === 0) return { changed: 0 };
+        changed.forEach((p) => (read ? current.add(p) : current.delete(p)));
+        const completedPages = Array.from(current).sort((x, y) => x - y);
+        const done = completedPages.length === a.pages.length;
+        const updates: Record<string, unknown> = { completedPages, done, doneAt: done ? (a.doneAt || now) : null };
+        changed.forEach((p) => {
+          updates[`completedAt.${p}`] = read ? now : FieldValue.delete();
+          updates[`readBy.${p}`] = read ? uid : FieldValue.delete();
+        });
+        tx.update(ref, updates);
+        return { changed: changed.length };
+      });
+      if ("error" in outcome) {
+        return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+      }
+      if (outcome.changed > 0) await recomputeKhatm(db, groupId);
+      return NextResponse.json({ success: true });
+    }
+
     const isAppAdmin = (await db.collection("admins").doc(uid).get()).exists;
     if (group.createdBy !== uid && !isAppAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const groupRef = db.collection("groups").doc(groupId);
+    // Give some unread pages of a juz to a friend; the juz and its credit stay with the holder
+    if (action === "help") {
+      if (!isApprovedMember(group, to)) {
+        return NextResponse.json({ error: "Bu şəxs qrupun təsdiqlənmiş üzvü deyil." }, { status: 400 });
+      }
+      const ref = groupRef.collection("assignments").doc(assignmentId);
+      const outcome = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return { error: "Bu cüz artıq yoxdur." };
+        const a = { id: snap.id, ...snap.data() } as Assignment;
+        if (a.done) return { error: "Bu cüz artıq tamamlanıb." };
+        if (a.uid === to) return { error: "Cüz artıq bu şəxsdədir. Kömək üçün başqasını seç." };
+        const given = helperPages(a);
+        const wanted = Array.from(new Set(pages as number[])).sort((x, y) => x - y);
+        if (!wanted.every((p) => a.pages.includes(p) && !a.completedPages.includes(p) && !given.has(p))) {
+          return { error: "Yalnız oxunmamış və başqasına verilməmiş səhifələr verilə bilər. Səhifəni yenilə." };
+        }
+        const before = (a.helpers || []).find((h) => h.uid === to)?.pages || [];
+        const helpers = [
+          ...(a.helpers || []).filter((h) => h.uid !== to),
+          { uid: to, pages: [...before, ...wanted].sort((x, y) => x - y), at: new Date().toISOString() },
+        ];
+        tx.update(ref, { helpers });
+        return { juz: a.juz, pages: wanted };
+      });
+      if ("error" in outcome) {
+        return NextResponse.json({ error: outcome.error }, { status: 409 });
+      }
+      await notifyHelper(db, to, outcome.juz, outcome.pages).catch((err) => console.error("Could not notify helper:", err));
+      return NextResponse.json({ success: true });
+    }
+
+    // Take back the pages a friend has not read yet; the ones they read stay credited to them
+    if (action === "unhelp") {
+      const ref = groupRef.collection("assignments").doc(assignmentId);
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return;
+        const a = { id: snap.id, ...snap.data() } as Assignment;
+        const helpers = (a.helpers || []).flatMap((h) => {
+          if (h.uid !== to) return [h];
+          const read = h.pages.filter((p) => a.completedPages.includes(p) && a.readBy?.[String(p)] === to);
+          return read.length ? [{ ...h, pages: read }] : [];
+        });
+        tx.update(ref, { helpers });
+      });
+      return NextResponse.json({ success: true });
+    }
 
     if (action === "distribute") {
       const uids = Array.from(new Set(memberUids as string[])).filter((u) => isApprovedMember(group, u));
@@ -139,6 +235,8 @@ export async function POST(req: NextRequest) {
       tx.update(ref, {
         uid: to,
         previousHolders: [...(a.previousHolders || []), { uid: a.uid, pagesRead: pagesReadBy(a, a.uid) }],
+        // The new holder reads the pages they were helping with as their own
+        helpers: (a.helpers || []).filter((h) => h.uid !== to),
       });
       return null;
     });
@@ -181,4 +279,21 @@ async function distribute(db: Firestore, groupId: string, memberUids: string[], 
     });
     return { distribution, assigned: plan.length, skipped, assignmentIds };
   });
+}
+
+// "Kömək" push to the friend who got pages; the text is built here, not taken from the caller
+async function notifyHelper(db: Firestore, helperUid: string, juz: number, pages: number[]) {
+  if (!ensureVapidConfigured()) return;
+  const subscriptions = await getPushSubscriptions(db, helperUid);
+  if (subscriptions.length === 0) return;
+  const range = pages.length > 1 ? `${pages[0]}–${pages[pages.length - 1]}` : `${pages[0]}`;
+  const payload = JSON.stringify({
+    title: "Kömək",
+    body: `Cüz ${juz}-dən ${pages.length} səhifə (səhifə ${range}) oxumaq üçün sənə verildi. Allah razı olsun.`,
+    icon: "/icon.png",
+    badge: "/favicon.ico",
+    data: { url: "/dashboard" },
+  });
+  const result = await sendToSubscriptions(subscriptions, payload);
+  await removePushSubscriptions(db, helperUid, result.expired);
 }

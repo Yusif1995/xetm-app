@@ -8,8 +8,8 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { isUserApprovedInGroup, toggleAssignmentPages } from "@/lib/db";
-import { openAssignmentsOf, type Assignment } from "@/lib/khatm";
+import { isUserApprovedInGroup, markHelpPages, toggleAssignmentPages } from "@/lib/db";
+import { helperPages, helpTasksOf, openAssignmentsOf, type Assignment } from "@/lib/khatm";
 import { khatmLabel, surahForPage } from "@/lib/quran";
 import { LINE_HEIGHT, LINE_TOP, PAGE_IMAGE, sajdahOnPage, type SajdahAyah } from "@/lib/sajdah";
 import { useGroupAssignments } from "@/lib/useGroupData";
@@ -64,14 +64,19 @@ function Reader() {
     || null;
   const canMark = !!held && held.id === current?.id;
   const queued = !!held && !held.done && !canMark;
-  const juzPages = held ? [...held.pages].sort((a, b) => a - b) : [];
-  const done = held?.completedPages || [];
-  const isRead = !!held && done.includes(page);
+  // Pages of a friend's juz I was given to read (when this page is not in a juz of my own)
+  const help = !held && user && !isDua ? helpTasksOf(assignments, user.uid).find((t) => t.pages.includes(page)) || null : null;
+  const juzPages = held ? [...held.pages].sort((a, b) => a - b) : help ? help.pages : [];
+  const done = held?.completedPages || help?.assignment.completedPages || [];
+  const isRead = (!!held || !!help) && done.includes(page);
   const juzDone = !!held && held.done;
+  // In my own juz, pages a friend reads are theirs to mark
+  const helped = held ? helperPages(held) : new Set<number>();
+  const friendReads = !!held && helped.has(page) && !isRead;
 
-  // Inside the member's juz (or the dua) the arrows stay within it; otherwise the whole mushaf
-  const first = isDua ? 1 : held ? juzPages[0] : 1;
-  const last = isDua ? DUA_PAGES : held ? juzPages[juzPages.length - 1] : TOTAL_PAGES;
+  // Inside the member's juz or help pages (or the dua) the arrows stay within them; otherwise the whole mushaf
+  const first = isDua ? 1 : juzPages.length ? juzPages[0] : 1;
+  const last = isDua ? DUA_PAGES : juzPages.length ? juzPages[juzPages.length - 1] : TOTAL_PAGES;
   const next = page < last ? page + 1 : null;
   const prev = page > first ? page - 1 : null;
 
@@ -113,10 +118,33 @@ function Reader() {
     return <LoadingScreen text="Quran açılır..." />;
   }
 
-  const remaining = juzPages.filter((p) => !done.includes(p));
+  const remaining = juzPages.filter((p) => !done.includes(p) && !helped.has(p));
 
   const markRead = async () => {
-    if (!held || !canMark || busy) return;
+    if (busy) return;
+    if (help) {
+      setBusy(true);
+      setError(null);
+      try {
+        await markHelpPages(activeGroupId, help.assignment.id, [page], true);
+        encouragement.show();
+        const left = remaining.filter((p) => p !== page);
+        setAnnounce(`Səhifə ${page} oxunmuş kimi qeyd olundu.`);
+        const target = left.find((p) => p > page) ?? left[0];
+        if (target !== undefined) {
+          go(target);
+          setChrome(false);
+        }
+      } catch (err) {
+        setChrome(true);
+        console.error("Error marking help page:", err);
+        setError(`Səhifə ${page} qeyd olunmadı. İnterneti yoxla və yenidən cəhd et.`);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (!held || !canMark || friendReads) return;
     setBusy(true);
     setError(null);
     try {
@@ -141,7 +169,24 @@ function Reader() {
   };
 
   const unmark = async () => {
-    if (!held || busy || held.uid !== user.uid) return;
+    if (busy) return;
+    if (help) {
+      setBusy(true);
+      setError(null);
+      try {
+        await markHelpPages(activeGroupId, help.assignment.id, [page], false);
+        setAnnounce(`Səhifə ${page} oxunmamış oldu.`);
+      } catch (err) {
+        console.error("Error unmarking help page:", err);
+        setError(`Səhifə ${page} geri qaytarılmadı. Yenidən cəhd et.`);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (!held || held.uid !== user.uid) return;
+    // A page a friend read is theirs to take back
+    if (held.readBy?.[String(page)]) return;
     setBusy(true);
     setError(null);
     try {
@@ -177,9 +222,12 @@ function Reader() {
     setChrome((v) => !v);
   };
 
-  const title = isDua ? "Xətm duası" : held ? `Cüz ${held.juz} · səhifə ${page}` : `Səhifə ${page}`;
-  const subtitle = isDua ? "Quranı xətm edənin duası" : `${surahForPage(page)}${held ? ` · ${khatmLabel(held.khatm)}` : ""}`;
-  const position = isDua ? `${page} / ${DUA_PAGES}` : held ? `${juzPages.indexOf(page) + 1} / ${juzPages.length}` : `${page} / ${TOTAL_PAGES}`;
+  const mineOrHelp = held || help?.assignment || null;
+  const title = isDua ? "Xətm duası" : mineOrHelp ? `Cüz ${mineOrHelp.juz} · səhifə ${page}` : `Səhifə ${page}`;
+  const subtitle = isDua
+    ? "Quranı xətm edənin duası"
+    : `${surahForPage(page)}${mineOrHelp ? ` · ${khatmLabel(mineOrHelp.khatm)}` : ""}${help ? " · kömək" : ""}`;
+  const position = isDua ? `${page} / ${DUA_PAGES}` : mineOrHelp ? `${juzPages.indexOf(page) + 1} / ${juzPages.length}` : `${page} / ${TOTAL_PAGES}`;
   const finishedJuz30 = juzDone && held?.juz === 30;
 
   let action;
@@ -187,12 +235,24 @@ function Reader() {
     action = next === null
       ? <Link href="/dashboard" className={`${btn.gold} w-full`}>Amin · panelə qayıt</Link>
       : <button type="button" onClick={() => go(next)} className={`${btn.gold} w-full`}>Davam et</button>;
+  } else if (help) {
+    action = isRead ? (
+      <button type="button" onClick={unmark} disabled={busy} className={`${button("outline", "lg")} w-full`}>
+        <IconCheck size={18} /> Oxunub · geri al
+      </button>
+    ) : (
+      <button type="button" onClick={markRead} disabled={busy} className={`${btn.gold} w-full`}>
+        {busy ? "Qeyd edilir..." : `Oxudum · səhifə ${page}`}
+      </button>
+    );
   } else if (!held) {
     action = <Link href="/dashboard" className={`${button("outline", "lg")} w-full`}>Panelə qayıt</Link>;
   } else if (juzDone) {
     action = finishedJuz30
       ? <Link href="/oxu?dua=1" className={`${btn.gold} w-full`}>Xətm duasını oxu</Link>
       : <Link href="/dashboard" className={`${btn.gold} w-full`}>Panelə qayıt</Link>;
+  } else if (friendReads) {
+    action = <div className={`${button("outline", "lg")} w-full pointer-events-none opacity-80`}>Bu səhifəni dostun oxuyur</div>;
   } else if (queued) {
     action = <Link href="/readings" className={`${button("outline", "lg")} w-full`}>Bu cüz növbədədir</Link>;
   } else if (isRead) {
@@ -290,7 +350,7 @@ function Reader() {
           <div className="text-xs text-muted truncate">{subtitle}</div>
         </div>
         <div className="shrink-0 text-right">
-          {held && (
+          {(held || help) && (
             <div className={`text-xs font-bold px-2.5 py-1 rounded-full ${isRead ? "bg-donebg text-donetext" : "bg-sand text-muted"}`}>
               {isRead ? "Oxunub" : "Oxunmayıb"}
             </div>

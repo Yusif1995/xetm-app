@@ -11,7 +11,7 @@ import {
   markMemberMessageRead
 } from "@/lib/db";
 import { useGroupAssignments, useMyGroupMessage, useThreadSummary } from "@/lib/useGroupData";
-import { memberStats, openAssignmentsOf } from "@/lib/khatm";
+import { helperPages, helpTasksOf, memberStats, openAssignmentsOf } from "@/lib/khatm";
 import { useCallback, useEffect, useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
@@ -195,15 +195,21 @@ function DashboardContent() {
   const sortedPages = current ? [...current.pages].sort((a, b) => a - b) : [];
   const completedPages = current?.completedPages || [];
   const myCompleted = completedPages.length;
+  // Pages a friend was given to read: not the holder's to mark, though the juz stays theirs
+  const helped = current ? helperPages(current) : new Set<number>();
+  const helpedUnread = sortedPages.filter((p) => helped.has(p) && !completedPages.includes(p));
+  const ownPages = sortedPages.filter((p) => !helped.has(p));
 
   // Next 5-page chunk to mark
   const chunks: number[][] = [];
-  for (let i = 0; i < sortedPages.length; i += CHUNK_SIZE) {
-    chunks.push(sortedPages.slice(i, i + CHUNK_SIZE));
+  for (let i = 0; i < ownPages.length; i += CHUNK_SIZE) {
+    chunks.push(ownPages.slice(i, i + CHUNK_SIZE));
   }
   const activeChunk = chunks.find(chunk => !chunk.every(page => completedPages.includes(page))) || [];
-  const nextPage = sortedPages.find((p) => !completedPages.includes(p));
-  const remaining = sortedPages.length - myCompleted;
+  const nextPage = ownPages.find((p) => !completedPages.includes(p));
+  const remaining = ownPages.filter((p) => !completedPages.includes(p)).length;
+  // Juz where I help a friend, with the pages I was given
+  const helpTasks = helpTasksOf(assignments, user.uid);
 
   const mine = memberStats(assignments, user.uid);
 
@@ -213,9 +219,12 @@ function DashboardContent() {
 
   let remainingText = "Qrup sahibi cüzləri bölüşdürən kimi oxuyacağın cüz burada görünəcək.";
   if (current) {
+    const helpNote = helpedUnread.length > 0 ? ` ${helpedUnread.length} səhifəni dostun oxuyur, cüz sənin adına yazılacaq.` : "";
     remainingText = remaining > 0 && nextPage
-      ? `${khatmLabel(current.khatm)} · qalıb ${remaining} səhifə. Növbəti: səhifə ${nextPage}, ${surahForPage(nextPage)}.`
-      : "Bu cüzü bitirdin. Allah qəbul etsin.";
+      ? `${khatmLabel(current.khatm)} · qalıb ${remaining} səhifə. Növbəti: səhifə ${nextPage}, ${surahForPage(nextPage)}.${helpNote}`
+      : helpedUnread.length > 0
+        ? `Öz səhifələrini bitirdin.${helpNote}`
+        : "Bu cüzü bitirdin. Allah qəbul etsin.";
   } else if (mine.juzDone.length > 0) {
     remainingText = "Sənə verilən bütün cüzləri bitirdin. Növbəti bölgüdə yeni cüz alacaqsan.";
   }
@@ -272,7 +281,7 @@ function DashboardContent() {
   const handleMarkJuz = async () => {
     if (!current || remaining === 0 || isMarking) return;
     const assignmentId = current.id;
-    const pages = sortedPages.filter((p) => !completedPages.includes(p));
+    const pages = ownPages.filter((p) => !completedPages.includes(p));
     const label = `Cüz ${current.juz}`;
     setIsMarking(true);
     clearUndo();
@@ -357,19 +366,22 @@ function DashboardContent() {
         {sortedPages.map((p, i) => {
           const isDone = completedPages.includes(p);
           const isNext = p === nextPage;
+          const isHelped = !isDone && helped.has(p);
           return (
             <PageMedal
               key={p}
               page={p}
               index={i}
               href={`/oxu?s=${p}`}
-              state={isDone ? "done" : isNext ? "next" : "open"}
-              label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}. Quranda aç`}
+              state={isDone ? "done" : isNext ? "next" : isHelped ? "helped" : "open"}
+              label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : isHelped ? ", dostun oxuyur" : ", gözləyir"}. Quranda aç`}
             />
           );
         })}
       </div>
-      <p className="m-0 text-[13px] text-muted text-center">Səhifəyə toxun, Quranda açılsın. Yaşıl ulduzlar oxunub.</p>
+      <p className="m-0 text-[13px] text-muted text-center">
+        Səhifəyə toxun, Quranda açılsın. Yaşıl ulduzlar oxunub{helpedUnread.length > 0 ? ", qırıq xətli göy ulduzları dostun oxuyur" : ""}.
+      </p>
     </div>
   );
 
@@ -597,13 +609,13 @@ function DashboardContent() {
                       </button>
                       <button type="button" onClick={handleMarkJuz} disabled={isMarking} className={`${button("outline", "lg")} w-full sm:w-auto`}>
                         <IconCheck size={20} />
-                        Cüzü bütöv oxudum
+                        {helped.size > 0 ? "Öz səhifələrimi bütöv oxudum" : "Cüzü bütöv oxudum"}
                       </button>
                     </>
                   ) : (
                     <div className="min-h-[52px] px-5 rounded-btn bg-donebg text-donetext font-bold text-base flex items-center gap-2.5">
                       <IconCheck size={20} />
-                      Tamamlandı. Allah qəbul etsin
+                      {helpedUnread.length > 0 ? `Sənin səhifələrin bitdi · ${helpedUnread.length} səhifəni dostun oxuyur` : "Tamamlandı. Allah qəbul etsin"}
                     </div>
                   )}
                   <div className="hidden md:block"><Link href="/readings" className={btn.ghostDark}>Səhifələrimə bax</Link></div>
@@ -645,6 +657,43 @@ function DashboardContent() {
             </div>
           </MihrabCard>
         )}
+
+        {/* Pages I read for a friend: their juz, my reward for the pages */}
+        {helpTasks.map(({ assignment: a, pages }) => {
+          const left = pages.filter((p) => !a.completedPages.includes(p));
+          return (
+            <section key={a.id} aria-label={`Kömək: Cüz ${a.juz}`} className="bg-white border border-line rounded-card shadow-card p-5 md:p-6 flex flex-col gap-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[13px] font-bold text-lapis">Kömək</div>
+                  <h2 className="m-0 font-display font-normal text-[22px] leading-tight text-ink">Cüz {a.juz} · {khatmLabel(a.khatm)}</h2>
+                </div>
+                <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${left.length ? "bg-donebg text-lapis" : "bg-mint text-forest"}`}>
+                  {left.length ? `qalıb ${left.length}` : "bitirdin"}
+                </span>
+              </div>
+              <p className="m-0 text-[14px] leading-relaxed text-muted">
+                Dostunun cüzündən bu səhifələri sən oxuyursan. Cüz onun adına yazılacaq, oxuduğun səhifələr sənin hesabına düşür.
+              </p>
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-x-1 gap-y-1.5">
+                {pages.map((p, i) => {
+                  const isDone = a.completedPages.includes(p);
+                  const isNext = p === left[0];
+                  return (
+                    <PageMedal
+                      key={p}
+                      page={p}
+                      index={i}
+                      href={`/oxu?s=${p}`}
+                      state={isDone ? "done" : isNext ? "next" : "open"}
+                      label={`Səhifə ${p}${isDone ? ", oxunub" : isNext ? ", növbəti" : ", gözləyir"}. Quranda aç`}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
 
         {/* Ayah and hadith of the day, after today's pages: a night-green panel with a gold lattice */}
         <section aria-label="Günün ayəsi və hədisi" className="relative overflow-hidden rounded-hero bg-tile shadow-card px-5 py-7 md:px-9 md:py-9">

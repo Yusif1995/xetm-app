@@ -49,6 +49,7 @@ function note(j: ArchivedJuz): string {
   const parts: string[] = [];
   if (j.late) parts.push("gecikib");
   if (j.handedOverBy.length) parts.push(`ötürülüb: ${j.handedOverBy.join(", ")}`);
+  if (j.helpedBy?.length) parts.push(`kömək edib: ${j.helpedBy.join(", ")}`);
   return parts.join(" · ");
 }
 

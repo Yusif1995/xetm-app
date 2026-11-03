@@ -7,6 +7,14 @@ export interface PreviousHolder {
   pagesRead: number;
 }
 
+// A friend who reads some of the remaining pages of someone else's juz. The juz stays with its
+// holder and is credited to them when finished; the helper is credited with the pages they read.
+export interface Helper {
+  uid: string;
+  pages: number[];
+  at: string;               // ISO, when the pages were handed over
+}
+
 export interface Assignment {
   id: string;
   uid: string;              // current holder
@@ -22,6 +30,31 @@ export interface Assignment {
   endDate: string;
   createdAt: string;        // ISO
   previousHolders?: PreviousHolder[]; // set when the owner transfers the juz
+  helpers?: Helper[];       // set when a manager hands some remaining pages to a friend
+  readBy?: Record<string, string>; // page -> helper uid, for pages a helper marked
+}
+
+// Pages handed to helpers (still theirs while unread; the holder does not read them)
+export function helperPages(a: Assignment): Set<number> {
+  return new Set((a.helpers || []).flatMap((h) => h.pages));
+}
+
+// Pages the holder reads themselves: the juz without the pages given to helpers
+export function holderPages(a: Assignment): number[] {
+  const helped = helperPages(a);
+  return [...a.pages].filter((p) => !helped.has(p)).sort((x, y) => x - y);
+}
+
+// Unfinished juz where this member helps, with the pages they were given
+export function helpTasksOf(assignments: Assignment[], uid: string): { assignment: Assignment; pages: number[] }[] {
+  return assignments
+    .filter((a) => !a.done && a.uid !== uid)
+    .map((a) => ({
+      assignment: a,
+      pages: (a.helpers || []).filter((h) => h.uid === uid).flatMap((h) => h.pages).sort((x, y) => x - y),
+    }))
+    .filter((t) => t.pages.length > 0)
+    .sort((x, y) => x.assignment.khatm - y.assignment.khatm || x.assignment.juz - y.assignment.juz);
 }
 
 export const JUZ_COUNT = 30;
@@ -232,10 +265,14 @@ export function khatmSummaries(assignments: Assignment[]): KhatmSummary[] {
 
 // Pages read by uid in this assignment (handles juz transferred between members)
 export function pagesReadBy(a: Assignment, uid: string): number {
+  const readBy = a.readBy || {};
+  // Pages a helper marked count for the helper, the rest for the holders
+  const byHelpers = a.completedPages.filter((p) => readBy[String(p)]);
+  const helped = byHelpers.filter((p) => readBy[String(p)] === uid).length;
   const handedOver = (a.previousHolders || []).reduce((s, h) => s + h.pagesRead, 0);
-  const own = a.uid === uid ? Math.max(0, a.completedPages.length - handedOver) : 0;
+  const own = a.uid === uid ? Math.max(0, a.completedPages.length - byHelpers.length - handedOver) : 0;
   const earlier = (a.previousHolders || []).filter((h) => h.uid === uid).reduce((s, h) => s + h.pagesRead, 0);
-  return own + earlier;
+  return own + earlier + helped;
 }
 
 export interface MemberKhatmShare {
@@ -257,7 +294,9 @@ export interface MemberStats {
 }
 
 export function memberStats(assignments: Assignment[], uid: string): MemberStats {
-  const involved = assignments.filter((a) => a.uid === uid || (a.previousHolders || []).some((h) => h.uid === uid));
+  const involved = assignments.filter((a) => a.uid === uid
+    || (a.previousHolders || []).some((h) => h.uid === uid)
+    || (a.helpers || []).some((h) => h.uid === uid));
   const finished = assignments.filter((a) => a.uid === uid && a.done);
   const counts = new Map<number, number>();
   finished.forEach((a) => counts.set(a.juz, (counts.get(a.juz) || 0) + 1));

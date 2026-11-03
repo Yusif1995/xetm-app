@@ -115,7 +115,8 @@ export function PageMedal({
   label,
 }: {
   page: number;
-  state: "done" | "next" | "open";
+  // "helped": a friend reads this page of your juz (dashed lapis ring)
+  state: "done" | "next" | "open" | "helped";
   href: string;
   index?: number;
   label: string;
@@ -125,13 +126,15 @@ export function PageMedal({
     ? "fill-forest stroke-forest"
     : state === "next"
       ? "fill-mint stroke-forest"
-      : "fill-white stroke-leaflight";
+      : state === "helped"
+        ? "fill-donebg stroke-lapis"
+        : "fill-white stroke-leaflight";
   return (
     <Link
       href={href}
       aria-label={label}
       className={`press relative h-14 grid place-items-center font-bold text-[14px] tabular-nums rounded-full ${
-        state === "done" ? "text-white" : state === "next" ? "text-forest" : "text-muted"
+        state === "done" ? "text-white" : state === "next" ? "text-forest" : state === "helped" ? "text-lapis" : "text-muted"
       }`}
     >
       <motion.svg
@@ -144,7 +147,7 @@ export function PageMedal({
         transition={{ duration: 0.45, delay: Math.min(index, 20) * 0.02, ease: EASE }}
       >
         <circle r={24.5} fill="none" className={state === "done" ? "stroke-leaf" : "stroke-leaflight"} strokeWidth={0.8} />
-        <path d={starPath(23, 19)} className={star} strokeWidth={state === "next" ? 1.8 : 1.2} />
+        <path d={starPath(23, 19)} className={star} strokeWidth={state === "next" ? 1.8 : 1.2} strokeDasharray={state === "helped" ? "3 2.5" : undefined} />
       </motion.svg>
       <span className="relative">{page}</span>
     </Link>

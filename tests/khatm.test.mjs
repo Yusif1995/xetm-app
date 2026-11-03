@@ -3,6 +3,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   eligibleMembers,
+  helpTasksOf,
+  holderPages,
   khatmSummaries,
   memberStats,
   newAssignmentData,
@@ -190,6 +192,39 @@ describe("statistics", () => {
     };
     assert.equal(pagesReadBy(transferred, "first"), 5);
     assert.equal(pagesReadBy(transferred, "second"), 7);
+  });
+
+  test("helped juz stays with its holder; the friend is credited with the pages they read", () => {
+    const [a] = distribute([], ["holder"], seeded(2), 1);
+    const last4 = a.pages.slice(16);
+    const helped = {
+      ...a,
+      helpers: [{ uid: "friend", pages: last4, at: "2026-11-03T10:00:00.000Z" }],
+      completedPages: a.pages,
+      readBy: Object.fromEntries(last4.map((p) => [String(p), "friend"])),
+      done: true,
+      doneAt: "2026-11-03T12:00:00.000Z",
+    };
+    assert.deepEqual(holderPages(helped), a.pages.slice(0, 16));
+    assert.equal(pagesReadBy(helped, "holder"), 16);
+    assert.equal(pagesReadBy(helped, "friend"), 4);
+    assert.equal(memberStats([helped], "holder").juzDone.length, 1);
+    assert.equal(memberStats([helped], "friend").juzDone.length, 0);
+    assert.equal(memberStats([helped], "friend").pagesRead, 4);
+    assert.deepEqual(helpTasksOf([{ ...helped, done: false }], "friend")[0].pages, last4);
+    assert.equal(helpTasksOf([helped], "friend").length, 0);
+  });
+
+  test("a helper mark on a page that is no longer read credits nobody", () => {
+    const [a] = distribute([], ["holder"], seeded(3), 1);
+    const stale = {
+      ...a,
+      helpers: [{ uid: "friend", pages: [a.pages[19]], at: "2026-11-03T10:00:00.000Z" }],
+      completedPages: a.pages.slice(0, 10),
+      readBy: { [String(a.pages[19])]: "friend" },
+    };
+    assert.equal(pagesReadBy(stale, "friend"), 0);
+    assert.equal(pagesReadBy(stale, "holder"), 10);
   });
 });
 
