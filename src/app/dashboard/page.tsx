@@ -691,6 +691,11 @@ function DashboardContent() {
                   );
                 })}
               </div>
+              {left.length > 0 && (
+                <Link href={`/oxu?s=${left[0]}`} className={`${btn.gold} w-full sm:w-auto sm:self-center sm:min-w-[260px]`}>
+                  Quranda oxu · səhifə {left[0]}
+                </Link>
+              )}
             </section>
           );
         })}

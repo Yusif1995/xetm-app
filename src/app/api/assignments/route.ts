@@ -97,12 +97,18 @@ export async function POST(req: NextRequest) {
           updates[`readBy.${p}`] = read ? uid : FieldValue.delete();
         });
         tx.update(ref, updates);
-        return { changed: changed.length };
+        // The holder hears once, when this mark finishes the last of the pages the friend was given
+        const finishedHelp = read && Array.from(given).every((p) => current.has(p));
+        return { changed: changed.length, finishedHelp, holder: a.uid, juz: a.juz, pagesGiven: given.size, done };
       });
       if ("error" in outcome) {
         return NextResponse.json({ error: outcome.error }, { status: outcome.status });
       }
       if (outcome.changed > 0) await recomputeKhatm(db, groupId);
+      if (outcome.finishedHelp && outcome.holder) {
+        await notifyHolderOfHelp(db, uid, outcome.holder, outcome.juz, outcome.pagesGiven, !!outcome.done)
+          .catch((err) => console.error("Could not notify holder:", err));
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -296,4 +302,24 @@ async function notifyHelper(db: Firestore, helperUid: string, juz: number, pages
   });
   const result = await sendToSubscriptions(subscriptions, payload);
   await removePushSubscriptions(db, helperUid, result.expired);
+}
+
+// Tells the holder their friend read the pages they were given. Only the nickname is used:
+// members do not see each other's full names.
+async function notifyHolderOfHelp(db: Firestore, helperUid: string, holderUid: string, juz: number, pages: number, juzDone: boolean) {
+  if (!ensureVapidConfigured()) return;
+  const subscriptions = await getPushSubscriptions(db, holderUid);
+  if (subscriptions.length === 0) return;
+  const helper = await db.collection("users").doc(helperUid).get();
+  const nickname = typeof helper.data()?.nickname === "string" && helper.data()!.nickname.trim() ? helper.data()!.nickname.trim() : "Dostun";
+  const payload = JSON.stringify({
+    title: juzDone ? `Cüz ${juz} tamamlandı` : "Kömək bitdi",
+    body: `${nickname} Cüz ${juz}-dən sənə kömək üçün verilən ${pages} səhifəni oxudu.`
+      + (juzDone ? " Cüz sənin adına yazıldı. Allah qəbul etsin." : " Qalan səhifələrini bitirəndə cüz sənin adına yazılacaq."),
+    icon: "/icon.png",
+    badge: "/favicon.ico",
+    data: { url: "/dashboard" },
+  });
+  const result = await sendToSubscriptions(subscriptions, payload);
+  await removePushSubscriptions(db, holderUid, result.expired);
 }
