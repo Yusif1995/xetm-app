@@ -408,7 +408,7 @@ function SajdahMark({ sajdah }: { sajdah: SajdahAyah }) {
         const y = (LINE_TOP + (line - 1) * LINE_HEIGHT) * H;
         return (
           <g key={line}>
-            <rect x={from * W} y={y} width={(to - from) * W} height={LINE_HEIGHT * H} fill="#E8B04B" fillOpacity={0.3} />
+            <rect x={from * W} y={y} width={(to - from) * W} height={LINE_HEIGHT * H} fill="#E8B04B" fillOpacity={0.4} />
             <rect x={from * W} y={y + LINE_HEIGHT * H - 4} width={(to - from) * W} height={3} fill="#A9823A" fillOpacity={0.7} />
           </g>
         );
