@@ -13,7 +13,7 @@ import { helperPages, helpTasksOf, openAssignmentsOf, type Assignment } from "@/
 import { khatmLabel, surahForPage } from "@/lib/quran";
 import { LINE_HEIGHT, LINE_TOP, PAGE_IMAGE, sajdahOnPage, type SajdahAyah } from "@/lib/sajdah";
 import { useGroupAssignments } from "@/lib/useGroupData";
-import { useEncouragement } from "@/components/Encouragement";
+import { isAppOwner } from "@/lib/ownerApi";
 import { IconCheck, IconClose, LoadingScreen, btn, button } from "@/components/ui";
 
 const TOTAL_PAGES = 604;
@@ -36,7 +36,13 @@ function Reader() {
   const { user, loading, activeGroupId, activeGroup, isSuperAdmin } = useAuth();
   const approvedHere = !!user && (isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup));
   const { assignments, loaded } = useGroupAssignments(activeGroupId, approvedHere);
-  const encouragement = useEncouragement();
+  // The app owner turns through the whole mushaf from any page; everyone else stays inside their juz
+  const [owner, setOwner] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    isAppOwner().then((o) => { if (!cancelled) setOwner(o); });
+    return () => { cancelled = true; };
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announce, setAnnounce] = useState("");
@@ -75,8 +81,8 @@ function Reader() {
   const friendReads = !!held && helped.has(page) && !isRead;
 
   // Inside the member's juz or help pages (or the dua) the arrows stay within them; otherwise the whole mushaf
-  const first = isDua ? 1 : juzPages.length ? juzPages[0] : 1;
-  const last = isDua ? DUA_PAGES : juzPages.length ? juzPages[juzPages.length - 1] : TOTAL_PAGES;
+  const first = isDua ? 1 : juzPages.length && !owner ? juzPages[0] : 1;
+  const last = isDua ? DUA_PAGES : juzPages.length && !owner ? juzPages[juzPages.length - 1] : TOTAL_PAGES;
   const next = page < last ? page + 1 : null;
   const prev = page > first ? page - 1 : null;
 
@@ -127,7 +133,6 @@ function Reader() {
       setError(null);
       try {
         await markHelpPages(activeGroupId, help.assignment.id, [page], true);
-        encouragement.show();
         const left = remaining.filter((p) => p !== page);
         setAnnounce(`Səhifə ${page} oxunmuş kimi qeyd olundu.`);
         const target = left.find((p) => p > page) ?? left[0];
@@ -149,7 +154,6 @@ function Reader() {
     setError(null);
     try {
       await toggleAssignmentPages(activeGroupId, held.id, [page], true);
-      encouragement.show();
       const left = remaining.filter((p) => p !== page);
       setAnnounce(left.length === 0 ? `Cüz ${held.juz} tamamlandı.` : `Səhifə ${page} oxunmuş kimi qeyd olundu.`);
       // On to the next unread page of the juz (after this one first, then any skipped earlier),
@@ -388,7 +392,6 @@ function Reader() {
         </div>
       </footer>
 
-      {encouragement.node}
     </div>
   );
 }
