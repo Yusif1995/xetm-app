@@ -8,7 +8,6 @@ import {
   distributeJuz,
   assignJuzManually,
   transferAssignment,
-  giveHelpPages,
   takeBackHelpPages,
   removeAssignment,
   resetGroupAssignments,
@@ -28,7 +27,7 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
 import { memberShare, participantName, roleOf } from "@/components/GroupWidgets";
 import { useGroupAdmins, useGroupAssignments, useGroupFullNames, useGroupThreads } from "@/lib/useGroupData";
-import { helperPages, khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
+import { khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
 import {
   Avatar, Bar, Card, Chip, DateInput, IconSettings, IconSparkle, LoadingScreen, PageHeader, btn, button, inputCls
 } from "@/components/ui";
@@ -48,12 +47,11 @@ export default function AdminPage() {
   const [groupEndDate, setGroupEndDate] = useState("");
   const [pickedJuz, setPickedJuz] = useState<number | null>(null);
   const [pickedUid, setPickedUid] = useState("");
-  // Transfer an unfinished juz to another member
-  const [transferFor, setTransferFor] = useState<string | null>(null);
-  const [transferUid, setTransferUid] = useState("");
-  // "pages": a friend only helps with the chosen pages; "juz": the whole juz moves to them
-  const [transferMode, setTransferMode] = useState<"juz" | "pages">("pages");
-  const [helpPages, setHelpPages] = useState<number[]>([]);
+  // Removing a member who still has unfinished juz: who takes them over
+  const [removeFor, setRemoveFor] = useState<string | null>(null);
+  const [removeTo, setRemoveTo] = useState("");
+  // Juz left behind by members who are no longer in the group: who takes each one over
+  const [orphanTo, setOrphanTo] = useState<Record<string, string>>({});
 
   // The leader's conversation with one member (bulk messages live in Mesajlar)
   const [messageTarget, setMessageTarget] = useState<UserDoc | null>(null);
@@ -187,6 +185,12 @@ export default function AdminPage() {
   const membersWithOpen = activeGroupUsers.filter((u) => openOf(u.uid).length > 0);
   const membersWithoutOpen = activeGroupUsers.filter((u) => openOf(u.uid).length === 0);
   const memberByUid = (uid: string) => users.find((u) => u.uid === uid);
+  // Unfinished juz whose holder left or was removed: they stay in the khatm until handed to someone
+  const memberUids = new Set(activeGroupUsers.map((u) => u.uid));
+  const orphaned = assignments
+    .filter((a) => !a.done && !memberUids.has(a.uid))
+    .sort((a, b) => a.khatm - b.khatm || a.juz - b.juz);
+  const formerName = (uid: string) => fullNames[uid] || "Keçmiş üzv";
 
   const handleApproveUser = async (uid: string) => {
     try {
@@ -235,18 +239,45 @@ export default function AdminPage() {
 
 
 
-  const handleRemoveUser = async (user: UserDoc) => {
-    if (window.confirm(`${nameOf(user)} adlı iştirakçını “${groupName}” qrupundan kənarlaşdırmaq istədiyinizə əminsiniz?`)) {
-      try {
-        setLoading(true);
-        await removeUserFromGroup(user, activeGroupId);
-        await loadData();
-      } catch (err) {
-        console.error("Error removing user:", err);
-        alert("Kənarlaşdırma zamanı xəta baş verdi.");
-      } finally {
-        setLoading(false);
+  // Pages given to the member to help with go back to the holder; the ones they read stay theirs
+  const takeBackHelpOf = async (uid: string) => {
+    for (const a of assignments) {
+      if (!a.done && (a.helpers || []).some((h) => h.uid === uid && h.pages.some((p) => !a.completedPages.includes(p)))) {
+        await takeBackHelpPages(activeGroupId, a, uid);
       }
+    }
+  };
+
+  const removeMember = async (user: UserDoc, to: string | null) => {
+    try {
+      setLoading(true);
+      if (to) {
+        for (const a of openOf(user.uid)) {
+          await transferAssignment(activeGroupId, a, to);
+        }
+      }
+      await takeBackHelpOf(user.uid);
+      await removeUserFromGroup(user, activeGroupId);
+      setRemoveFor(null);
+      setRemoveTo("");
+      await loadData();
+    } catch (err) {
+      console.error("Error removing user:", err);
+      alert(err instanceof Error ? err.message : "Kənarlaşdırma zamanı xəta baş verdi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveUser = (user: UserDoc) => {
+    // A member with unfinished juz first chooses who reads them
+    if (openOf(user.uid).length > 0) {
+      setRemoveFor(removeFor === user.uid ? null : user.uid);
+      setRemoveTo("");
+      return;
+    }
+    if (window.confirm(`${nameOf(user)} adlı iştirakçını “${groupName}” qrupundan kənarlaşdırmaq istədiyinizə əminsiniz?`)) {
+      removeMember(user, null);
     }
   };
 
@@ -284,17 +315,16 @@ export default function AdminPage() {
     }
   };
 
-  const handleTransfer = async (a: Assignment) => {
-    if (!transferUid) return;
+  const handleTransferOrphan = async (a: Assignment) => {
+    const to = orphanTo[a.id];
+    if (!to) return;
     try {
-      if (transferMode === "pages") {
-        if (helpPages.length === 0) return;
-        await giveHelpPages(activeGroupId, a, transferUid, helpPages);
-      } else {
-        await transferAssignment(activeGroupId, a, transferUid);
-      }
-      setTransferFor(null);
-      setTransferUid("");
+      await transferAssignment(activeGroupId, a, to);
+      setOrphanTo((prev) => {
+        const next = { ...prev };
+        delete next[a.id];
+        return next;
+      });
     } catch (err) {
       console.error("Error transferring assignment:", err);
       alert(err instanceof Error ? err.message : "Cüzü ötürərkən xəta baş verdi.");
@@ -308,20 +338,6 @@ export default function AdminPage() {
       console.error("Error taking back help pages:", err);
       alert(err instanceof Error ? err.message : "Səhifələri geri almaq alınmadı.");
     }
-  };
-
-  // Unread pages of a juz that nobody is helping with yet: these can be given to a friend
-  const freePagesOf = (a: Assignment) => {
-    const given = helperPages(a);
-    return [...a.pages].sort((x, y) => x - y).filter((p) => !a.completedPages.includes(p) && !given.has(p));
-  };
-
-  const openTransfer = (a: Assignment) => {
-    const opening = transferFor !== a.id;
-    setTransferFor(opening ? a.id : null);
-    setTransferUid("");
-    setTransferMode("pages");
-    setHelpPages(opening ? freePagesOf(a) : []);
   };
 
   // Random distribution: one juz per member who is not behind
@@ -486,7 +502,6 @@ export default function AdminPage() {
                                 <span className="text-muted"> · {khatmLabel(a.khatm)} · {a.completedPages.length} / {a.pages.length} səhifə</span>
                               </div>
                               <div className="flex gap-2">
-                                <button type="button" onClick={() => openTransfer(a)} className={button("outline", "sm")}>Ötür</button>
                                 <button type="button" onClick={() => handleRemoveAssignment(a)} className={button("danger", "sm")}>Ləğv et</button>
                               </div>
                             </div>
@@ -505,71 +520,6 @@ export default function AdminPage() {
                                 </div>
                               );
                             })}
-                            {transferFor === a.id && (() => {
-                              const free = freePagesOf(a);
-                              const canSend = !!transferUid && (transferMode === "juz" || helpPages.length > 0);
-                              return (
-                                <div className="flex flex-col gap-3 pt-1">
-                                  <div role="radiogroup" aria-label="Nə ötürülsün" className="grid grid-cols-2 gap-1 rounded-xl bg-sand p-1">
-                                    {([["pages", "Qalan səhifələr"], ["juz", "Bütün cüz"]] as const).map(([v, label]) => (
-                                      <button
-                                        key={v}
-                                        type="button"
-                                        role="radio"
-                                        aria-checked={transferMode === v}
-                                        onClick={() => setTransferMode(v)}
-                                        className={`press min-h-[40px] rounded-[10px] text-[13px] ${transferMode === v ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"}`}
-                                      >
-                                        {label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  {transferMode === "pages" ? (
-                                    <div className="flex flex-col gap-2">
-                                      <p className="m-0 text-xs text-muted">
-                                        Seçilən səhifələri dostu oxuyur. Cüz {nameOf(u)} adında qalır və bitəndə ona yazılır; dostun oxuduğu səhifələr dostun hesabına düşür.
-                                      </p>
-                                      {free.length === 0 ? (
-                                        <p className="m-0 text-xs font-semibold text-ink">Verilə biləcək oxunmamış səhifə qalmayıb.</p>
-                                      ) : (
-                                        <div className="flex flex-wrap gap-1.5">
-                                          {free.map((p) => {
-                                            const on = helpPages.includes(p);
-                                            return (
-                                              <button
-                                                key={p}
-                                                type="button"
-                                                aria-pressed={on}
-                                                onClick={() => setHelpPages((prev) => on ? prev.filter((x) => x !== p) : [...prev, p].sort((x, y) => x - y))}
-                                                className={`press min-w-[48px] min-h-[40px] px-2 rounded-lg text-[13px] font-bold tabular-nums border ${on ? "bg-forest border-forest text-white" : "bg-white border-line text-muted"}`}
-                                              >
-                                                {p}
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <p className="m-0 text-xs text-muted">Cüz tam olaraq seçilən şəxsə keçir və bitəndə onun adına yazılır. Oxunmuş səhifələr {nameOf(u)} adına qalır.</p>
-                                  )}
-                                  <div className="flex flex-wrap items-end gap-2">
-                                    <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-1.5 text-xs font-semibold text-ink">
-                                      {transferMode === "pages" ? "Kim kömək etsin?" : "Kimə ötürülsün?"}
-                                      <select value={transferUid} onChange={(e) => setTransferUid(e.target.value)} className={inputCls}>
-                                        <option value="">İştirakçı seç...</option>
-                                        {activeGroupUsers.filter((m) => m.uid !== u.uid).map((m) => (
-                                          <option key={m.uid} value={m.uid}>{nameOf(m)}</option>
-                                        ))}
-                                      </select>
-                                    </label>
-                                    <button type="button" disabled={!canSend} onClick={() => handleTransfer(a)} className={btn.primary}>
-                                      {transferMode === "pages" ? `${helpPages.length} səhifəni ver` : "Cüzü ötür"}
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })()}
                           </div>
                         ))}
                       </div>
@@ -581,6 +531,41 @@ export default function AdminPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Juz of members who left or were removed: free until someone takes them over */}
+                {orphaned.length > 0 && (
+                  <div className="flex flex-col gap-3 pt-4 border-t border-sand">
+                    <div className="text-sm font-semibold text-ink">Qrupdan çıxanların cüzləri · {orphaned.length}</div>
+                    <p className="m-0 text-xs text-muted">
+                      Bu cüzlər boşdadır. Birinə ötürün ki, xətm yarımçıq qalmasın. Oxunmuş səhifələr çıxan şəxsin adına qalır.
+                    </p>
+                    {orphaned.map((a) => (
+                      <div key={a.id} className="flex flex-col gap-2.5 px-4 py-3.5 rounded-2xl bg-progress">
+                        <div className="text-sm">
+                          <span className="font-extrabold text-ink">Cüz {a.juz}</span>
+                          <span className="text-progresstext"> · {khatmLabel(a.khatm)} · {a.completedPages.length} / {a.pages.length} səhifə · {formerName(a.uid)}</span>
+                        </div>
+                        <div className="flex flex-wrap items-end gap-2">
+                          <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-1.5 text-xs font-semibold text-ink">
+                            Kimə ötürülsün?
+                            <select
+                              value={orphanTo[a.id] || ""}
+                              onChange={(e) => setOrphanTo((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                              className={inputCls}
+                            >
+                              <option value="">İştirakçı seç...</option>
+                              {activeGroupUsers.map((m) => (
+                                <option key={m.uid} value={m.uid}>{nameOf(m)}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button type="button" disabled={!orphanTo[a.id]} onClick={() => handleTransferOrphan(a)} className={btn.primary}>Ötür</button>
+                          <button type="button" onClick={() => handleRemoveAssignment(a)} className={button("danger", "sm")}>Ləğv et</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Free juz of the khatm being handed out */}
                 <div className="flex flex-col gap-2.5 pt-4 border-t border-sand">
@@ -674,9 +659,41 @@ export default function AdminPage() {
                         {!isSelf && (
                           <div className="flex gap-2">
                             {isGroupCreator && <button onClick={() => setMessageTarget(u)} className={button("outline", "sm")}>Mesaj</button>}
-                            {!isOwnerRow && <button onClick={() => handleRemoveUser(u)} className={button("danger", "sm")}>Çıxar</button>}
+                            {!isOwnerRow && <button onClick={() => handleRemoveUser(u)} aria-expanded={removeFor === u.uid} className={button("danger", "sm")}>Çıxar</button>}
                           </div>
                         )}
+                        {removeFor === u.uid && (() => {
+                          const open = openOf(u.uid);
+                          return (
+                            <div className="basis-full flex flex-col gap-3 p-4 rounded-2xl bg-progress">
+                              <p className="m-0 text-sm text-ink">
+                                <strong>{nameOf(u)}</strong> adlı iştirakçının bitməmiş cüzü var: {open.map((a) => `Cüz ${a.juz} (${a.completedPages.length} / ${a.pages.length})`).join(", ")}.
+                                Qrupdan çıxarmadan əvvəl kimə ötürülsün?
+                              </p>
+                              <div className="flex flex-wrap items-end gap-2">
+                                <label className="flex-[1_1_200px] min-w-0 flex flex-col gap-1.5 text-xs font-semibold text-ink">
+                                  Kimə ötürülsün?
+                                  <select value={removeTo} onChange={(e) => setRemoveTo(e.target.value)} className={inputCls}>
+                                    <option value="">İştirakçı seç...</option>
+                                    {activeGroupUsers.filter((m) => m.uid !== u.uid).map((m) => (
+                                      <option key={m.uid} value={m.uid}>{nameOf(m)}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <button type="button" disabled={!removeTo} onClick={() => removeMember(u, removeTo)} className={btn.primary}>
+                                  Ötür və çıxar
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button type="button" onClick={() => removeMember(u, null)} className={button("danger", "sm")}>Ötürmədən çıxar</button>
+                                <button type="button" onClick={() => setRemoveFor(null)} className={button("outline", "sm")}>İmtina</button>
+                              </div>
+                              <p className="m-0 text-xs text-progresstext">
+                                Ötürmədən çıxarsanız, cüz boşda qalır və sonra “Qrupdan çıxanların cüzləri” bölməsindən ötürə bilərsiniz.
+                              </p>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })

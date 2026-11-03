@@ -59,7 +59,7 @@ export default function GroupsPage() {
   };
 
   const handleLeave = async (group: GroupDoc) => {
-    if (!window.confirm(`“${group.name}” qrupundan çıxmaq istədiyinizə əminsiniz? Bu qrupdakı oxu məlumatlarınız silinəcək.`)) {
+    if (!window.confirm(`“${group.name}” qrupundan çıxmaq istədiyinizə əminsiniz? Bitməmiş cüzləriniz qrupda boş qalacaq və qrup rəhbəri onları başqasına ötürəcək.`)) {
       return;
     }
     setBusyGroupId(group.id);
