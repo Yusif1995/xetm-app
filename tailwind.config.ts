@@ -50,6 +50,8 @@ const config: Config = {
         sidebartext: "#3A4456",
         sidebarmuted: "#7C8494",
         onforest: "#CFE3D9",
+        // Muted text on the night tile header band (desktop top navigation)
+        nightmuted: "#9DBDAE",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
@@ -67,6 +69,8 @@ const config: Config = {
       boxShadow: {
         card: "0 1px 2px rgba(24,34,53,0.05), 0 10px 28px -16px rgba(24,34,53,0.22)",
         bar: "0 8px 28px -10px rgba(24,34,53,0.24)",
+        // Desktop panels: borderless white cards lifted off the porcelain ground
+        panel: "0 1px 2px rgba(24,34,53,0.04), 0 12px 32px -18px rgba(24,34,53,0.22)",
       },
       minHeight: {
         touch: "44px",

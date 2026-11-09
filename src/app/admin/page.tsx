@@ -25,11 +25,12 @@ import { ThreadDialog } from "@/components/MemberMessaging";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { JUZ_MAP, khatmLabel, ordinalAz } from "@/lib/quran";
-import { memberShare, participantName, roleOf } from "@/components/GroupWidgets";
+import { JuzBadge, memberShare, participantName, roleOf } from "@/components/GroupWidgets";
 import { useGroupAdmins, useGroupAssignments, useGroupFullNames, useGroupThreads } from "@/lib/useGroupData";
+import { StatStrip, Up } from "@/components/dash";
 import { khatmSummaries, MAX_OPEN_ASSIGNMENTS, openAssignmentsOf, openKhatmForAssignment, type Assignment } from "@/lib/khatm";
 import {
-  Avatar, Bar, Card, Chip, DateInput, IconSettings, IconSparkle, LoadingScreen, PageHeader, btn, button, inputCls
+  Avatar, Bar, Card, Chip, DateInput, LoadingScreen, PageHeader, btn, button, inputCls
 } from "@/components/ui";
 
 export default function AdminPage() {
@@ -58,7 +59,17 @@ export default function AdminPage() {
   const closeThread = useCallback(() => setMessageTarget(null), []);
   // Settings panel (invite link, privacy, danger zone) opened from the gear button
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    if (window.location.search.includes("ayarlar")) window.history.replaceState(null, "", "/admin");
+  }, []);
+  // The gear in the desktop top bar links here with ?ayarlar=1
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("ayarlar")) setSettingsOpen(true);
+    const open = () => setSettingsOpen(true);
+    window.addEventListener("xetm:open-settings", open);
+    return () => window.removeEventListener("xetm:open-settings", open);
+  }, []);
 
   const [createdGroups, setCreatedGroups] = useState<GroupDoc[]>([]);
   const canManage = !!currentUser && (isSuperAdmin || activeGroup?.createdBy === currentUser.uid);
@@ -147,14 +158,24 @@ export default function AdminPage() {
     return () => unsubGroups();
   }, [currentUser]);
 
-  // Default dates for the next distribution: today .. one week later
+  // Default dates for the next distribution: 4 days, starting the day after the current distribution
+  // ends (e.g. current ends on the 10th -> 11th..14th); never in the past; today..+3 when there is none
+  const lastEnd = activeGroup?.lastDistribution?.endDate
+    || assignments.reduce((m, a) => (a.endDate && a.endDate > m ? a.endDate : m), "");
   useEffect(() => {
-    const today = new Date();
-    const inAWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
     const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    setGroupStartDate((v) => v || iso(today));
-    setGroupEndDate((v) => v || iso(inAWeek));
-  }, [activeGroupId]);
+    const today = new Date();
+    const todayIso = iso(today);
+    let start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (lastEnd) {
+      const [y, m, d] = lastEnd.split("-").map(Number);
+      const next = new Date(y, m - 1, d + 1);
+      if (iso(next) > todayIso) start = next;
+    }
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 3);
+    setGroupStartDate(iso(start));
+    setGroupEndDate(iso(end));
+  }, [activeGroupId, lastEnd]);
 
   if (authLoading || loading || !activeGroupLoaded) {
     return <LoadingScreen text="İnzibatçı paneli yüklənir..." />;
@@ -177,7 +198,6 @@ export default function AdminPage() {
 
   // Khatm progress from the juz assignments
   const summaries = khatmSummaries(assignments);
-  const completedKhatms = summaries.filter((k) => k.completedAt).length;
   const currentKhatm = summaries.find((k) => !k.completedAt) || null;
   const totalUniqueCompleted = currentKhatm?.pagesRead || 0;
   const { khatm: assigningKhatm, free: freeJuz } = openKhatmForAssignment(assignments);
@@ -376,37 +396,20 @@ export default function AdminPage() {
   );
 
   const pct = Math.round((totalUniqueCompleted / 604) * 100);
+  const openJuzCount = assignments.filter((a) => !a.done).length;
 
   return (
     <AppLayout activeTab="admin">
       <div className="flex flex-col gap-5 md:gap-7">
         <PageHeader
           title="İnzibatçı paneli"
-          actions={canManage ? (
-            <div className="flex items-center gap-2 md:gap-3 self-start shrink-0">
-              <Link
-                href="/admin/ai"
-                aria-label="AI köməkçi"
-                title="AI köməkçi"
-                className="press w-11 h-11 md:w-12 md:h-12 rounded-full bg-mint border border-line shadow-card text-forest flex items-center justify-center hover:bg-donebg"
-              >
-                <IconSparkle size={22} />
-              </Link>
-              {isCreatorOfGroup && (
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen(true)}
-                  aria-label="Ayarlar"
-                  title="Ayarlar"
-                  aria-haspopup="dialog"
-                  aria-expanded={settingsOpen}
-                  className="press w-11 h-11 md:w-12 md:h-12 rounded-full bg-white border border-line shadow-card text-ink flex items-center justify-center hover:bg-sand"
-                >
-                  <IconSettings size={22} />
-                </button>
-              )}
-            </div>
-          ) : undefined}
+          subtitle={isCreatorOfGroup ? `${groupName} · bölgü, iştirakçılar və istəklər` : undefined}
+          tabs={isCreatorOfGroup ? [
+            ...(pendingGroupUsers.length > 0 ? [{ id: "istekler", label: "İstəklər" }] : []),
+            { id: "bolgu", label: "Cüz bölgüsü" },
+            { id: "uzvler", label: "İştirakçılar" },
+            { id: "arxiv", label: "Arxiv" },
+          ] : undefined}
         />
 
         {!isCreatorOfGroup ? (
@@ -418,6 +421,32 @@ export default function AdminPage() {
             <Link href="/groups" className={btn.outline}>Qruplarım</Link>
           </Card>
         ) : (
+          <>
+          <StatStrip
+            items={[
+              {
+                label: currentKhatm ? khatmLabel(currentKhatm.khatm) : "Cari xətm",
+                value: totalUniqueCompleted,
+                unit: `/ ${currentKhatm?.totalPages || 604}`,
+                note: <><Up>{pct}%</Up> oxunub</>,
+              },
+              {
+                label: "Oxunan cüzlər",
+                value: openJuzCount,
+                note: `${currentKhatm?.done ?? 0} / 30 cüz bitib`,
+              },
+              {
+                label: "İştirakçılar",
+                value: activeGroupUsers.length,
+                note: groupName,
+              },
+              {
+                label: "Qoşulmaq istəyənlər",
+                value: pendingGroupUsers.length,
+                note: pendingGroupUsers.length > 0 ? <Up tone="warn">Təsdiq gözləyir</Up> : "Yeni istək yoxdur",
+              },
+            ]}
+          />
           <div className="flex flex-wrap gap-5 md:gap-7 items-start">
 
             {/* Left column */}
@@ -425,7 +454,7 @@ export default function AdminPage() {
 
               {/* Pending requests */}
               {pendingGroupUsers.length > 0 && (
-                <section className="bg-progress rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
+                <section id="istekler" className="scroll-mt-28 bg-progress rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
                   <div className="flex items-center gap-2.5">
                     <h2 className="m-0 text-base md:text-lg font-bold text-progresstext">Qoşulmaq istəyənlər</h2>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-white text-progresstext">{pendingGroupUsers.length}</span>
@@ -445,14 +474,8 @@ export default function AdminPage() {
                 </section>
               )}
 
-              {/* Status */}
-              <p aria-label="Qrupun vəziyyəti" className="m-0 text-[15px] leading-relaxed text-muted">
-                {currentKhatm ? khatmLabel(currentKhatm.khatm) : "Cari xətm"}: <strong className="text-ink tabular-nums">{totalUniqueCompleted}</strong> / {currentKhatm?.totalPages || 604} səhifə oxunub ({pct}%)
-                {completedKhatms > 0 ? <> · <strong className="text-ink tabular-nums">{completedKhatms}</strong> xətm tamamlanıb</> : null}
-              </p>
-
               {/* Juz distribution */}
-              <Card className="md:!p-7 !gap-[22px]">
+              <Card id="bolgu" className="scroll-mt-28 md:!p-7 !gap-[22px]">
                 <h2 className="m-0 text-base md:text-xl font-bold text-ink">Cüz bölgüsü</h2>
 
                 <div className="flex flex-wrap gap-4">
@@ -570,22 +593,19 @@ export default function AdminPage() {
                 {/* Free juz of the khatm being handed out */}
                 <div className="flex flex-col gap-2.5 pt-4 border-t border-sand">
                   <div className="text-sm font-semibold text-ink">{khatmLabel(assigningKhatm)} · təyin edilməyib · {freeJuz.length} cüz</div>
-                  <div className="grid grid-cols-6 md:grid-cols-[repeat(auto-fill,minmax(52px,1fr))] gap-1.5">
+                  <div className="flex flex-wrap gap-2">
                     {freeJuz.map((j) => (
-                      <button
+                      <JuzBadge
                         key={j}
-                        type="button"
-                        aria-label={`Cüz ${j} təyin et`}
-                        title={JUZ_MAP[j]?.surah}
+                        size="sm"
+                        juz={j}
+                        state="empty"
+                        sub="Boş"
+                        selected={pickedJuz === j}
                         onClick={() => { setPickedJuz(pickedJuz === j ? null : j); setPickedUid(""); }}
-                        className={`min-h-[44px] rounded-[10px] font-bold text-sm border ${
-                          pickedJuz === j
-                            ? "bg-forest text-white border-forest"
-                            : "border-dashed border-[#BDB59F] bg-[#F3EEDF] text-[#4F4A39] hover:bg-sand"
-                        }`}
-                      >
-                        {j}
-                      </button>
+                        label={`Cüz ${j} təyin et`}
+                        title={JUZ_MAP[j]?.surah}
+                      />
                     ))}
                   </div>
                   {pickedJuz !== null && (
@@ -609,7 +629,7 @@ export default function AdminPage() {
               </Card>
 
               {/* Members */}
-              <Card className="!gap-2">
+              <Card id="uzvler" className="scroll-mt-28 !gap-2">
                 <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
                   <div className="flex items-center gap-2.5">
                     <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
@@ -731,7 +751,7 @@ export default function AdminPage() {
                 <Link href="/groups" className="text-sm font-semibold text-forest underline underline-offset-4">Yeni qrup yarat</Link>
               </Card>
 
-              <Card>
+              <Card id="arxiv" className="scroll-mt-28">
                 <h2 className="m-0 font-bold text-lg md:text-[22px] text-ink">Arxiv</h2>
                 <div className="text-sm leading-relaxed text-muted">
                   Tamamlanmış xətmlər və hamının bitirdiyi bölgülər Qrup ekranından çıxır və burada saxlanır.
@@ -742,6 +762,7 @@ export default function AdminPage() {
 
             </div>
           </div>
+          </>
         )}
       </div>
       {settingsOpen && <AdminSettingsPanel onClose={closeSettings} />}

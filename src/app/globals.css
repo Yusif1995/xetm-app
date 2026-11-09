@@ -60,6 +60,68 @@ body {
   opacity: 0.3;
 }
 
+/* Ayah and hadith card: the header artwork's night sky without the calligraphy */
+.night-texture {
+  background: #0B1F33 url("/brand/night-texture.webp") center / cover no-repeat;
+}
+
+/* Desktop header: one artwork (calligraphy on night blue-green) behind the nav bar and the page band.
+   The nav shows the top 76px of it, the band continues from there, so they read as one picture. */
+.girih-tile,
+.night-nav {
+  background-color: #0B1F33;
+  background-image:
+    linear-gradient(90deg, rgba(6, 18, 30, 0.55), rgba(6, 18, 30, 0) 40%),
+    url("/brand/band-vefa-d.webp");
+  background-size: 100vw 100%, max(2400px, 100vw) auto;
+  background-repeat: no-repeat;
+}
+.night-nav {
+  background-position: center, center top;
+}
+.girih-tile {
+  background-position: center, center -76px;
+}
+
+/* Phone header: the same artwork in a taller cut (calligraphy at the top). The top bar shows its
+   first 64px, the page band continues from there. */
+@media (max-width: 767.98px) {
+  .night-nav-m,
+  .girih-tile-m {
+    background-color: #0B1F33;
+    background-image:
+      linear-gradient(180deg, rgba(11, 31, 51, 0) 40%, rgba(11, 31, 51, 0.45)),
+      url("/brand/band-vefa-m.webp");
+    background-size: 100vw 320px, 100vw auto;
+    background-repeat: no-repeat;
+  }
+  .night-nav-m { background-position: center top, center top; }
+  .girih-tile-m { background-position: center -64px, center -64px; }
+}
+
+/* Every bordered card is a borderless white panel, like the dashboard panels */
+main .shadow-card.border-line {
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(24, 34, 53, 0.04), 0 12px 32px -18px rgba(24, 34, 53, 0.22);
+}
+
+/* Dialogs: the backdrop fades, the desktop pop-up grows in from slightly smaller */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+.fade-in { animation: fade-in 180ms ease-out both; }
+@media (min-width: 768px) {
+  .rise-in.md\:pop-in, .md\:pop-in { animation: pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-in, .md\:pop-in { animation: none; }
+}
+
 /* Reader: the ayah of prostration glows in once, its notice rises from the bottom */
 @keyframes sajdah-glow {
   0% { opacity: 0; }

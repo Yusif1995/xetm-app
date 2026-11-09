@@ -133,3 +133,12 @@ export function ordinalAz(n: number): string {
 export function khatmLabel(khatm: number): string {
   return `${ordinalAz(khatm)} xətm`;
 }
+
+// First page of the surah whose name matches the search text ("bəqərə", "Yasin", "əl-mulk"), or null
+export function surahStartPage(query: string): { name: string; page: number } | null {
+  const norm = (s: string) => s.toLocaleLowerCase("az").replace(/^(əl|ən|ər|əs|ət|əz|əş|əd)-/, "").replace(/[^a-zəığöşüç]/g, "");
+  const q = norm(query.trim());
+  if (q.length < 2) return null;
+  const hit = SURAHS.find(([name]) => norm(name) === q) || SURAHS.find(([name]) => norm(name).startsWith(q));
+  return hit ? { name: hit[0], page: hit[1] } : null;
+}

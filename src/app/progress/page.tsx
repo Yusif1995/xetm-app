@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { type UserDoc, getUserGroupIds, isUserApprovedInGroup } from "@/lib/db";
 import AppLayout from "@/components/AppLayout";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth";
-import { formatIsoDateAz, relativeTimeAz } from "@/lib/dates";
+import { relativeTimeAz } from "@/lib/dates";
 import { khatmLabel, ordinalAz } from "@/lib/quran";
 import { activeDistributions, activeKhatms, khatmSummaries, readerStateInDistribution, type ReaderState } from "@/lib/khatm";
 import { useGroupAssignments, useGroupFullNames, useGroupAdmins } from "@/lib/useGroupData";
 import { JuzMap, KhatmTabs, khatmJuzTiles, ParticipantRow, participantName, roleOf, type ShareStats } from "@/components/GroupWidgets";
-import { Bar, Card, LoadingScreen, PageHeader, button } from "@/components/ui";
+import { Card, LoadingScreen, PageHeader } from "@/components/ui";
+import { StatStrip, Up } from "@/components/dash";
 
 // Same colours as the juz tiles above: given (yellow), in progress (brown), finished (green)
 const READER_TABS: { key: ReaderState; label: string; on: string; off: string; empty: string }[] = [
@@ -151,49 +151,81 @@ export default function ProgressPage() {
       <div className="flex flex-col gap-5 md:gap-7">
         <PageHeader
           title={`Qrup · ${groupName}`}
-          subtitle={<>
-            <span className="md:hidden">{participants.length} iştirakçı</span>
-            <span className="hidden md:inline">Xətmlər, cüzlər və iştirakçıların oxuma gedişatı</span>
-          </>}
-          actions={
-            <div className="flex gap-2">
-              <Link href="/analytics" className={button("outline", "sm")}>Analitika</Link>
-              <div className="md:hidden"><Link href="/groups" className={button("outline", "sm")}>Qruplarım</Link></div>
-            </div>
-          }
+          subtitle="Xətmlər, cüzlər və iştirakçıların oxuma gedişatı"
+          tabs={[
+            { id: "xulase", label: "Xülasə" },
+            { id: "cuzler", label: "30 cüz" },
+            { id: "fealiyyet", label: "Son fəaliyyət" },
+            { id: "istirakcilar", label: "İştirakçılar" },
+          ]}
         />
 
-        {/* Summary of the selected khatm */}
-        <section aria-labelledby="xetm" className="bg-white border border-line rounded-hero shadow-card p-5 md:p-8 flex flex-col gap-3.5 md:gap-[22px]">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="flex flex-col gap-2">
-              <h2 id="xetm" className="m-0 text-lg md:text-xl font-bold text-ink">
-                {khatmLabel(khatm)}{summary?.completedAt ? ` · tamamlandı ${formatIsoDateAz(summary.completedAt.slice(0, 10))}` : " · davam edir"}
-              </h2>
-              <div className="flex items-baseline gap-2.5">
-                <div className="font-extrabold text-[34px] md:text-[44px] leading-none tabular-nums text-ink">{summary?.pagesRead || 0}</div>
-                <div className="text-sm md:text-base text-muted">/ {summary?.totalPages || 604} səhifə · {Math.round(ratio * 100)}%</div>
-              </div>
-            </div>
-          </div>
-          <Bar ratio={ratio} color="done" height={14} label="Xətmin irəliləyişi" />
-          <p className="m-0 text-sm md:text-[15px] leading-relaxed text-muted">
-            {summary?.done || 0} / 30 cüz oxunub, {summary?.assigned || 0} cüz paylanıb · {participants.length} iştirakçı{completed.size > 0 ? ` · ${completed.size} xətm tamamlanıb` : ""}
-          </p>
-        </section>
+        <div id="xulase" className="scroll-mt-28">
+          <StatStrip
+            items={[
+              {
+                label: "Cari xətm",
+                value: summary?.pagesRead || 0,
+                unit: `/ ${summary?.totalPages || 604}`,
+                note: <><Up>{Math.round(ratio * 100)}%</Up> · {khatmLabel(khatm)}</>,
+              },
+              {
+                label: "Bitmiş cüzlər",
+                value: summary?.done || 0,
+                unit: "/ 30",
+                note: `${summary?.assigned || 0} cüz paylanıb`,
+              },
+              {
+                label: "İştirakçılar",
+                value: participants.length,
+                note: distribution !== null ? `${byState.reading.length} oxuyur, ${byState.notStarted.length} başlamayıb` : "Bölgü yoxdur",
+              },
+              {
+                label: "Tamamlanmış xətmlər",
+                value: completed.size,
+                note: completed.size > 0 ? "Allah qəbul etsin" : "Birinci xətm davam edir",
+              },
+            ]}
+          />
+        </div>
+
 
         <div className="flex flex-wrap gap-5 md:gap-7 items-start">
           <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-5 md:gap-7">
-            <Card>
+            <Card id="cuzler" className="scroll-mt-28">
               <div className="flex flex-col gap-1">
                 <h2 className="m-0 text-base md:text-lg font-bold text-ink">30 cüz üzrə vəziyyət · {khatmLabel(khatm)}</h2>
                 <div className="text-sm text-muted hidden md:block">Hər kart bir cüzdür. İçindəki rəqəm oxunmuş səhifələrin sayıdır.</div>
               </div>
               <KhatmTabs khatms={khatms} selected={khatm} completed={completed} onSelect={setSelectedKhatm} />
-              <JuzMap tiles={khatmJuzTiles(assignments, khatm)} holderName={nameByUid} />
+              <JuzMap tiles={khatmJuzTiles(assignments, khatm)} holderName={nameByUid} byDistribution />
             </Card>
 
-            <Card className="!gap-2">
+          </div>
+
+          <div className="flex-[1_1_300px] min-w-0 flex flex-col gap-5 md:gap-7">
+            <Card id="fealiyyet" className="scroll-mt-28">
+              <h2 className="m-0 text-base md:text-lg font-bold text-ink">Son fəaliyyət</h2>
+              {activities.length === 0 ? (
+                <p className="m-0 text-sm text-muted">Hələ oxunmuş səhifə yoxdur.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {activities.map((a, i) => (
+                    <div key={i} className="flex gap-3 items-start">
+                      <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${i === 0 ? "bg-accent" : "bg-done"}`} />
+                      <div className="flex flex-col gap-0.5">
+                        <div className="text-sm font-semibold">{a.name} {a.count} səhifə oxuyub</div>
+                        <div className="text-[13px] text-muted">{relativeTimeAz(a.time)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+
+            <Card className="!gap-2 scroll-mt-28" id="istirakcilar">
               <div className="flex items-center gap-2.5 pb-2">
                 <h2 className="m-0 text-base md:text-lg font-bold text-ink">İştirakçılar</h2>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sand text-muted">{participants.length} nəfər</span>
@@ -265,29 +297,6 @@ export default function ProgressPage() {
               </>
               )}
             </Card>
-          </div>
-
-          <div className="flex-[1_1_300px] min-w-0 flex flex-col gap-5 md:gap-7">
-            <Card>
-              <h2 className="m-0 text-base md:text-[15px] font-bold text-ink">Son fəaliyyət</h2>
-              {activities.length === 0 ? (
-                <p className="m-0 text-sm text-muted">Hələ oxunmuş səhifə yoxdur.</p>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {activities.map((a, i) => (
-                    <div key={i} className="flex gap-3 items-start">
-                      <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${i === 0 ? "bg-accent" : "bg-done"}`} />
-                      <div className="flex flex-col gap-0.5">
-                        <div className="text-sm font-semibold">{a.name} {a.count} səhifə oxuyub</div>
-                        <div className="text-[13px] text-muted">{relativeTimeAz(a.time)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
-        </div>
       </div>
     </AppLayout>
   );

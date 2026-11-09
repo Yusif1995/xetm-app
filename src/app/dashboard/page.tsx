@@ -12,6 +12,7 @@ import {
 } from "@/lib/db";
 import { useGroupAssignments, useMyGroupMessage, useThreadSummary } from "@/lib/useGroupData";
 import { helperPages, helpTasksOf, memberStats, openAssignmentsOf } from "@/lib/khatm";
+import { SectionTabs } from "@/components/dash";
 import { useCallback, useEffect, useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import AppLayout from "@/components/AppLayout";
@@ -20,11 +21,10 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { useSearchParams } from "next/navigation";
 import { khatmLabel, pageRangesLabel, surahForPage } from "@/lib/quran";
 import { formatGregorianAz, formatHijriAz, formatIsoDateAz, relativeTimeAz } from "@/lib/dates";
-import { enablePushFromUserGesture, isPushSupported } from "@/lib/push";
 import { bakuDateKey, dailyContent, type DailyItem } from "@/lib/dailyContent";
 import { useEncouragement } from "@/components/Encouragement";
-import { Avatar, IconBell, IconCalendar, IconCheck, IconLogout, LoadingScreen, ProgressRing, btn, button } from "@/components/ui";
-import { Cartouche, MihrabCard, OrnamentRule, PageMedal } from "@/components/ornament";
+import { IconBell, IconCalendar, IconCheck, LoadingScreen, NightBand, btn, button } from "@/components/ui";
+import { OrnamentRule, PageMedal } from "@/components/ornament";
 
 const CHUNK_SIZE = 5;
 const UNDO_MS = 6000;
@@ -34,58 +34,27 @@ type FailedWrite = { message: string; retry: () => Promise<void> };
 type Undo = { assignmentId: string; pages: number[]; label: string };
 
 function DashboardContent() {
-  const { user, loading, activeGroupId, setActiveGroupId, activeGroup, logout, isSuperAdmin } = useAuth();
+  const { user, loading, activeGroupId, setActiveGroupId, activeGroup, isSuperAdmin, previewAsMember } = useAuth();
   const [isMarking, setIsMarking] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [groupCreatedBy, setGroupCreatedBy] = useState<string | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [markingMessage, setMarkingMessage] = useState(false);
   const [failedWrite, setFailedWrite] = useState<FailedWrite | null>(null);
   const [undo, setUndo] = useState<Undo | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
-  const [pushGranted, setPushGranted] = useState(true);
   const [joinError, setJoinError] = useState<string | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const profileButtonRef = useRef<HTMLButtonElement>(null);
   const inviteDialogRef = useRef<HTMLDivElement>(null);
   const ownerMessage = useMyGroupMessage(activeGroupId, user?.uid);
   const thread = useThreadSummary(activeGroupId, user?.uid);
   const approvedHere = !!user && (isSuperAdmin || isUserApprovedInGroup(user, activeGroupId, activeGroup));
   const { assignments, loaded: assignmentsLoaded } = useGroupAssignments(activeGroupId, approvedHere);
-  const profileRef = useRef<HTMLDivElement>(null);
   const encouragement = useEncouragement();
-
-  // The bell only carries a dot while notifications are still off
-  useEffect(() => {
-    setPushGranted(!isPushSupported() || Notification.permission === "granted");
-  }, []);
 
   useEffect(() => () => {
     if (undoTimer.current) clearTimeout(undoTimer.current);
   }, []);
-
-  const closeProfile = useCallback(() => {
-    setProfileOpen(false);
-    profileButtonRef.current?.focus();
-  }, []);
-
-  // Close the profile menu on outside click or Esc
-  useEffect(() => {
-    if (!profileOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeProfile();
-    };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [profileOpen, closeProfile]);
 
   const searchParams = useSearchParams();
   const [inviteGroup, setInviteGroup] = useState<GroupDoc | null>(null);
@@ -186,7 +155,7 @@ function DashboardContent() {
     return <LoadingScreen />;
   }
 
-  const viewerIsOwner = !!groupCreatedBy && groupCreatedBy === user.uid;
+  const viewerIsOwner = !previewAsMember && !!groupCreatedBy && groupCreatedBy === user.uid;
 
   // Juz the member still has to read, oldest first. Only the oldest one can be marked;
   // the others wait until it is finished.
@@ -194,7 +163,6 @@ function DashboardContent() {
   const current = myOpen[0] || null;
   const sortedPages = current ? [...current.pages].sort((a, b) => a - b) : [];
   const completedPages = current?.completedPages || [];
-  const myCompleted = completedPages.length;
   // Pages a friend was given to read: not the holder's to mark, though the juz stays theirs
   const helped = current ? helperPages(current) : new Set<number>();
   const helpedUnread = sortedPages.filter((p) => helped.has(p) && !completedPages.includes(p));
@@ -348,11 +316,6 @@ function DashboardContent() {
     }
   };
 
-  const handleEnablePush = async () => {
-    setNotice(await enablePushFromUserGesture(user.uid));
-    if (isPushSupported()) setPushGranted(Notification.permission === "granted");
-  };
-
   // Today's ayah and hadith change every day by themselves; a text the group owner saved
   // for today (from the AI panel) takes their place for that day only.
   const auto = dailyContent(now);
@@ -385,79 +348,111 @@ function DashboardContent() {
     </div>
   );
 
-  return (
-    <AppLayout activeTab="dashboard">
-      <div className="max-w-[880px] flex flex-col gap-5 md:gap-7">
-        <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
 
-        <header className="relative -mx-4 md:mx-0 px-4 md:px-0 flex flex-col items-center gap-3 text-center">
-          <div aria-hidden="true" className="girih absolute inset-x-0 -top-6 md:-top-10 h-[170px] pointer-events-none" />
-          <div className="relative self-end flex items-center gap-2 md:gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={handleEnablePush}
-              aria-label={pushGranted ? "Bildirişlər aktivdir" : "Bildirişləri aktiv et"}
-              title={pushGranted ? "Bildirişlər aktivdir" : "Bildirişləri aktiv et"}
-              className="press relative w-11 h-11 md:w-12 md:h-12 rounded-full border border-line bg-white text-ink shadow-card flex items-center justify-center hover:bg-sand"
-            >
-              <IconBell size={22} />
-              {!pushGranted && (
-                <span className="absolute top-2 right-2.5 md:top-2.5 md:right-[11px] w-[9px] h-[9px] rounded-full bg-accent border-2 border-white" />
-              )}
-            </button>
-            <div className="relative" ref={profileRef}>
-              <button
-                ref={profileButtonRef}
-                type="button"
-                onClick={() => setProfileOpen(!profileOpen)}
-                aria-expanded={profileOpen}
-                aria-haspopup="menu"
-                aria-label={`Profil menyusu: ${displayName || "hesabın"}`}
-                className="press flex items-center gap-3 p-0.5 md:p-1 md:pr-4 rounded-full bg-white border border-line shadow-card hover:bg-sand"
-              >
-                {user.photoURL ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <Avatar name={displayName} />
-                )}
-                <span className="hidden md:inline text-sm font-semibold text-ink">{displayName}</span>
-              </button>
-              {profileOpen && (
-                <div className="absolute right-0 top-full mt-2 w-[min(15rem,calc(100vw-2.5rem))] bg-white border border-line rounded-[20px] shadow-bar z-50 p-2 text-ink">
-                  <div className="px-3 py-2 border-b border-sand mb-1">
-                    <div className="text-sm font-bold truncate">{displayName}</div>
-                    <div className="text-xs text-muted">{viewerIsOwner ? "Owner" : isSuperAdmin ? "Admin" : "İştirakçı"}</div>
+  // Pieces of the today card shared by the phone (mihrab) card and the desktop panel
+  const alertsNode = (
+    <>
+              {isLastDay && (
+                <div role="alert" className="flex items-center gap-3 rounded-btn bg-[#FBEFEB] border border-dangerline px-4 py-3 text-danger">
+                  <IconBell size={22} className="shrink-0" />
+                  <div className="flex flex-col">
+                    <strong className="text-[15px] md:text-base font-extrabold">Bu gün son gündür</strong>
+                    <span className="text-[13px]">Cüzü bu gün bitir: {remaining} səhifə qalıb.</span>
                   </div>
-                  <Link href="/groups" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
-                    Qruplarım
-                  </Link>
-                  {!viewerIsOwner && thread && (
-                    <Link href="/mesajlar" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
-                      Mesajlar
-                    </Link>
+                </div>
+              )}
+              {isOverdue && (
+                <div role="alert" className="rounded-btn bg-[#FBEFEB] border border-dangerline px-4 py-3 text-[14px] font-semibold text-danger">
+                  Müddət {formatIsoDateAz(current!.endDate)} tarixində bitib. Qalan {remaining} səhifəni tez bitir.
+                </div>
+              )}
+    </>
+  );
+  const actionsNode = (
+current && (
+                <div className="flex flex-wrap justify-center gap-3">
+                  {activeChunk.length > 0 ? (
+                    <>
+                      {nextPage && (
+                        <Link href={`/oxu?s=${nextPage}`} className={`${btn.gold} w-full sm:w-auto sm:min-w-[260px]`}>
+                          Quranda oxu · səhifə {nextPage}
+                        </Link>
+                      )}
+                      <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={`${button("outline", "lg")} w-full sm:w-auto`}>
+                        {isMarking ? "Qeyd edilir..." : `Oxudum: səhifə ${rangeLabel(activeChunk)}`}
+                      </button>
+                      <button type="button" onClick={handleMarkJuz} disabled={isMarking} className={`${button("outline", "lg")} w-full sm:w-auto`}>
+                        <IconCheck size={20} />
+                        {helped.size > 0 ? "Öz səhifələrimi bütöv oxudum" : "Cüzü bütöv oxudum"}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="min-h-[52px] px-5 rounded-btn bg-donebg text-donetext font-bold text-base flex items-center gap-2.5">
+                      <IconCheck size={20} />
+                      {helpedUnread.length > 0 ? `Sənin səhifələrin bitdi · ${helpedUnread.length} səhifəni dostun oxuyur` : "Tamamlandı. Allah qəbul etsin"}
+                    </div>
                   )}
-                  <Link href="/qurasdir" className="block w-full text-left px-3 py-2.5 text-sm font-semibold rounded-xl hover:bg-sand">
-                    Ana ekrana əlavə et
-                  </Link>
+                  <div className="hidden md:block"><Link href="/readings" className={btn.ghostDark}>Səhifələrimə bax</Link></div>
+                </div>
+              )
+  );
+  const statusNode = (
+    <>
+              {undo && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] md:text-sm text-muted">
+                  <span>Səhifə {undo.label} qeyd olundu.</span>
                   <button
                     type="button"
-                    onClick={logout}
-                    className="w-full flex items-center gap-2 text-left px-3 py-2.5 text-sm font-semibold text-danger rounded-xl hover:bg-[#FBEFEB]"
+                    onClick={handleUndo}
+                    className="press min-h-[40px] px-3 -mx-1 rounded-xl font-bold text-forest hover:bg-mint"
                   >
-                    <IconLogout size={16} />
-                    Çıxış
+                    Geri al
                   </button>
                 </div>
               )}
-            </div>
+              {failedWrite && (
+                <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-btn bg-[#FBEFEB] border border-dangerline px-3.5 py-2.5 text-[13px] md:text-sm text-danger">
+                  <span className="flex-[1_1_200px]">{failedWrite.message}</span>
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="press min-h-[40px] px-3 rounded-xl font-bold text-danger bg-white border border-dangerline"
+                  >
+                    Yenidən cəhd et
+                  </button>
+                </div>
+              )}
+              {myOpen.length > 1 && (
+                <Link href="/readings" className="text-[13px] font-bold text-forest">
+                  Növbədə daha {myOpen.length - 1} cüz var — bu cüzü bitirəndə açılacaq
+                </Link>
+              )}
+    </>
+  );
+
+  const dashTabs = [
+    { id: "sehifeler", label: "Bu günün səhifələri" },
+    { id: "ayah", label: "Günün ayəsi və hədisi" },
+  ];
+
+  const greeting = firstName ? `Xoş gördük, ${firstName}` : "Xoş gördük";
+
+  return (
+    <AppLayout activeTab="dashboard">
+      <div className="max-w-[880px] md:max-w-none flex flex-col gap-5 md:gap-7">
+        <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
+
+        <header className="relative -mx-4 md:mx-0 px-4 md:px-0 pt-3 md:pt-0 pb-1 flex flex-col gap-1 md:flex-row md:items-end md:justify-between md:gap-6 md:min-h-[112px]">
+          <div aria-hidden="true" className="girih-tile-m md:hidden absolute inset-x-0 -top-6 -bottom-[60px] -z-10 pointer-events-none" />
+          <NightBand />
+          {/* The greeting on the night artwork band, the date beneath it */}
+          <div className="flex flex-col gap-1 md:gap-2 min-w-0">
+            <h1 className="m-0 font-display font-normal text-[27px] md:text-[40px] leading-[1.25] pb-0.5 md:pb-1 text-white truncate">{greeting}</h1>
+            <div className="text-[13px] md:text-[15px] text-nightmuted truncate">{gregorian}{hijri && `, ${hijri}`}</div>
           </div>
-          <Cartouche>{firstName ? `Xoş gördük, ${firstName}` : "Xoş gördük"}</Cartouche>
-          {/* One line across the full width; the font shrinks with the screen so it never wraps */}
-          <div className="relative max-w-full whitespace-nowrap overflow-hidden text-ellipsis text-[clamp(11px,3.5vw,15px)] text-muted">
-            {gregorian}{hijri && `, ${hijri}`}
-          </div>
+          <div className="hidden md:block"><SectionTabs tabs={dashTabs} /></div>
         </header>
+
 
         {notice && (
           <div className="flex items-start justify-between gap-3 rounded-[20px] bg-white border border-line shadow-card px-4 py-3 text-sm text-ink">
@@ -558,104 +553,43 @@ function DashboardContent() {
             <div className="h-[52px] w-full sm:w-64 rounded-btn bg-track animate-pulse" />
           </section>
         ) : (
-          <MihrabCard
-            aria-labelledby="hedef"
-            className="px-5 pt-5 pb-6 md:px-10 md:pt-6 md:pb-9"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-4 md:gap-7">
-            <div className="flex-[1_1_220px] flex flex-col gap-4 md:gap-[18px] min-w-0">
-              <div className="flex flex-col items-center text-center gap-1.5 md:gap-2">
-                <h2 id="hedef" className="m-0 font-display font-normal text-[28px] md:text-[38px] leading-[1.12] text-ink">{targetTitle}</h2>
-                <div className="text-[14px] md:text-[15px] text-muted leading-relaxed">{remainingText}</div>
-                {current?.startDate && current.endDate && (
-                  <div className="flex flex-wrap justify-center gap-2 mt-1">
-                    <span className="inline-flex items-center gap-1.5 min-h-[32px] px-3 rounded-lg bg-white border border-line text-[13px] font-semibold text-ink">
-                      <IconCalendar size={15} className="text-muted" />
-                      Başlama: {formatIsoDateAz(current.startDate)}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 min-h-[32px] px-3 rounded-lg bg-white border border-line text-[13px] font-semibold text-ink">
-                      <IconCalendar size={15} className="text-muted" />
-                      Bitmə: {formatIsoDateAz(current.endDate)}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {isLastDay && (
-                <div role="alert" className="flex items-center gap-3 rounded-btn bg-[#FBEFEB] border border-dangerline px-4 py-3 text-danger">
-                  <IconBell size={22} className="shrink-0" />
-                  <div className="flex flex-col">
-                    <strong className="text-[15px] md:text-base font-extrabold">Bu gün son gündür</strong>
-                    <span className="text-[13px]">Cüzü bu gün bitir: {remaining} səhifə qalıb.</span>
-                  </div>
-                </div>
-              )}
-              {isOverdue && (
-                <div role="alert" className="rounded-btn bg-[#FBEFEB] border border-dangerline px-4 py-3 text-[14px] font-semibold text-danger">
-                  Müddət {formatIsoDateAz(current!.endDate)} tarixində bitib. Qalan {remaining} səhifəni tez bitir.
-                </div>
-              )}
-              {current && pageGrid}
-              {current && (
-                <div className="flex flex-wrap justify-center gap-3">
-                  {activeChunk.length > 0 ? (
-                    <>
-                      {nextPage && (
-                        <Link href={`/oxu?s=${nextPage}`} className={`${btn.gold} w-full sm:w-auto sm:min-w-[260px]`}>
-                          Quranda oxu · səhifə {nextPage}
-                        </Link>
-                      )}
-                      <button type="button" onClick={handleMarkAsComplete} disabled={isMarking} className={`${button("outline", "lg")} w-full sm:w-auto`}>
-                        {isMarking ? "Qeyd edilir..." : `Oxudum: səhifə ${rangeLabel(activeChunk)}`}
-                      </button>
-                      <button type="button" onClick={handleMarkJuz} disabled={isMarking} className={`${button("outline", "lg")} w-full sm:w-auto`}>
-                        <IconCheck size={20} />
-                        {helped.size > 0 ? "Öz səhifələrimi bütöv oxudum" : "Cüzü bütöv oxudum"}
-                      </button>
-                    </>
-                  ) : (
-                    <div className="min-h-[52px] px-5 rounded-btn bg-donebg text-donetext font-bold text-base flex items-center gap-2.5">
-                      <IconCheck size={20} />
-                      {helpedUnread.length > 0 ? `Sənin səhifələrin bitdi · ${helpedUnread.length} səhifəni dostun oxuyur` : "Tamamlandı. Allah qəbul etsin"}
-                    </div>
-                  )}
-                  <div className="hidden md:block"><Link href="/readings" className={btn.ghostDark}>Səhifələrimə bax</Link></div>
-                </div>
-              )}
-              {undo && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] md:text-sm text-muted">
-                  <span>Səhifə {undo.label} qeyd olundu.</span>
-                  <button
-                    type="button"
-                    onClick={handleUndo}
-                    className="press min-h-[40px] px-3 -mx-1 rounded-xl font-bold text-forest hover:bg-mint"
-                  >
-                    Geri al
-                  </button>
-                </div>
-              )}
-              {failedWrite && (
-                <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-btn bg-[#FBEFEB] border border-dangerline px-3.5 py-2.5 text-[13px] md:text-sm text-danger">
-                  <span className="flex-[1_1_200px]">{failedWrite.message}</span>
-                  <button
-                    type="button"
-                    onClick={handleRetry}
-                    className="press min-h-[40px] px-3 rounded-xl font-bold text-danger bg-white border border-dangerline"
-                  >
-                    Yenidən cəhd et
-                  </button>
-                </div>
-              )}
-              {myOpen.length > 1 && (
-                <Link href="/readings" className="text-[13px] font-bold text-forest">
-                  Növbədə daha {myOpen.length - 1} cüz var — bu cüzü bitirəndə açılacaq
+          <>
+
+          {/* Today's pages: the next-page tile and the title, then the stars and the actions */}
+          <section id="sehifeler" aria-labelledby="hedef-md" className="scroll-mt-28 flex bg-white rounded-[18px] shadow-panel p-4 md:p-7 flex-col gap-4 md:gap-5">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 md:gap-6">
+              <div className="flex items-center gap-3.5 md:gap-6 min-w-0">
+              {current && nextPage && (
+                <Link
+                  href={`/oxu?s=${nextPage}`}
+                  aria-label={`Növbəti səhifə ${nextPage}, ${surahForPage(nextPage)}. Quranda aç`}
+                  className="press shrink-0 w-[88px] h-[88px] md:w-[112px] md:h-[112px] rounded-[16px] md:rounded-[18px] bg-donebg flex flex-col items-center justify-center hover:bg-[#D9E1EC]"
+                >
+                  <span className="text-[11px] md:text-[12px] font-bold text-donetext"><span className="md:hidden">Növbəti</span><span className="hidden md:inline">Növbəti səhifə</span></span>
+                  <span className="font-extrabold text-[34px] md:text-[46px] leading-none tabular-nums text-ink">{nextPage}</span>
+                  <span className="mt-1 text-[11px] md:text-[12px] font-semibold text-muted max-w-[80px] md:max-w-[100px] truncate">{surahForPage(nextPage)}</span>
                 </Link>
               )}
+              <div className="min-w-0">
+                <h2 id="hedef-md" className="m-0 text-[17px] md:text-[20px] font-extrabold text-ink leading-tight">{current ? "Bu günün səhifələri" : targetTitle}</h2>
+                <div className="mt-1 md:mt-1.5 text-[13px] md:text-[14px] text-muted leading-relaxed">{current ? `${targetTitle} · ${remainingText}` : remainingText}</div>
+              </div>
+              </div>
+              {current?.startDate && current.endDate && (
+                <div className="flex gap-2 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-[10px] bg-cream text-[13px] font-semibold text-ink">
+                    <IconCalendar size={15} className="text-muted" />
+                    {formatIsoDateAz(current.startDate)} – {formatIsoDateAz(current.endDate)}
+                  </span>
+                </div>
+              )}
             </div>
-            {current && (
-              <div className="hidden lg:block self-start"><ProgressRing value={myCompleted} total={sortedPages.length} /></div>
-            )}
-            </div>
-          </MihrabCard>
+            {alertsNode}
+            {current && pageGrid}
+            {actionsNode}
+            {statusNode}
+          </section>
+          </>
         )}
 
         {/* Pages I read for a friend: their juz, my reward for the pages */}
@@ -700,14 +634,17 @@ function DashboardContent() {
           );
         })}
 
-        {/* Ayah and hadith of the day, after today's pages: a night-green panel with a gold lattice */}
-        <section aria-label="Günün ayəsi və hədisi" className="relative overflow-hidden rounded-hero bg-tile shadow-card px-5 py-7 md:px-9 md:py-9">
-          <div aria-hidden="true" className="girih-night absolute inset-0 pointer-events-none" />
-          <div aria-hidden="true" className="absolute inset-1.5 md:inset-2 rounded-[16px] border border-leaf/50 pointer-events-none" />
+        {/* Ayah and hadith of the day, after today's pages: the header's night sky with a thin gold frame */}
+        <section id="ayah" aria-label="Günün ayəsi və hədisi" className="night-texture scroll-mt-28 relative overflow-hidden rounded-hero shadow-panel px-5 py-7 md:px-9 md:py-9">
+          <div aria-hidden="true" className="absolute inset-1.5 md:inset-2 rounded-[16px] border border-gold/35 pointer-events-none" />
           <div className="relative flex flex-col md:flex-row items-center md:items-stretch gap-6 md:gap-10">
             <DailyFigure caption="Günün ayəsi" item={ownerAyah ? null : auto.ayah} fallback={ownerAyah} />
             <OrnamentRule className="md:hidden shrink-0" />
-            <div aria-hidden="true" className="hidden md:block md:w-px bg-leaf/50 shrink-0" />
+            <div aria-hidden="true" className="hidden md:flex flex-col items-center shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-gold/80" />
+              <span className="flex-1 w-px bg-gold/45" />
+              <span className="w-1.5 h-1.5 rounded-full bg-gold/80" />
+            </div>
             <DailyFigure caption="Günün hədisi" item={ownerHadith ? null : auto.hadith} fallback={ownerHadith} />
           </div>
         </section>

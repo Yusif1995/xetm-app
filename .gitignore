@@ -48,3 +48,5 @@ firestore-debug.log
 
 # Firebase service account keys (Admin SDK credentials; Render reads FIREBASE_SERVICE_ACCOUNT instead)
 *-firebase-adminsdk-*.json
+
+.superpowers/

@@ -43,6 +43,9 @@ interface AuthContextType {
   activeGroupLoaded: boolean;
   // Listed in admins/{uid}; can only be granted from the Firebase Console
   isSuperAdmin: boolean;
+  // Local development only: the owner/admin sees the app the way an ordinary member does
+  previewAsMember: boolean;
+  setPreviewAsMember: (on: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -374,8 +377,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return !!auth.currentUser;
   }
 
+  // "İştirakçı kimi bax": never on the live site (production build ignores it). The group is shown
+  // as if someone else created it and this user were a plain approved member, and super-admin
+  // rights are hidden. Firestore still checks the real account, so this only changes what is drawn.
+  const [previewAsMember, setPreviewState] = useState(false);
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    setPreviewState(sessionStorage.getItem("xetm:asMember") === "1");
+  }, []);
+  const setPreviewAsMember = (on: boolean) => {
+    if (process.env.NODE_ENV !== "development") return;
+    if (on) sessionStorage.setItem("xetm:asMember", "1");
+    else sessionStorage.removeItem("xetm:asMember");
+    setPreviewState(on);
+  };
+  const shownGroup = useMemo<GroupDoc | null>(() => {
+    if (!previewAsMember || !activeGroup || !mergedUser) return activeGroup;
+    return {
+      ...activeGroup,
+      createdBy: activeGroup.createdBy === mergedUser.uid ? "__preview-owner__" : activeGroup.createdBy,
+      members: { ...(activeGroup.members || {}), [mergedUser.uid]: "member" },
+    };
+  }, [previewAsMember, activeGroup, mergedUser]);
+
   return (
-    <AuthContext.Provider value={{ user: mergedUser, loading, loginWithGoogle, logout, refreshUser, activeGroupId, setActiveGroupId, activeGroup, activeGroupLoaded, isSuperAdmin }}>
+    <AuthContext.Provider value={{
+      user: mergedUser, loading, loginWithGoogle, logout, refreshUser, activeGroupId, setActiveGroupId,
+      activeGroup: shownGroup, activeGroupLoaded, isSuperAdmin: previewAsMember ? false : isSuperAdmin,
+      previewAsMember, setPreviewAsMember,
+    }}>
       {children}
     </AuthContext.Provider>
   );

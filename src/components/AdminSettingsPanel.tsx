@@ -8,7 +8,7 @@ import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/f
 import { deleteGroup, type GroupDoc } from "@/lib/db";
 import { isAppOwner } from "@/lib/ownerApi";
 import Link from "next/link";
-import { Card, IconClose, IconLink, IconShield, IconTrash, btn } from "./ui";
+import { Card, IconClose, IconLink, IconSettings, IconShield, IconTrash, btn } from "./ui";
 
 export default function AdminSettingsPanel({ onClose }: { onClose: () => void }) {
   const { user, activeGroupId, setActiveGroupId, activeGroup, isSuperAdmin } = useAuth();
@@ -167,32 +167,39 @@ export default function AdminSettingsPanel({ onClose }: { onClose: () => void })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-stretch md:justify-end bg-black/40" onClick={onClose}>
+    // Above everything (top bar, Gemini button): phone = bottom sheet, desktop = centred pop-up
+    <div className="fade-in fixed inset-0 z-[60] flex items-end md:items-center md:justify-center md:p-6 bg-[#0B1F33]/55 backdrop-blur-[2px]" onClick={onClose}>
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
         onClick={(e) => e.stopPropagation()}
-        className="rise-in w-full md:w-[440px] max-h-[92dvh] md:max-h-none md:h-full bg-cream rounded-t-[28px] md:rounded-none md:rounded-l-[28px] shadow-bar flex flex-col overflow-hidden"
+        className="rise-in md:pop-in w-full md:w-[560px] max-h-[92dvh] md:max-h-[86vh] bg-cream rounded-t-[28px] md:rounded-[24px] shadow-bar flex flex-col overflow-hidden"
       >
-        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 md:px-6 md:pt-6 bg-cream">
-          <div className="flex flex-col gap-1 min-w-0">
-            <h2 id="settings-title" className="m-0 text-2xl font-extrabold text-ink">Ayarlar</h2>
-            <div className="text-[13px] text-muted truncate">{groupName}</div>
+        <div className="flex items-center justify-between gap-3 px-5 py-4 md:px-7 md:py-5 bg-white border-b border-line">
+          <div className="flex items-center gap-3 min-w-0">
+            <span aria-hidden="true" className="w-11 h-11 shrink-0 rounded-[14px] bg-mint text-forest grid place-items-center">
+              <IconSettings size={22} />
+            </span>
+            <div className="flex flex-col min-w-0">
+              <h2 id="settings-title" className="m-0 text-[22px] font-extrabold text-ink leading-tight">Ayarlar</h2>
+              <div className="text-[13px] text-muted truncate">{groupName}</div>
+            </div>
           </div>
           <button
             ref={closeRef}
             type="button"
             onClick={onClose}
             aria-label="Ayarları bağla"
-            className="press w-11 h-11 shrink-0 rounded-full bg-white border border-line shadow-card text-ink flex items-center justify-center hover:bg-sand"
+            title="Bağla"
+            className="press w-11 h-11 shrink-0 rounded-full bg-cream text-ink flex items-center justify-center hover:bg-sand"
           >
             <IconClose size={20} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-8 md:px-6 flex flex-col gap-4">
+        <div className="flex-1 overflow-y-auto px-4 py-5 md:px-7 md:py-6 flex flex-col gap-4">
           {appOwner && (
             <Card>
               <h3 className="m-0 text-base font-bold text-ink">Sistem idarəsi</h3>

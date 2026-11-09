@@ -1,6 +1,6 @@
 // Shared UI primitives for the Xətm App design system (stroke icons, avatar, progress, chips).
 import type { CSSProperties, InputHTMLAttributes, ReactNode } from "react";
-import { Cartouche } from "./ornament";
+import { SectionTabs, type SectionTab } from "./dash";
 
 type IconProps = { size?: number; className?: string };
 
@@ -201,22 +201,63 @@ export function Chip({ tone, children }: { tone: ChipTone; children: ReactNode }
   );
 }
 
-// Page heading used at the top of every screen: the title sits in a surah-header cartouche over a
-// faint girih lattice, centred, with the subtitle and any actions beneath it
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+// Page heading used at the top of every screen, on the night artwork band under the top bar: white
+// inscriptional title, subtitle beneath. On the phone actions sit under the subtitle; on desktop
+// they and the section tabs sit on the right
+export function PageHeader({
+  title, subtitle, actions, tabs, tight = false,
+}: { title: string; subtitle?: ReactNode; actions?: ReactNode; tabs?: SectionTab[]; tight?: boolean }) {
   return (
-    <header className="relative -mx-4 md:mx-0 px-4 md:px-0 pt-3 md:pt-1 pb-1 flex flex-col items-center gap-3 text-center">
-      <div aria-hidden="true" className="girih absolute inset-x-0 -top-6 md:-top-10 h-[150px] pointer-events-none" />
-      <Cartouche>{title}</Cartouche>
-      {subtitle && <div className="relative text-[13px] md:text-[15px] text-muted">{subtitle}</div>}
-      {actions && <div className="relative flex flex-wrap items-center justify-center gap-2.5">{actions}</div>}
+    <>
+      <header className="md:hidden relative -mx-4 px-4 pt-3 pb-1 flex flex-col gap-1">
+        <div aria-hidden="true" className={`girih-tile-m absolute inset-x-0 -top-6 -z-10 pointer-events-none ${tight ? "-bottom-6" : "-bottom-[60px]"}`} />
+        <h1 className="m-0 font-display font-normal text-[27px] leading-[1.25] pb-0.5 text-white">{title}</h1>
+        {subtitle && <div className="text-[13px] text-nightmuted">{subtitle}</div>}
+        {actions && <div className="mt-2.5 flex flex-wrap items-center gap-2.5">{actions}</div>}
+      </header>
+      <NightBandHeader title={title} subtitle={subtitle} actions={actions} tabs={tabs} tight={tight} />
+    </>
+  );
+}
+
+// Desktop page heading on the night band: title and subtitle on the left; actions and the section
+// tabs (jump links to the parts of the page) on the right, along the bottom edge
+export function NightBandHeader({
+  title, subtitle, actions, tabs, tight = false,
+}: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; tabs?: SectionTab[]; tight?: boolean }) {
+  return (
+    <header className="relative hidden md:flex min-h-[112px] items-end justify-between gap-8 pb-1">
+      <NightBand tight={tight} />
+      <div className="flex flex-col gap-2 min-w-0">
+        <h1 className="m-0 font-display font-normal text-[40px] leading-[1.25] pb-1 text-white truncate">{title}</h1>
+        {subtitle && <div className="text-[15px] text-nightmuted">{subtitle}</div>}
+      </div>
+      {(actions || tabs) && (
+        <div className="flex flex-col items-end gap-3 shrink-0">
+          {actions && <div className="flex flex-wrap items-center justify-end gap-2.5">{actions}</div>}
+          {tabs && tabs.length > 0 && <SectionTabs tabs={tabs} />}
+        </div>
+      )}
     </header>
   );
 }
 
-export function Card({ children, className = "", danger = false }: { children: ReactNode; className?: string; danger?: boolean }) {
+// Full-width night tile band behind a desktop page heading. It starts right under the top navigation
+// and runs 72px past the heading so the first panel rides over its lower edge; `tight` ends it where
+// the content starts, for screens whose first element is plain text rather than a panel
+export function NightBand({ tight = false }: { tight?: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`girih-tile hidden md:block absolute -left-[100vw] -right-[100vw] -z-10 -top-9 pointer-events-none ${tight ? "-bottom-7" : "-bottom-[88px]"}`}
+    />
+  );
+}
+
+export function Card({ children, className = "", danger = false, id }: { children: ReactNode; className?: string; danger?: boolean; id?: string }) {
   return (
     <section
+      id={id}
       className={`bg-white border rounded-card shadow-card p-[18px] md:p-6 flex flex-col gap-3.5 ${
         danger ? "border-dangerline" : "border-line"
       } ${className}`}

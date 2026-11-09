@@ -13,7 +13,7 @@ import {
 import { khatmLabel, ordinalAz } from "@/lib/quran";
 import { formatIsoDateAz } from "@/lib/dates";
 import { useGroupAssignments, useGroupFullNames } from "@/lib/useGroupData";
-import { JuzMap, khatmJuzTiles, participantName } from "@/components/GroupWidgets";
+import { JuzBadge, JuzMap, khatmJuzTiles, participantName } from "@/components/GroupWidgets";
 import AppLayout from "@/components/AppLayout";
 import { Avatar, Bar, Card, LoadingScreen, PageHeader } from "@/components/ui";
 
@@ -105,6 +105,11 @@ export default function AnalyticsPage() {
       <div className="flex flex-col gap-5 md:gap-7">
         <PageHeader
           title="Analitika"
+          subtitle={`Qrupun oxuma ritmi · ${periodLabel}`}
+          tabs={[
+            { id: "qrup", label: "Qrup üzrə" },
+            ...(isAdmin ? [{ id: "istirakcilar", label: "İştirakçılar" }] : me ? [{ id: "performans", label: "Performansım" }, { id: "sexsi", label: "Şəxsi analiz" }] : []),
+          ]}
           actions={
             <Segmented
               label="Dövr"
@@ -119,7 +124,7 @@ export default function AnalyticsPage() {
           <Card><p className="m-0 text-sm text-muted">Hələ cüz paylanmayıb. İlk bölgüdən sonra analitika burada görünəcək.</p></Card>
         ) : (
           <>
-            <Section title="Qrup üzrə" note={periodLabel}>
+            <Section id="qrup" title="Qrup üzrə" note={periodLabel} hideTitleMd>
               <GroupSection ctx={ctx} summaries={summaries} distributions={activeGroup?.distributionCount || 0} holderName={isAdmin ? (uid) => {
                 const u = users.find((x) => x.uid === uid);
                 return u ? nameOf(u) : "Keçmiş üzv";
@@ -127,7 +132,7 @@ export default function AnalyticsPage() {
             </Section>
 
             {isAdmin ? (
-              <Section title="İştirakçılar" note={`${members.length} nəfər · ${periodLabel}`}>
+              <Section id="istirakcilar" title="İştirakçılar" note={`${members.length} nəfər · ${periodLabel}`}>
                 <AdminList
                   ctx={ctx}
                   rows={ranked}
@@ -141,10 +146,10 @@ export default function AnalyticsPage() {
               </Section>
             ) : me ? (
               <>
-                <Section title="Bu qrupda performansın" note={periodLabel}>
+                <Section id="performans" title="Bu qrupda performansın" note={periodLabel}>
                   <Card><Performance ctx={ctx} uid={me.user.uid} all={me.all} self /></Card>
                 </Section>
-                <Section title="Şəxsi analizim" note={periodLabel}>
+                <Section id="sexsi" title="Şəxsi analizim" note={periodLabel}>
                   <Card><Personal ctx={ctx} uid={me.user.uid} all={me.all} /></Card>
                 </Section>
               </>
@@ -165,10 +170,11 @@ interface Ctx {
   ranked: { uid: string; perf: Perf }[];
 }
 
-function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+// `hideTitleMd`: the section opens straight with its figure strip riding over the night band (phone and desktop)
+function Section({ id, title, note, children, hideTitleMd = false }: { id?: string; title: string; note?: string; children: ReactNode; hideTitleMd?: boolean }) {
   return (
-    <section className="flex flex-col gap-3.5 md:gap-4">
-      <h2 className="m-0 flex flex-wrap items-baseline gap-x-2.5 text-lg md:text-xl font-extrabold text-ink">
+    <section id={id} className="scroll-mt-28 flex flex-col gap-3.5 md:gap-6">
+      <h2 className={`m-0 flex flex-wrap items-baseline gap-x-2.5 text-lg md:text-xl font-extrabold text-ink ${hideTitleMd ? "sr-only" : ""}`}>
         {title}
         {note && <span className="text-[13px] font-bold text-muted">{note}</span>}
       </h2>
@@ -199,27 +205,25 @@ function Segmented<T extends string>({ label, value, onChange, options }: {
   );
 }
 
-// Headline figures sit on a lapis plinth with a gold lattice and frame; `flat` tiles go inside cards
+// Headline figures: one white panel (2×2 on the phone, a row on desktop); `flat` tiles go inside cards
 function Tiles({ items, flat = false }: { items: { label: string; value: ReactNode; sub?: ReactNode }[]; flat?: boolean }) {
   const grid = (
-    <div className="relative grid grid-cols-2 md:grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5 md:gap-3">
-      {items.map((t) => (
+    <div className={`relative grid grid-cols-2 gap-2.5 ${flat ? "md:grid-cols-[repeat(auto-fit,minmax(150px,1fr))] md:gap-3" : "gap-0 md:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"}`}>
+      {items.map((t, i) => (
         <div
           key={t.label}
-          className={`${flat ? "bg-cream rounded-[20px]" : "bg-white rounded-[14px] shadow-card"} px-4 py-3.5 flex flex-col gap-1 min-w-0`}
+          className={`${flat ? "bg-cream rounded-[20px] px-4 py-3.5" : `px-4 py-3.5 md:px-7 md:py-0 ${i % 2 === 1 ? "border-l border-line" : ""} ${i >= 2 ? "border-t md:border-t-0 border-line" : ""} ${i > 0 && i % 2 === 0 ? "md:border-l" : ""}`} flex flex-col gap-1 md:gap-0 min-w-0`}
         >
-          <div className="text-[13px] font-bold text-muted">{t.label}</div>
-          <div className="font-extrabold text-[26px] md:text-[30px] leading-none tabular-nums text-ink">{t.value}</div>
-          {t.sub && <div className="text-xs text-muted">{t.sub}</div>}
+          <div className={`text-[13px] font-bold ${flat ? "text-muted" : "text-muted md:text-[14px] md:text-ink"}`}>{t.label}</div>
+          <div className={`font-extrabold text-[26px] leading-none tabular-nums text-ink ${flat ? "md:text-[30px]" : "md:text-[32px] md:mt-3.5 md:mb-3"}`}>{t.value}</div>
+          {t.sub && <div className={`text-xs text-muted ${flat ? "" : "md:text-[13px]"}`}>{t.sub}</div>}
         </div>
       ))}
     </div>
   );
   if (flat) return grid;
   return (
-    <div className="relative overflow-hidden rounded-hero bg-ink p-3.5 md:p-5 shadow-card">
-      <div aria-hidden="true" className="girih-night absolute inset-0 pointer-events-none" />
-      <div aria-hidden="true" className="absolute inset-1.5 md:inset-2 rounded-[16px] border border-leaf/50 pointer-events-none" />
+    <div className="relative overflow-hidden bg-white rounded-[18px] shadow-panel md:py-6">
       {grid}
     </div>
   );
@@ -522,32 +526,14 @@ function Personal({ ctx, uid, all }: { ctx: Ctx; uid: string; all: PersonAllTime
       ]} />
       {khatms.length === 0 ? (
         <p className="m-0 text-sm text-muted">Hələ cüz təyin edilməyib.</p>
-      ) : khatms.map((k) => {
-        const finished = all.finished.filter((f) => f.khatm === k);
-        const open = assignments.filter((a) => a.uid === uid && a.khatm === k && !a.done);
-        const pages = memberStats(assignments, uid).perKhatm.find((x) => x.khatm === k)?.pagesRead || 0;
-        return (
-          <div key={k} className="flex flex-col gap-2">
-            <div className="text-xs font-bold text-muted">{khatmLabel(k)} · {finished.length} cüz bitib · {pages} səhifə</div>
-            <div className="flex flex-wrap gap-1.5">
-              {finished.map((f) => (
-                <span key={f.juz} className={`text-xs font-bold px-2.5 py-1.5 rounded-[10px] ${f.onTime ? "bg-donebg text-donetext" : "bg-progress text-progresstext"}`}>
-                  Cüz {f.juz} · {f.days} gün
-                </span>
-              ))}
-              {open.map((a) => (
-                <span key={a.id} className="text-xs font-bold px-2.5 py-1.5 rounded-[10px] bg-sand text-muted">
-                  Cüz {a.juz} · {a.completedPages.length}/{a.pages.length}
-                </span>
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      ) : (
+        <JuzByMonth assignments={assignments} uid={uid} today={today} finished={all.finished} />
+      )}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-donebg border border-done" />Vaxtında bitib</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-juzdone" />Vaxtında bitib</span>
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-progress border border-juzassignedline" />Gecikib</span>
-        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-sand border border-line" />Davam edir</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-juzprogress" />Davam edir</span>
+        <span className="inline-flex items-center gap-1.5"><span className="font-extrabold text-ink">→</span>Növbəti aya keçib</span>
       </div>
       <div className="flex flex-col gap-1.5">
         <div className="text-xs font-bold text-muted">Aylıq oxuduğu səhifələr</div>
@@ -659,5 +645,116 @@ function AdminList({ ctx, rows, nameOf, viewerUid, filter, onFilter, open, onOpe
           : "Bütün dövrdə: bal = 60% vaxtında bitirmə + 40% sürət (qrupun cüz başına orta günü ilə müqayisə). 80%-dən yuxarı Güclü, 55–80% Orta, aşağı Zəif."}
       </p>
     </Card>
+  );
+}
+
+const MONTHS_AZ = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
+const MONTHS_SHORT_AZ = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
+
+// One member's juz, one month at a time: year and month buttons on top (default: this month), then the
+// juz that were being read in that month, per khatm. A juz counts for every month between the day it
+// was given and the day it was finished (or today, while still open).
+function JuzByMonth({ assignments, uid, today, finished }: {
+  assignments: Assignment[]; uid: string; today: string; finished: { khatm: number; juz: number; days: number; onTime: boolean }[];
+}) {
+  const mine = assignments.filter((a) => a.uid === uid);
+  const startOf = (a: Assignment) => a.startDate || bakuDay(a.createdAt);
+  const endOf = (a: Assignment) => (a.done && a.doneAt ? bakuDay(a.doneAt) : today);
+  const firstYear = Number((mine.map(startOf).sort()[0] || today).slice(0, 4));
+  const thisYear = Number(today.slice(0, 4));
+  const thisMonth = Number(today.slice(5, 7));
+  const [year, setYear] = useState(thisYear);
+  const [month, setMonth] = useState(thisMonth);
+  const years = Array.from({ length: thisYear - firstYear + 1 }, (_, i) => firstYear + i);
+
+  const key = `${year}-${String(month).padStart(2, "0")}`;
+  const from = `${key}-01`;
+  const to = `${key}-31`;
+  const inMonth = mine.filter((a) => startOf(a) <= to && endOf(a) >= from);
+  const khatms = Array.from(new Set(inMonth.map((a) => a.khatm))).sort((x, y) => x - y);
+  const pagesIn = (list: Assignment[]) => list.reduce((s, a) => s + Object.values(a.completedAt || {}).filter((iso) => bakuDay(iso).slice(0, 7) === key).length, 0);
+  const future = (y: number, m: number) => y > thisYear || (y === thisYear && m > thisMonth);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2.5 rounded-[16px] bg-cream p-3">
+        <div role="group" aria-label="İl" className="flex flex-wrap gap-1.5">
+          {years.map((y) => (
+            <button
+              key={y}
+              type="button"
+              aria-pressed={y === year}
+              onClick={() => { setYear(y); if (future(y, month)) setMonth(thisMonth); }}
+              className={`press min-h-[40px] px-4 rounded-[10px] text-[14px] font-extrabold tabular-nums ${y === year ? "bg-forest text-white" : "bg-white text-ink hover:bg-sand"}`}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+        <div role="group" aria-label="Ay" className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5">
+          {MONTHS_AZ.map((name, i) => {
+            const m = i + 1;
+            const disabled = future(year, m);
+            return (
+              <button
+                key={name}
+                type="button"
+                disabled={disabled}
+                aria-pressed={m === month}
+                onClick={() => setMonth(m)}
+                className={`press min-h-[40px] px-1 rounded-[10px] text-[13px] font-bold ${
+                  m === month ? "bg-forest text-white" : disabled ? "bg-track text-muted/60 cursor-not-allowed" : "bg-white text-ink hover:bg-sand"
+                }`}
+              >
+                <span aria-hidden="true">{MONTHS_SHORT_AZ[i]}</span>
+                <span className="sr-only">{name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="text-[14px] font-bold text-ink">
+        {MONTHS_AZ[month - 1]} {year}
+        <span className="ml-2 text-[13px] font-semibold text-muted">· {inMonth.filter((a) => a.done && a.doneAt && bakuDay(a.doneAt).slice(0, 7) === key).length} cüz bitib · {pagesIn(inMonth)} səhifə oxunub</span>
+      </div>
+
+      {khatms.length === 0 ? (
+        <p className="m-0 text-sm text-muted">Bu ayda oxunan cüz yoxdur.</p>
+      ) : khatms.map((k) => {
+        const list = inMonth.filter((a) => a.khatm === k).sort((x, y) => x.juz - y.juz);
+        return (
+          <div key={k} className="flex flex-col gap-2">
+            <div className="text-xs font-bold text-muted">{khatmLabel(k)} · {pagesIn(list)} səhifə bu ay</div>
+            <div className="flex flex-wrap gap-2">
+              {list.map((a) => {
+                // Finished in this month: green (or "late") with the days it took
+                if (a.done && a.doneAt && bakuDay(a.doneAt).slice(0, 7) === key) {
+                  const f = finished.find((x) => x.khatm === a.khatm && x.juz === a.juz);
+                  const late = f ? !f.onTime : false;
+                  return (
+                    <JuzBadge key={a.id} size="sm" juz={a.juz} state={late ? "late" : "done"} sub={f ? `${f.days} gün` : "Bitib"} title="Bu ay bitib" label={`Cüz ${a.juz}, bu ay ${f ? `${f.days} günə ` : ""}bitib${late ? ", gecikib" : ", vaxtında"}`} />
+                  );
+                }
+                // Still being read at the end of this month: pages read by then, and an arrow if it went on into the next month
+                const readBy = Object.values(a.completedAt || {}).filter((iso) => bakuDay(iso).slice(0, 7) <= key).length;
+                const carried = endOf(a).slice(0, 7) > key;
+                return (
+                  <JuzBadge
+                    key={a.id}
+                    size="sm"
+                    juz={a.juz}
+                    state={readBy > 0 ? "progress" : "assigned"}
+                    sub={`${readBy}/${a.pages.length}${carried ? " →" : ""}`}
+                    title={carried ? "Növbəti aya keçib" : "Davam edir"}
+                    label={`Cüz ${a.juz}, ay sonunadək ${readBy} / ${a.pages.length} səhifə${carried ? ", növbəti ayda davam edib" : ", davam edir"}`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -168,15 +168,75 @@ const TILE_STATE_TEXT: Record<JuzTile["state"], string> = {
   empty: "Hələ verilməyib",
 };
 
-const TILE_STYLE: Record<JuzTile["state"], string> = {
+// One juz card for the whole app: the octagon tile of the 30-juz map. "late" is a juz finished after
+// its end date; "locked" waits until the current juz is finished.
+export type JuzBadgeState = JuzTile["state"] | "late" | "locked";
+
+const TILE_STYLE: Record<JuzBadgeState, string> = {
   done: "bg-juzdone text-white",
   progress: "bg-juzprogress text-white",
   assigned: "bg-juzassigned text-progresstext",
   empty: "bg-track text-muted",
+  late: "bg-progress text-progresstext",
+  locked: "bg-sand text-muted",
 };
 
+export function JuzBadge({
+  juz, state, sub, size = "md", selected, onClick, label, title, delay,
+}: {
+  juz: number;
+  state: JuzBadgeState;
+  sub?: string;
+  size?: "md" | "sm";
+  // Set only for pickers (admin: choose a free juz); the tile then reports pressed / not pressed
+  selected?: boolean;
+  onClick?: () => void;
+  label?: string;
+  title?: string;
+  delay?: number;
+}) {
+  const box = size === "md"
+    ? "aspect-square min-h-[60px] md:min-h-[88px] p-2"
+    : "w-[68px] h-[68px] p-1.5";
+  const cls = `octagon juz-tile flex flex-col items-center justify-center gap-0.5 box-border text-center ${box} ${
+    selected ? "bg-forest text-white" : TILE_STYLE[state]
+  } ${onClick ? "press" : ""}`;
+  const body = (
+    <>
+      <span className={`${size === "md" ? "text-[11px]" : "text-[10px]"} font-semibold opacity-85`}>Cüz</span>
+      <span className={`font-extrabold leading-none ${size === "md" ? "text-xl md:text-[26px]" : "text-[19px]"}`}>{juz}</span>
+      {sub && <span className={`${size === "md" ? "text-[10px] md:text-xs" : "text-[10px]"} font-semibold leading-tight`}>{sub}</span>}
+    </>
+  );
+  const style = delay !== undefined ? { animationDelay: `${delay}ms` } : undefined;
+  return onClick ? (
+    <button type="button" onClick={onClick} aria-label={label} aria-pressed={selected} title={title} className={cls} style={style}>
+      {body}
+    </button>
+  ) : (
+    <div role="img" aria-label={label || `Cüz ${juz}${sub ? `, ${sub}` : ""}`} title={title} className={cls} style={style}>
+      {body}
+    </div>
+  );
+}
+
 // Tapping a juz opens a small card with who holds it, how far they are and the dates
-export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (uid: string) => string }) {
+// "Cüz 21–25" / "Cüz 3, 7, 12–14" for a list of juz numbers
+function juzRangesLabel(juzs: number[]): string {
+  const sorted = [...juzs].sort((a, b) => a - b);
+  const parts: string[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+    parts.push(i === j ? `${sorted[i]}` : `${sorted[i]}–${sorted[j]}`);
+    i = j;
+  }
+  return `Cüz ${parts.join(", ")}`;
+}
+
+// byDistribution: the tiles are split under one heading per distribution round ("5-ci bölgü · Cüz 21–25"),
+// juz not handed out yet come last
+export function JuzMap({ tiles, holderName, byDistribution = false }: { tiles: JuzTile[]; holderName?: (uid: string) => string; byDistribution?: boolean }) {
   const [open, setOpen] = useState<JuzTile | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -188,26 +248,45 @@ export function JuzMap({ tiles, holderName }: { tiles: JuzTile[]; holderName?: (
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
+  const rounds = Array.from(new Set(tiles.filter((t) => t.distribution !== null).map((t) => t.distribution as number))).sort((a, b) => a - b);
+  const groups: { key: string; title: string; note?: string; tiles: JuzTile[] }[] = rounds.map((d) => {
+    const list = tiles.filter((t) => t.distribution === d);
+    const first = list.find((t) => t.startDate && t.endDate);
+    return {
+      key: `d${d}`,
+      title: `${ordinalAz(d)} bölgü · ${juzRangesLabel(list.map((t) => t.juz))}`,
+      note: first ? `${formatIsoDateAz(first.startDate)} – ${formatIsoDateAz(first.endDate)}` : undefined,
+      tiles: list,
+    };
+  });
+  const free = tiles.filter((t) => t.distribution === null);
+  if (free.length > 0) groups.push({ key: "free", title: "Paylanmayıb", note: juzRangesLabel(free.map((t) => t.juz)), tiles: free });
+
   return (
     <>
-      <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-1.5 md:gap-2.5">
-        {tiles.map((j) => (
-          <button
-            key={j.juz}
-            type="button"
-            onClick={() => setOpen(j)}
-            aria-label={`Cüz ${j.juz}: ${TILE_STATE_TEXT[j.state]}${j.holderUid && holderName ? `, ${holderName(j.holderUid)}` : ""}`}
-            className={`press octagon juz-tile flex flex-col items-center justify-center gap-0.5 aspect-square min-h-[60px] md:min-h-[88px] box-border p-2 text-center ${TILE_STYLE[j.state]}`}
-            style={{ animationDelay: `${(j.juz - 1) * 22}ms` }}
-          >
-            <span className="text-[11px] font-semibold opacity-85">Cüz</span>
-            <span className="font-extrabold text-xl md:text-[26px] leading-none">{j.juz}</span>
-            <span className="text-[10px] md:text-xs font-semibold">
-              {j.state === "empty" ? "Boş" : `${j.completed} / ${j.total}`}
-            </span>
-          </button>
-        ))}
-      </div>
+      {(byDistribution ? groups : [{ key: "all", title: "", tiles }]).map((g) => (
+        <div key={g.key} className={byDistribution ? "flex flex-col gap-2.5 [&+&]:pt-4 [&+&]:border-t [&+&]:border-sand" : "contents"}>
+          {g.title && (
+            <div className="flex flex-wrap items-baseline gap-x-2 text-[14px] font-bold text-ink">
+              {g.title}
+              <span className="text-[13px] font-semibold text-muted">{g.note}</span>
+            </div>
+          )}
+          <div className="grid grid-cols-5 md:grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-1.5 md:gap-2.5">
+            {g.tiles.map((j) => (
+              <JuzBadge
+                key={j.juz}
+                juz={j.juz}
+                state={j.state}
+                sub={j.state === "empty" ? "Boş" : `${j.completed} / ${j.total}`}
+                onClick={() => setOpen(j)}
+                label={`Cüz ${j.juz}: ${TILE_STATE_TEXT[j.state]}${j.holderUid && holderName ? `, ${holderName(j.holderUid)}` : ""}`}
+                delay={(j.juz - 1) * 22}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
       {open && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-4" onClick={() => setOpen(null)}>
           <div
