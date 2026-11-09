@@ -144,13 +144,12 @@ export default function ProgressPage() {
   });
   const activities = Array.from(activityMap.values()).sort((a, b) => b.time - a.time).slice(0, 6);
 
-  const groupName = activeGroup?.name || "Qrup";
 
   return (
     <AppLayout activeTab="progress">
       <div className="flex flex-col gap-5 md:gap-7">
         <PageHeader
-          title={`Qrup · ${groupName}`}
+          title="Qrup"
           subtitle="Xətmlər, cüzlər və iştirakçıların oxuma gedişatı"
           tabs={[
             { id: "xulase", label: "Xülasə" },
@@ -190,7 +189,8 @@ export default function ProgressPage() {
         </div>
 
 
-        <div className="flex flex-wrap gap-5 md:gap-7 items-start">
+        {/* On the phone the row dissolves so "Son fəaliyyət" can move to the very bottom */}
+        <div className="contents md:flex flex-wrap gap-5 md:gap-7 items-start">
           <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-5 md:gap-7">
             <Card id="cuzler" className="scroll-mt-28">
               <div className="flex flex-col gap-1">
@@ -203,7 +203,7 @@ export default function ProgressPage() {
 
           </div>
 
-          <div className="flex-[1_1_300px] min-w-0 flex flex-col gap-5 md:gap-7">
+          <div className="order-last md:order-none flex-[1_1_300px] min-w-0 flex flex-col gap-5 md:gap-7">
             <Card id="fealiyyet" className="scroll-mt-28">
               <h2 className="m-0 text-base md:text-lg font-bold text-ink">Son fəaliyyət</h2>
               {activities.length === 0 ? (

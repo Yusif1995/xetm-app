@@ -39,6 +39,7 @@ export function MyOverview({ assignments, uid, current }: { assignments: Assignm
 
   return (
     <>
+      <div className="hidden md:block">
       <StatStrip
         items={[
           {
@@ -71,9 +72,14 @@ export function MyOverview({ assignments, uid, current }: { assignments: Assignm
           },
         ]}
       />
+      </div>
 
       <div className="grid md:grid-cols-[1fr_1.9fr] gap-5 md:gap-6">
-        <Panel id="gedis" title="Mənim cüzüm" action={current ? <span className="text-[13px] font-semibold text-muted">Cüz {current.juz} · {khatmLabel(current.khatm)}</span> : undefined}>
+        <Panel
+          id="gedis"
+          title="Mənim cüzüm"
+          sub={current?.startDate && current.endDate ? `${formatIsoDateAz(current.startDate)} – ${formatIsoDateAz(current.endDate)}` : undefined}
+          action={current ? <span className="text-[13px] font-semibold text-muted">Cüz {current.juz} · {khatmLabel(current.khatm)}</span> : undefined}>
           <Donut
             parts={[
               { label: "Oxunub", value: done, color: "#0F5C45" },

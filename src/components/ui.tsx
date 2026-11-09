@@ -210,7 +210,7 @@ export function PageHeader({
   return (
     <>
       <header className="md:hidden relative -mx-4 px-4 pt-3 pb-1 flex flex-col gap-1">
-        <div aria-hidden="true" className={`girih-tile-m absolute inset-x-0 -top-6 -z-10 pointer-events-none ${tight ? "-bottom-6" : "-bottom-[60px]"}`} />
+        <div aria-hidden="true" className={`girih-tile-m absolute inset-x-0 -top-[88px] -z-10 pointer-events-none ${tight ? "-bottom-6" : "-bottom-[60px]"}`} />
         <h1 className="m-0 font-display font-normal text-[27px] leading-[1.25] pb-0.5 text-white">{title}</h1>
         {subtitle && <div className="text-[13px] text-nightmuted">{subtitle}</div>}
         {actions && <div className="mt-2.5 flex flex-wrap items-center gap-2.5">{actions}</div>}

@@ -83,8 +83,8 @@ body {
   background-position: center, center -76px;
 }
 
-/* Phone header: the same artwork in a taller cut (calligraphy at the top). The top bar shows its
-   first 64px, the page band continues from there. */
+/* Phone header: the same artwork in a taller cut (calligraphy at the top). The page band starts at
+   the top of the screen behind the top bar; the top bar paints it only on screens without a band. */
 @media (max-width: 767.98px) {
   .night-nav-m,
   .girih-tile-m {
@@ -95,8 +95,11 @@ body {
     background-size: 100vw 320px, 100vw auto;
     background-repeat: no-repeat;
   }
-  .night-nav-m { background-position: center top, center top; }
-  .girih-tile-m { background-position: center -64px, center -64px; }
+  .night-nav-m,
+  .girih-tile-m { background-position: center top, center top; }
+  /* A screen with a band draws the whole picture itself, from the very top behind the transparent
+     top bar, so there is no seam between two backgrounds */
+  body:has(.girih-tile-m) .night-nav-m { background: transparent; }
 }
 
 /* Every bordered card is a borderless white panel, like the dashboard panels */

@@ -59,6 +59,7 @@ export default function AdminPage() {
   const closeThread = useCallback(() => setMessageTarget(null), []);
   // Settings panel (invite link, privacy, danger zone) opened from the gear button
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [requestsOpen, setRequestsOpen] = useState(false);
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
     if (window.location.search.includes("ayarlar")) window.history.replaceState(null, "", "/admin");
@@ -398,6 +399,20 @@ export default function AdminPage() {
   const pct = Math.round((totalUniqueCompleted / 604) * 100);
   const openJuzCount = assignments.filter((a) => !a.done).length;
 
+  // Join requests: one row per person with approve and reject
+  const requestRows = pendingGroupUsers.map((u) => (
+    <div key={u.uid} className="flex flex-wrap items-center justify-between gap-3 bg-white md:bg-white rounded-btn p-3 border border-line md:border-0">
+      <div className="flex items-center gap-3 min-w-0">
+        <Avatar name={nameOf(u)} gold />
+        <span className="text-[15px] font-bold truncate">{nameOf(u)}</span>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => handleApproveUser(u.uid)} className={button("primary", "sm")}>Təsdiq et</button>
+        <button onClick={() => handleRejectUser(u)} className={button("danger", "sm")}>Rədd et</button>
+      </div>
+    </div>
+  ));
+
   return (
     <AppLayout activeTab="admin">
       <div className="flex flex-col gap-5 md:gap-7">
@@ -422,6 +437,25 @@ export default function AdminPage() {
           </Card>
         ) : (
           <>
+          {/* Phone: two figures. Participants jumps to the list, requests open as a pop-up */}
+          <section aria-label="Xülasə" className="md:hidden grid grid-cols-2 bg-white rounded-[18px] shadow-panel">
+            <a href="#uzvler" className="press px-4 py-3.5 flex flex-col min-w-0">
+              <span className="text-[12px] font-bold text-muted">İştirakçılar</span>
+              <span className="mt-2 mb-1.5 text-[24px] font-extrabold leading-none tabular-nums text-ink">{activeGroupUsers.length}</span>
+              <span className="text-[11.5px] text-forest font-bold">Siyahıya bax</span>
+            </a>
+            <button
+              type="button"
+              onClick={() => setRequestsOpen(true)}
+              aria-haspopup="dialog"
+              className="press px-4 py-3.5 flex flex-col items-start min-w-0 text-left border-l border-line"
+            >
+              <span className="text-[12px] font-bold text-muted">Qoşulmaq istəyənlər</span>
+              <span className="mt-2 mb-1.5 text-[24px] font-extrabold leading-none tabular-nums text-ink">{pendingGroupUsers.length}</span>
+              <span className="text-[11.5px]">{pendingGroupUsers.length > 0 ? <Up tone="warn">Bax və təsdiq et</Up> : <span className="text-muted">Yeni istək yoxdur</span>}</span>
+            </button>
+          </section>
+          <div className="hidden md:block">
           <StatStrip
             items={[
               {
@@ -447,30 +481,20 @@ export default function AdminPage() {
               },
             ]}
           />
+          </div>
           <div className="flex flex-wrap gap-5 md:gap-7 items-start">
 
             {/* Left column */}
             <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-5 md:gap-7">
 
-              {/* Pending requests */}
+              {/* Pending requests (desktop; on the phone they open from the figure card) */}
               {pendingGroupUsers.length > 0 && (
-                <section id="istekler" className="scroll-mt-28 bg-progress rounded-card p-[18px] md:p-6 flex flex-col gap-3.5">
+                <section id="istekler" className="scroll-mt-28 hidden md:flex bg-progress rounded-card p-[18px] md:p-6 flex-col gap-3.5">
                   <div className="flex items-center gap-2.5">
                     <h2 className="m-0 text-base md:text-lg font-bold text-progresstext">Qoşulmaq istəyənlər</h2>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-white text-progresstext">{pendingGroupUsers.length}</span>
                   </div>
-                  {pendingGroupUsers.map((u) => (
-                    <div key={u.uid} className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-btn p-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Avatar name={nameOf(u)} gold />
-                        <span className="text-[15px] font-bold truncate">{nameOf(u)}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleApproveUser(u.uid)} className={button("primary", "sm")}>Təsdiq et</button>
-                        <button onClick={() => handleRejectUser(u)} className={button("danger", "sm")}>Rədd et</button>
-                      </div>
-                    </div>
-                  ))}
+                  {requestRows}
                 </section>
               )}
 
@@ -766,6 +790,30 @@ export default function AdminPage() {
         )}
       </div>
       {settingsOpen && <AdminSettingsPanel onClose={closeSettings} />}
+      {requestsOpen && (
+        <div className="fade-in fixed inset-0 z-[60] bg-[#0B1F33]/55 backdrop-blur-[2px] flex items-end md:items-center justify-center" onClick={() => setRequestsOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="istekler-title"
+            onClick={(e) => e.stopPropagation()}
+            className="rise-in md:pop-in w-full md:w-[520px] max-h-[80vh] overflow-y-auto bg-white rounded-t-[24px] md:rounded-[24px] p-5 pb-safe flex flex-col gap-3.5"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="istekler-title" className="m-0 text-[18px] font-extrabold text-ink">Qoşulmaq istəyənlər</h2>
+              <button
+                type="button"
+                onClick={() => setRequestsOpen(false)}
+                aria-label="Bağla"
+                className="press w-11 h-11 -mr-2 rounded-full grid place-items-center text-muted hover:bg-cream"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+              </button>
+            </div>
+            {pendingGroupUsers.length > 0 ? requestRows : <p className="m-0 text-[14px] text-muted">Yeni istək yoxdur.</p>}
+          </div>
+        </div>
+      )}
       {messageTarget && (
         <ThreadDialog
           groupId={activeGroupId}

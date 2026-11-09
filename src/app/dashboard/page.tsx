@@ -443,7 +443,7 @@ current && (
         <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
 
         <header className="relative -mx-4 md:mx-0 px-4 md:px-0 pt-3 md:pt-0 pb-1 flex flex-col gap-1 md:flex-row md:items-end md:justify-between md:gap-6 md:min-h-[112px]">
-          <div aria-hidden="true" className="girih-tile-m md:hidden absolute inset-x-0 -top-6 -bottom-[60px] -z-10 pointer-events-none" />
+          <div aria-hidden="true" className="girih-tile-m md:hidden absolute inset-x-0 -top-[88px] -bottom-[60px] -z-10 pointer-events-none" />
           <NightBand />
           {/* The greeting on the night artwork band, the date beneath it */}
           <div className="flex flex-col gap-1 md:gap-2 min-w-0">
