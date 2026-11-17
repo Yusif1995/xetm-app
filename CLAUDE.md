@@ -31,6 +31,13 @@ Next.js 15 (App Router) + React 19 + TypeScript + Tailwind 3, Firebase Auth (Goo
   after any change to `firestore.rules` or `src/lib/{db,khatm,analytics,privateData}.ts`. A Stop hook
   reminds you if rules or `db.ts` changed since the last passing run.
 
+## What's new
+
+- After an update members open the app to full-screen "Yeniliklər" slides, once per device
+  (`src/components/WhatsNew.tsx`). For every change members should hear about, add a release at
+  the top of `src/lib/releases.ts` (new `id`, Azerbaijani date, one slide per feature, an `art`
+  drawing) in the same commit.
+
 ## Deploy (read before shipping)
 
 - Render (service `xetm-app`) deploys `main` automatically on push. Use `/ship`.

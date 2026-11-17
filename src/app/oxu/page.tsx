@@ -14,7 +14,7 @@ import { khatmLabel, surahForPage } from "@/lib/quran";
 import { LINE_HEIGHT, LINE_TOP, PAGE_IMAGE, sajdahOnPage, type SajdahAyah } from "@/lib/sajdah";
 import { useGroupAssignments } from "@/lib/useGroupData";
 import { isAppOwner } from "@/lib/ownerApi";
-import { IconCheck, IconClose, LoadingScreen, btn, button } from "@/components/ui";
+import { IconClose, LoadingScreen } from "@/components/ui";
 import { AyahMenu, AyahSheet, AyahZones, MealList, PlayerBar } from "@/components/MealView";
 import { loadMealPage, useMealPage } from "@/lib/meal";
 import { tracksFor, useAyahPlayer } from "@/lib/ayahAudio";
@@ -268,43 +268,38 @@ function Reader() {
   const position = isDua ? `${page} / ${DUA_PAGES}` : mineOrHelp ? `${juzPages.indexOf(page) + 1} / ${juzPages.length}` : `${page} / ${TOTAL_PAGES}`;
   const finishedJuz30 = juzDone && held?.juz === 30;
 
+  // The big round button in the middle of the bottom toolbar: what this page asks for now
+  const midBase = "press w-[60px] h-[60px] rounded-full flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-extrabold -mt-6 shadow-[0_6px_16px_rgba(169,130,58,0.4)]";
+  const gold = `${midBase} bg-gold text-[#2b1f05]`;
+  const plain = `${midBase} bg-white text-forest border-2 border-leaflight`;
+  const iconCheck = <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>;
+  const iconHome = <svg aria-hidden="true" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z" /></svg>;
+  const iconNext = <svg aria-hidden="true" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>;
   let action;
   if (isDua) {
     action = next === null
-      ? <Link href="/dashboard" className={`${btn.gold} w-full`}>Amin · panelə qayıt</Link>
-      : <button type="button" onClick={() => go(next)} className={`${btn.gold} w-full`}>Davam et</button>;
+      ? <Link href="/dashboard" className={gold}>{iconCheck}Amin</Link>
+      : <button type="button" onClick={() => go(next)} className={gold}>{iconNext}Davam</button>;
   } else if (help) {
     action = isRead ? (
-      <button type="button" onClick={unmark} disabled={busy} className={`${button("outline", "lg")} w-full`}>
-        <IconCheck size={18} /> Oxunub · geri al
-      </button>
+      <button type="button" onClick={unmark} disabled={busy} aria-label="Oxunub, geri al" className={plain}>{iconCheck}Oxunub</button>
     ) : (
-      <button type="button" onClick={markRead} disabled={busy} className={`${btn.gold} w-full`}>
-        {busy ? "Qeyd edilir..." : `Oxudum · səhifə ${page}`}
-      </button>
+      <button type="button" onClick={markRead} disabled={busy} aria-label={`Oxudum, səhifə ${page}`} className={gold}>{iconCheck}{busy ? "..." : "Oxudum"}</button>
     );
   } else if (!held) {
-    action = <Link href="/dashboard" className={`${button("outline", "lg")} w-full`}>Panelə qayıt</Link>;
+    action = <Link href="/dashboard" className={plain}>{iconHome}Panel</Link>;
   } else if (juzDone) {
     action = finishedJuz30
-      ? <Link href="/oxu?dua=1" className={`${btn.gold} w-full`}>Xətm duasını oxu</Link>
-      : <Link href="/dashboard" className={`${btn.gold} w-full`}>Panelə qayıt</Link>;
+      ? <Link href="/oxu?dua=1" className={gold}>{iconCheck}Dua</Link>
+      : <Link href="/dashboard" className={gold}>{iconHome}Panel</Link>;
   } else if (friendReads) {
-    action = <div className={`${button("outline", "lg")} w-full pointer-events-none opacity-80`}>Bu səhifəni dostun oxuyur</div>;
+    action = <div className={`${plain} opacity-80`} aria-label="Bu səhifəni dostun oxuyur">{iconCheck}Dostun</div>;
   } else if (queued) {
-    action = <Link href="/readings" className={`${button("outline", "lg")} w-full`}>Bu cüz növbədədir</Link>;
+    action = <Link href="/readings" className={plain} aria-label="Bu cüz növbədədir">{iconHome}Növbədə</Link>;
   } else if (isRead) {
-    action = (
-      <button type="button" onClick={unmark} disabled={busy} className={`${button("outline", "lg")} w-full`}>
-        <IconCheck size={18} /> Oxunub · geri al
-      </button>
-    );
+    action = <button type="button" onClick={unmark} disabled={busy} aria-label="Oxunub, geri al" className={plain}>{iconCheck}Oxunub</button>;
   } else {
-    action = (
-      <button type="button" onClick={markRead} disabled={busy} className={`${btn.gold} w-full`}>
-        {busy ? "Qeyd edilir..." : `Oxudum · səhifə ${page}`}
-      </button>
-    );
+    action = <button type="button" onClick={markRead} disabled={busy} aria-label={`Oxudum, səhifə ${page}`} className={gold}>{iconCheck}{busy ? "..." : "Oxudum"}</button>;
   }
 
   const info = isDua
@@ -320,6 +315,7 @@ function Reader() {
     player.play(tracksFor(meal.data.ayahs));
     setChrome(false);
   };
+  const tool = "press min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-bold text-muted disabled:opacity-35";
   const bars = `transition-[transform,opacity] duration-200 motion-reduce:transition-none ${chrome ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none"}`;
 
   return (
@@ -335,7 +331,7 @@ function Reader() {
         onClick={onPageClick}
       >
         {showMeal ? (
-          <div className={`flex-1 transition-[padding] duration-200 motion-reduce:transition-none ${chrome ? "pt-[132px] pb-[120px]" : "pt-2 pb-6"}`}>
+          <div className={`flex-1 transition-[padding] duration-200 motion-reduce:transition-none ${chrome ? "pt-[76px] pb-[110px]" : "pt-2 pb-6"}`}>
             <MealList data={meal.data} failed={meal.failed} held={holding} selected={menu} playing={playingAyah} onHold={(s, a, x, y) => setMenu({ s, a, x, y, onMushaf: false })} />
           </div>
         ) : (<>
@@ -407,82 +403,69 @@ function Reader() {
         </div>
       )}
 
-      {/* Top bar */}
-      <header className={`absolute inset-x-0 top-0 flex flex-col gap-2.5 px-3 md:px-5 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-white/95 backdrop-blur border-b border-line shadow-card ${bars} ${chrome ? "" : "-translate-y-full"}`}>
-        <div className="flex items-center gap-3">
+      {/* Top bar: close, where we are, how far the juz is read */}
+      <header className={`absolute inset-x-0 top-0 flex items-center gap-2.5 px-3 md:px-5 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-[rgba(255,253,246,0.94)] backdrop-blur border-b border-[#EFE7D2] ${bars} ${chrome ? "" : "-translate-y-full"}`}>
         <Link
           href="/dashboard"
           aria-label="Bağla"
-          className="press w-11 h-11 shrink-0 rounded-full border border-line bg-white flex items-center justify-center hover:bg-sand"
+          className="press w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-ink hover:bg-sand"
         >
           <IconClose size={20} />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="m-0 font-display font-normal text-[18px] md:text-[20px] leading-tight truncate">{title}</h1>
-          <div className="text-xs text-muted truncate">{subtitle}</div>
+          <h1 className="m-0 text-[15px] font-extrabold leading-tight truncate">{title}</h1>
+          <div className="text-xs text-muted truncate">{subtitle}{isRead && <span className="text-donetext"> · oxunub ✓</span>}</div>
         </div>
-        {!isDua && meal.data && (
-          <button
-            type="button"
-            onClick={playPage}
-            className="press shrink-0 min-h-[40px] px-3.5 rounded-full bg-forest text-white text-[13px] font-extrabold inline-flex items-center gap-1.5"
+        {held && juzPages.length > 0 ? (
+          <div
+            role="img"
+            aria-label={`Cüzdə ${done.length} / ${juzPages.length} səhifə oxunub`}
+            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center"
+            style={{ background: `conic-gradient(#0F5C45 0 ${(done.length / juzPages.length) * 100}%, #E7E8E0 0 100%)` }}
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 4.5v15l12-7.5z" /></svg>
-            Dinlə
-          </button>
-        )}
-        <div className="shrink-0 text-right">
-          {(held || help) && (
-            <div className={`text-xs font-bold px-2.5 py-1 rounded-full ${isRead ? "bg-donebg text-donetext" : "bg-sand text-muted"}`}>
-              {isRead ? "Oxunub" : "Oxunmayıb"}
-            </div>
-          )}
-          <div className="text-[11px] text-muted mt-0.5 tabular-nums">{position}</div>
-        </div>
-        </div>
-        {!isDua && (
-          <div role="tablist" aria-label="Görünüş" className="grid grid-cols-2 gap-1 p-1 rounded-[14px] bg-sand w-full max-w-[420px] self-center">
-            {([["mushaf", "Mushaf"], ["meal", "Meal"]] as [View, string][]).map(([v, label]) => (
-              <button
-                key={v}
-                type="button"
-                role="tab"
-                aria-selected={view === v}
-                onClick={() => chooseView(v)}
-                className={`press min-h-[38px] rounded-[11px] text-[13.5px] ${view === v ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"}`}
-              >
-                {label}
-              </button>
-            ))}
+            <span className="w-[35px] h-[35px] rounded-full bg-[#FFFDF6] flex items-center justify-center text-[10px] font-extrabold tabular-nums">
+              {done.length}/{juzPages.length}
+            </span>
           </div>
-        )}
-        {held && (
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-track" aria-hidden="true">
-            <div className="h-full bg-leaf transition-[width] duration-500" style={{ width: `${(done.length / juzPages.length) * 100}%` }} />
-          </div>
+        ) : (
+          <div className="shrink-0 text-[11px] text-muted tabular-nums">{position}</div>
         )}
       </header>
 
-      {/* Bottom bar: next is on the left, as in the mushaf */}
-      <footer className={`absolute inset-x-0 bottom-0 bg-white/95 backdrop-blur border-t border-line shadow-bar px-3 md:px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] flex flex-col gap-2 ${bars} ${chrome ? "" : "translate-y-full"}`}>
-        {error && <p role="alert" className="m-0 text-[13px] font-semibold text-danger text-center">{error}</p>}
+      {/* Bottom toolbar: next is on the left, as in the mushaf; the page's main step in the middle */}
+      <footer className={`absolute inset-x-0 bottom-0 bg-[rgba(255,253,246,0.96)] backdrop-blur border-t border-[#EFE7D2] px-2 pt-2 pb-[max(10px,env(safe-area-inset-bottom))] flex flex-col gap-1.5 ${bars} ${chrome ? "" : "translate-y-full"}`}>
+        {error && <p role="alert" className="m-0 px-2 text-[13px] font-semibold text-danger text-center">{error}</p>}
         {sajdah && (
           <p className="m-0 text-[13px] font-bold text-goldtext text-center">
             <span aria-hidden="true" className="font-quran text-[17px]">۩</span> Səcdə ayəsi: {sajdah.surah}, {sajdah.ayah}
           </p>
         )}
         {juzDone && (
-          <p className="m-0 text-[14px] font-bold text-donetext text-center">
+          <p className="m-0 px-2 text-[14px] font-bold text-donetext text-center">
             {finishedJuz30 ? "Cüz 30 tamamlandı. Allah qəbul etsin. İndi xətm duasını oxuya bilərsən." : `Cüz ${held!.juz} tamamlandı. Allah qəbul etsin.`}
           </p>
         )}
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => go(next)} disabled={next === null} aria-label="Növbəti səhifə" className={`${button("outline", "lg")} shrink-0 px-4`}>
-            ‹ <span className="hidden sm:inline">Növbəti</span>
+        <div className="grid grid-cols-5 items-end max-w-[560px] w-full mx-auto">
+          <button type="button" onClick={() => go(next)} disabled={next === null} aria-label="Növbəti səhifə" className={tool}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
+            Növbəti
           </button>
-          <div className="flex-1 min-w-0">{action}</div>
-          <button type="button" onClick={() => go(prev)} disabled={prev === null} aria-label="Əvvəlki səhifə" className={`${button("outline", "lg")} shrink-0 px-4`}>
-            <span className="hidden sm:inline">Əvvəlki</span> ›
+          {isDua ? <span /> : (
+            <button type="button" onClick={() => chooseView(view === "meal" ? "mushaf" : "meal")} aria-pressed={view === "meal"} className={`${tool} ${view === "meal" ? "!text-forest" : ""}`}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20" /></svg>
+              Meal
+            </button>
+          )}
+          <div className="flex justify-center">{action}</div>
+          {isDua || !meal.data ? <span /> : (
+            <button type="button" onClick={playPage} className={`${tool} ${player.current ? "!text-forest" : ""}`}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M7 4.5v15l12-7.5z" /></svg>
+              Dinlə
+            </button>
+          )}
+          <button type="button" onClick={() => go(prev)} disabled={prev === null} aria-label="Əvvəlki səhifə" className={tool}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7" /></svg>
+            Əvvəlki
           </button>
         </div>
       </footer>

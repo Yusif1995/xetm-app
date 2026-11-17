@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { getGroupDoc, isUserApprovedInGroup, type UserDoc } from "@/lib/db";
 import OnboardingScreen from "./OnboardingScreen";
+import WhatsNew from "./WhatsNew";
 import { isPushSupported, registerPushSubscription, enablePushFromUserGesture } from "@/lib/push";
 import {
   IconToday,
@@ -152,6 +153,9 @@ export default function AppLayout({ children, activeTab }: AppLayoutProps) {
       </main>
 
       {canManageGroup && current === "admin" && <GeminiFab />}
+
+      {/* After an update: what changed, once per device */}
+      {isApproved && <WhatsNew />}
 
       {/* Tab bar (phone), docked to the bottom edge: icon over label, a mint pill behind the current one */}
       <div className="fixed-layer md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white rounded-t-[22px] shadow-[0_-6px_20px_-8px_rgba(24,34,53,0.22)] pb-safe">
