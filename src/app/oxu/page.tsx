@@ -74,6 +74,8 @@ function Reader() {
   useEffect(() => { setSheet(null); setMenu(null); stopPlayer(); }, [page, isDua, stopPlayer]);
   // The page is scrolled when it is wider than the screen is tall (sideways); a new page starts at its top
   const mainRef = useRef<HTMLElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [page, isDua]);
@@ -241,7 +243,21 @@ function Reader() {
     // Pages turn as in an Arabic book: pulling the page to the right goes forward
     go(dx > 0 ? next : prev);
   };
-  const onPageClick = () => {
+  const onPageClick = (e: React.MouseEvent) => {
+    // iPhone Safari can hand a tap on a bar to the scrolled page under it (seen sideways): when the
+    // tap lies on a visible bar, press the button there instead of hiding the bars
+    if (chrome) {
+      for (const bar of [headerRef.current, footerRef.current]) {
+        const r = bar?.getBoundingClientRect();
+        if (!bar || !r || e.clientY < r.top || e.clientY > r.bottom) continue;
+        const target = Array.from(bar.querySelectorAll<HTMLElement>("button, a")).find((el) => {
+          const b = el.getBoundingClientRect();
+          return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
+        });
+        if (target && !(target as HTMLButtonElement).disabled) target.click();
+        return;
+      }
+    }
     if (holding.current) {
       holding.current = false;
       return;
@@ -396,8 +412,9 @@ function Reader() {
         </div>
       )}
 
-      {/* Top bar: close, where we are, how far the juz is read */}
-      <header className={`absolute inset-x-0 top-0 flex items-center gap-2.5 px-3 md:px-5 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-[rgba(255,253,246,0.94)] backdrop-blur border-b border-[#EFE7D2] ${bars} ${chrome ? "" : "-translate-y-full"}`}>
+      {/* Top bar: close, where we are, how far the juz is read. Bars sit on their own layer (z-10):
+          sideways the page scrolls, and iPhone Safari otherwise gives taps on them to the page */}
+      <header ref={headerRef} className={`absolute z-10 inset-x-0 top-0 flex items-center gap-2.5 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-[rgba(255,253,246,0.94)] backdrop-blur border-b border-[#EFE7D2] ${bars} ${chrome ? "" : "-translate-y-full"}`}>
         <Link
           href="/dashboard"
           aria-label="Bağla"
@@ -426,7 +443,7 @@ function Reader() {
       </header>
 
       {/* Bottom toolbar: next is on the left, as in the mushaf; the page's main step in the middle */}
-      <footer className={`absolute inset-x-0 bottom-0 bg-[rgba(255,253,246,0.96)] backdrop-blur border-t border-[#EFE7D2] px-2 pt-2 pb-[max(10px,env(safe-area-inset-bottom))] flex flex-col gap-1.5 ${bars} ${chrome ? "" : "translate-y-full"}`}>
+      <footer ref={footerRef} className={`absolute z-10 inset-x-0 bottom-0 bg-[rgba(255,253,246,0.96)] backdrop-blur border-t border-[#EFE7D2] pl-[max(8px,env(safe-area-inset-left))] pr-[max(8px,env(safe-area-inset-right))] pt-2 pb-[max(10px,env(safe-area-inset-bottom))] flex flex-col gap-1.5 ${bars} ${chrome ? "" : "translate-y-full"}`}>
         {error && <p role="alert" className="m-0 px-2 text-[13px] font-semibold text-danger text-center">{error}</p>}
         {sajdah && (
           <p className="m-0 text-[13px] font-bold text-goldtext text-center">
