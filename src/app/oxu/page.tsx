@@ -76,6 +76,7 @@ function Reader() {
   const mainRef = useRef<HTMLElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
+  const barTouch = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [page, isDua]);
@@ -243,17 +244,44 @@ function Reader() {
     // Pages turn as in an Arabic book: pulling the page to the right goes forward
     go(dx > 0 ? next : prev);
   };
+  // iPhone Safari, sideways, can give a tap on a bar button to the scrolled page under it, which then
+  // hid the bars. So taps on a visible bar are handled here, by where the finger lifted, whichever
+  // element the phone handed the touch to: undefined = not on a bar, null = on a bar but no button
+  const barButtonAt = (x: number, y: number): HTMLElement | null | undefined => {
+    for (const bar of [headerRef.current, footerRef.current]) {
+      const r = bar?.getBoundingClientRect();
+      if (!bar || !r || x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      return Array.from(bar.querySelectorAll<HTMLElement>("button, a")).find((el) => {
+        const b = el.getBoundingClientRect();
+        return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom;
+      }) ?? null;
+    }
+    return undefined;
+  };
+  const onRootTouchStart = (e: React.TouchEvent) => {
+    barTouch.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+  };
+  const onRootTouchEnd = (e: React.TouchEvent) => {
+    const start = barTouch.current;
+    barTouch.current = null;
+    if (!chrome || !start || e.changedTouches.length !== 1) return;
+    const { clientX: x, clientY: y } = e.changedTouches[0];
+    if (Math.abs(x - start.x) > 10 || Math.abs(y - start.y) > 10) return;
+    const target = barButtonAt(x, y);
+    if (target === undefined) return;
+    // No click follows (so nothing toggles the bars); the button is pressed here instead
+    e.preventDefault();
+    e.stopPropagation();
+    if (target && !(target as HTMLButtonElement).disabled) target.click();
+    const swallow = (ev: MouseEvent) => { ev.stopPropagation(); ev.preventDefault(); };
+    document.addEventListener("click", swallow, true);
+    setTimeout(() => document.removeEventListener("click", swallow, true), 450);
+  };
   const onPageClick = (e: React.MouseEvent) => {
-    // iPhone Safari can hand a tap on a bar to the scrolled page under it (seen sideways): when the
-    // tap lies on a visible bar, press the button there instead of hiding the bars
+    // A mouse or stray click on a visible bar never hides the bars
     if (chrome) {
-      for (const bar of [headerRef.current, footerRef.current]) {
-        const r = bar?.getBoundingClientRect();
-        if (!bar || !r || e.clientY < r.top || e.clientY > r.bottom) continue;
-        const target = Array.from(bar.querySelectorAll<HTMLElement>("button, a")).find((el) => {
-          const b = el.getBoundingClientRect();
-          return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
-        });
+      const target = barButtonAt(e.clientX, e.clientY);
+      if (target !== undefined) {
         if (target && !(target as HTMLButtonElement).disabled) target.click();
         return;
       }
@@ -328,7 +356,7 @@ function Reader() {
   const bars = `transition-[transform,opacity] duration-200 motion-reduce:transition-none ${chrome ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none"}`;
 
   return (
-    <div className="fixed inset-0 bg-[#FFF7E5] text-ink select-none">
+    <div className="fixed inset-0 bg-[#FFF7E5] text-ink select-none" onTouchStartCapture={onRootTouchStart} onTouchEndCapture={onRootTouchEnd}>
       <div role="status" aria-live="polite" className="sr-only">{announce}</div>
 
       {/* The page, edge to edge; tap toggles the bars, swipe turns the page */}
