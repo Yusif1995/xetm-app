@@ -76,7 +76,10 @@ export async function POST(req: NextRequest) {
       "5. Cavablarında həmişə hörmətli, zərif, elmi və yardımsevər ton istifadə et." +
       ragContext;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    // gemini-2.5-flash is closed to new API keys; 3.1 Flash-Lite is on the free tier.
+    // GEMINI_MODEL on Render switches the model without a code change.
+    const model = /^[a-z0-9.-]{1,64}$/.test(process.env.GEMINI_MODEL || "") ? process.env.GEMINI_MODEL : "gemini-3.1-flash-lite";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: "POST",
