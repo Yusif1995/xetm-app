@@ -19,6 +19,8 @@ const nextConfig = {
       { source: "/:path*", headers: securityHeaders },
       // Mushaf page images never change, so phones keep them once a page has been opened
       { source: "/mushaf/:file*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+      // Meal files are fetched with ?v=MEAL_VERSION (src/lib/meal.ts): bump it when they are rebuilt
+      { source: "/meal/:file*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
     ];
   },
 };

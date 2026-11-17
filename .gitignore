@@ -50,3 +50,6 @@ firestore-debug.log
 *-firebase-adminsdk-*.json
 
 .superpowers/
+
+# Source PDF of the meal; the app serves the per-page files built from it (public/meal)
+/Suat*Meal*.pdf

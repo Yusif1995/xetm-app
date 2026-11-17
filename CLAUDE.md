@@ -65,6 +65,9 @@ Next.js 15 (App Router) + React 19 + TypeScript + Tailwind 3, Firebase Auth (Goo
 - Images have a one-year immutable cache: any re-export must bump `IMAGE_VERSION` in
   `src/app/oxu/page.tsx`.
 - Every juz is exactly 20 pages (juz 30 = 581-604); the owner chose this over Medina juz boundaries.
+- Meal view and hold-an-ayah sheet read `public/meal/{page}.json` (Suat Yıldırım meal + where each
+  ayah sits on the image). Page layout is the Turkish one, not Medina (page 3 = al-Baqara 17-24).
+  Built from the images: see `scripts/meal/README.md`. A re-export of the images must rebuild it.
 
 ## Never
 

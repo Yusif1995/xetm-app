@@ -15,6 +15,8 @@ import { LINE_HEIGHT, LINE_TOP, PAGE_IMAGE, sajdahOnPage, type SajdahAyah } from
 import { useGroupAssignments } from "@/lib/useGroupData";
 import { isAppOwner } from "@/lib/ownerApi";
 import { IconCheck, IconClose, LoadingScreen, btn, button } from "@/components/ui";
+import { AyahSheet, AyahZones, MealList } from "@/components/MealView";
+import { loadMealPage, useMealPage } from "@/lib/meal";
 
 const TOTAL_PAGES = 604;
 const DUA_PAGES = 3;
@@ -24,6 +26,13 @@ const SWIPE_PX = 50;
 const IMAGE_VERSION = 5;
 const imagesOf = (page: number, dua: boolean) =>
   (dua ? [`dua-${page}`] : page === 1 ? ["1", "1b"] : [String(page)]).map((n) => `/mushaf/${n}.webp?v=${IMAGE_VERSION}`);
+
+// Mushaf or meal: the reader's choice is kept for the next page and the next visit
+type View = "mushaf" | "meal";
+const VIEW_KEY = "xetm-oxu-view";
+const readView = (): View => {
+  try { return localStorage.getItem(VIEW_KEY) === "meal" ? "meal" : "mushaf"; } catch { return "mushaf"; }
+};
 
 const clampInt = (v: string | null, max: number) => {
   const n = Number(v);
@@ -50,11 +59,22 @@ function Reader() {
   const [chrome, setChrome] = useState(false);
   const touch = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
+  const [view, setView] = useState<View>("mushaf");
+  useEffect(() => { setView(readView()); }, []);
+  const chooseView = (v: View) => {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* private mode: the choice lasts this visit */ }
+  };
+  // Holding an ayah on the mushaf opens its meal; the click that ends the hold must not toggle the bars
+  const holding = useRef(false);
+  const [sheet, setSheet] = useState<{ s: number; a: number } | null>(null);
 
   const duaPage = clampInt(params.get("dua"), DUA_PAGES);
   const isDua = duaPage !== null;
   const page = isDua ? duaPage : clampInt(params.get("s"), TOTAL_PAGES) ?? 1;
   const sajdah = isDua ? null : sajdahOnPage(page);
+  const meal = useMealPage(isDua ? null : page);
+  useEffect(() => { setSheet(null); }, [page, isDua]);
   // The page is scrolled when it is wider than the screen is tall (sideways); a new page starts at its top
   const mainRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -115,6 +135,7 @@ function Reader() {
         const img = new Image();
         img.src = src;
       });
+      if (!isDua) loadMealPage(p).catch(() => { /* loaded again when the page opens */ });
     });
   }, [next, prev, isDua]);
 
@@ -224,6 +245,10 @@ function Reader() {
     go(dx > 0 ? next : prev);
   };
   const onPageClick = () => {
+    if (holding.current) {
+      holding.current = false;
+      return;
+    }
     if (swiped.current) {
       swiped.current = false;
       return;
@@ -281,6 +306,10 @@ function Reader() {
   const info = isDua
     ? `Xətm duası | ${page}. səhifə`
     : `${page}. səhifə | ${Math.min(30, Math.floor((page - 1) / 20) + 1)}. cüz | ${surahForPage(page)}`;
+  const showMeal = view === "meal" && !isDua;
+  // Ayah areas on the page image (page 1 is two panels and has none)
+  const zones = !isDua && page !== 1 && meal.data ? meal.data.ayahs : null;
+  const closeSheet = () => setSheet(null);
   const bars = `transition-[transform,opacity] duration-200 motion-reduce:transition-none ${chrome ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none"}`;
 
   return (
@@ -295,6 +324,11 @@ function Reader() {
         onTouchEnd={onTouchEnd}
         onClick={onPageClick}
       >
+        {showMeal ? (
+          <div className={`flex-1 transition-[padding] duration-200 motion-reduce:transition-none ${chrome ? "pt-[132px] pb-[120px]" : "pt-2 pb-6"}`}>
+            <MealList data={meal.data} failed={meal.failed} />
+          </div>
+        ) : (<>
         {/* Page 1 is two ornamented panels (al-Fatiha and the opening of al-Baqara): shown one under
             the other at full width and scrolled; every other page fits the screen upright, and with the
             phone or tablet turned sideways it fills the width and scrolls */}
@@ -308,12 +342,14 @@ function Reader() {
                 alt={isDua ? `Xətm duası, səhifə ${page}` : `Quran, səhifə ${page}`}
                 className={`block w-full object-contain ${!isDua && page === 1 ? "h-auto max-w-[560px]" : "h-full min-h-0 touch-land:h-auto touch-land:max-w-[900px]"}`}
                 draggable={false}
+                style={{ WebkitTouchCallout: "none" }}
               />
             );
-            return sajdah ? (
+            return sajdah || zones ? (
               <div key={src} className="relative w-full h-full min-h-0 touch-land:h-auto touch-land:max-w-[900px]">
                 {img}
-                <SajdahMark sajdah={sajdah} />
+                {sajdah && <SajdahMark sajdah={sajdah} />}
+                {zones && <AyahZones ayahs={zones} selected={sheet} held={holding} onHold={(s, a) => setSheet({ s, a })} />}
               </div>
             ) : img;
           })}
@@ -321,7 +357,10 @@ function Reader() {
         <div className="shrink-0 pt-1 text-center text-[12px] font-semibold text-muted tabular-nums">
           {info}{isRead && <span className="text-donetext"> · oxunub ✓</span>}
         </div>
+        </>)}
       </main>
+
+      {sheet && meal.data && <AyahSheet data={meal.data} s={sheet.s} a={sheet.a} onClose={closeSheet} />}
 
       {/* Ayah of prostration on this page: shown on arrival while the bars are hidden */}
       {sajdah && sajdahNotice && !chrome && (
@@ -348,7 +387,8 @@ function Reader() {
       )}
 
       {/* Top bar */}
-      <header className={`absolute inset-x-0 top-0 flex items-center gap-3 px-3 md:px-5 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-white/95 backdrop-blur border-b border-line shadow-card ${bars} ${chrome ? "" : "-translate-y-full"}`}>
+      <header className={`absolute inset-x-0 top-0 flex flex-col gap-2.5 px-3 md:px-5 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 bg-white/95 backdrop-blur border-b border-line shadow-card ${bars} ${chrome ? "" : "-translate-y-full"}`}>
+        <div className="flex items-center gap-3">
         <Link
           href="/dashboard"
           aria-label="Bağla"
@@ -368,6 +408,23 @@ function Reader() {
           )}
           <div className="text-[11px] text-muted mt-0.5 tabular-nums">{position}</div>
         </div>
+        </div>
+        {!isDua && (
+          <div role="tablist" aria-label="Görünüş" className="grid grid-cols-2 gap-1 p-1 rounded-[14px] bg-sand w-full max-w-[420px] self-center">
+            {([["mushaf", "Mushaf"], ["meal", "Meal"]] as [View, string][]).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => chooseView(v)}
+                className={`press min-h-[38px] rounded-[11px] text-[13.5px] ${view === v ? "bg-white text-forest font-extrabold shadow-card" : "text-muted font-bold"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {held && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-track" aria-hidden="true">
             <div className="h-full bg-leaf transition-[width] duration-500" style={{ width: `${(done.length / juzPages.length) * 100}%` }} />

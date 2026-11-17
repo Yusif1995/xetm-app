@@ -78,6 +78,11 @@ const SURAHS: [string, number][] = [
   ["Əl-Məsəd", 603], ["Əl-İxlas", 604], ["Əl-Fələq", 604], ["Ən-Nas", 604],
 ];
 
+// Surah name by its number (1..114)
+export function surahName(n: number): string {
+  return SURAHS[n - 1]?.[0] ?? "";
+}
+
 // Surah the page belongs to: the last surah that starts on or before it
 export function surahForPage(page: number): string {
   let name = SURAHS[0][0];
