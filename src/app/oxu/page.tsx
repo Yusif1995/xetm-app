@@ -80,6 +80,25 @@ function Reader() {
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [page, isDua]);
+  // Phone or tablet sideways: while the bars are up, the page ends where they begin instead of
+  // scrolling under them, so a tap on a bar button can never reach the page (iPhone handed such taps
+  // to the page, which hid the bars). Upright the page fits the screen and stays full size.
+  const [barSpace, setBarSpace] = useState({ top: 0, bottom: 0 });
+  useEffect(() => {
+    const sideways = window.matchMedia("(orientation: landscape) and (pointer: coarse)");
+    const measure = () => {
+      setBarSpace(chrome && sideways.matches
+        ? { top: headerRef.current?.offsetHeight ?? 0, bottom: footerRef.current?.offsetHeight ?? 0 }
+        : { top: 0, bottom: 0 });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (headerRef.current) ro.observe(headerRef.current);
+    if (footerRef.current) ro.observe(footerRef.current);
+    sideways.addEventListener("change", measure);
+    return () => { ro.disconnect(); sideways.removeEventListener("change", measure); };
+  }, [chrome]);
+  const barsBeside = barSpace.top + barSpace.bottom > 0;
   // Arriving on a page with an ayah of prostration shows a notice for a while
   const [sajdahNotice, setSajdahNotice] = useState(false);
 
@@ -363,12 +382,13 @@ function Reader() {
       <main
         ref={mainRef}
         className="absolute inset-0 overflow-y-auto overscroll-contain flex flex-col pt-[max(8px,env(safe-area-inset-top))] pb-[max(6px,env(safe-area-inset-bottom))]"
+        style={barsBeside ? { top: barSpace.top, bottom: barSpace.bottom, paddingTop: 8, paddingBottom: 6 } : undefined}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         onClick={onPageClick}
       >
         {showMeal ? (
-          <div className={`flex-1 transition-[padding] duration-200 motion-reduce:transition-none ${chrome ? "pt-[76px] pb-[110px]" : "pt-2 pb-6"}`}>
+          <div className={`flex-1 transition-[padding] duration-200 motion-reduce:transition-none ${chrome && !barsBeside ? "pt-[76px] pb-[110px]" : "pt-2 pb-6"}`}>
             <MealList data={meal.data} failed={meal.failed} held={holding} selected={menu} playing={playingAyah} onHold={(s, a, x, y) => setMenu({ s, a, x, y, onMushaf: false })} />
           </div>
         ) : (<>
