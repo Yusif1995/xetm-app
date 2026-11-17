@@ -5,74 +5,129 @@
 // localStorage, so the next release (a new id) shows again.
 import { useEffect, useRef, useState } from "react";
 import { RELEASES, type ReleaseArt } from "@/lib/releases";
+import { LINE_HEIGHT, LINE_TOP, PAGE_IMAGE } from "@/lib/sajdah";
+import "./whatsNew.css";
 
 const SEEN_KEY = "xetm-seen-release";
 
-function Lines({ n = 7 }: { n?: number }) {
+// Where ayahs 17-24 sit on page 3 (as in public/meal/3.json): [line, from, to]
+const PAGE3: [number, [number, number, number][]][] = [
+  [17, [[1, 0, 1], [2, 0.2, 1]]], [18, [[2, 0, 0.2], [3, 0.585, 1]]], [19, [[3, 0, 0.585], [4, 0, 1], [5, 0.353, 1]]],
+  [20, [[5, 0, 0.353], [6, 0, 1], [7, 0, 1], [8, 0.614, 1]]], [21, [[8, 0, 0.614], [9, 0.113, 1]]],
+  [22, [[9, 0, 0.113], [10, 0, 1], [11, 0, 1], [12, 0.686, 1]]], [23, [[12, 0, 0.686], [13, 0, 1], [14, 0.613, 1]]],
+  [24, [[14, 0, 0.613], [15, 0.011, 1]]],
+];
+
+function Zones({ lit }: { lit?: number }) {
+  const { width: W, height: H } = PAGE_IMAGE;
   return (
-    <div className="absolute inset-x-[12%] top-[10%] bottom-[26%] flex flex-col justify-between" aria-hidden="true">
-      {Array.from({ length: n }, (_, i) => <i key={i} className="block h-1.5 rounded-sm bg-[#3a2f1c] opacity-50" />)}
+    <div className="wn-zones">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+        {PAGE3.map(([a, parts]) => parts.map(([line, from, to], i) => (
+          <rect
+            key={`${a}-${i}`}
+            className={`wn-z${a}`}
+            x={from * W}
+            y={(LINE_TOP + (line - 1) * LINE_HEIGHT) * H}
+            width={(to - from) * W}
+            height={LINE_HEIGHT * H}
+            rx={10}
+            fill={lit === a ? "#E2B85C" : "transparent"}
+            fillOpacity={lit === a ? 0.42 : 1}
+          />
+        )))}
+      </svg>
     </div>
   );
 }
 
-// Simple drawings of each feature, in the reader's colours
+// A value that steps every `ms` through 0..n-1 while the slide is shown
+function useStep(n: number, ms: number) {
+  const [k, setK] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setK((v) => (v + 1) % n), ms);
+    return () => clearInterval(t);
+  }, [n, ms]);
+  return k;
+}
+
+const CheckSvg = () => (
+  <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+);
+
+function ListenArt() {
+  const k = useStep(8, 900);
+  const a = 17 + k;
+  return (
+    <div className="wn-mini">
+      <div className="wn-pg" />
+      <Zones lit={a} />
+      <div className="wn-player"><span className="pp" /><span>Ayə {a}</span><span className="tr"><i style={{ width: `${((k + 1) / 8) * 100}%` }} /></span></div>
+    </div>
+  );
+}
+
+function NextJuzArt() {
+  const k = useStep(21, 280);
+  const r = k / 20;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div
+        className="absolute left-1/2 top-1/2 aspect-square rounded-full -translate-x-1/2 -translate-y-1/2 transition-[width] duration-500"
+        style={{ width: `${r * 170}%`, background: "radial-gradient(circle, #2FBF71 0%, rgba(47,191,113,0.6) 45%, rgba(47,191,113,0) 72%)" }}
+      />
+      <div className="relative text-center text-[#073B22] transition-[opacity,filter] duration-500" style={{ opacity: r * r, filter: `blur(${((1 - r) * 5).toFixed(1)}px)` }}>
+        <div className="font-display text-[44px] leading-tight">Cüz 5</div>
+        <div className="text-[13px] font-bold">2-ci xətm · 20 səhifə</div>
+      </div>
+      <div className="absolute right-3.5 top-3.5 bg-white rounded-full px-3 py-0.5 text-[13px] font-extrabold tabular-nums">{Math.round(r * 100)}%</div>
+    </div>
+  );
+}
+
+// Each feature acted out on the real page, in the reader's colours
 function Art({ art }: { art: ReleaseArt }) {
   switch (art) {
     case "meal":
       return (
-        <div className="absolute inset-x-[10%] top-[12%] bottom-[18%] bg-white border border-[#EFE7D2] rounded-2xl p-[9%] flex flex-col gap-[5%]" aria-hidden="true">
-          {[1, 2, 3, 4].map((i) => <i key={i} className="block h-1.5 rounded-sm bg-ink opacity-45" />)}
-          <em className="block w-[38%] h-[18px] rounded-full bg-mint" />
-          {[5, 6].map((i) => <i key={i} className="block h-1.5 rounded-sm bg-ink opacity-45" />)}
+        <div className="wn-mini wn-meal" aria-hidden="true">
+          <div className="wn-pg" />
+          <div className="wn-cards">
+            <div className="wn-card"><span className="n">20</span><span>Şimşek nerdeyse gözlerini köreltecek. Önlerini aydınlattı mı ışığında yürürler...</span></div>
+            <div className="wn-card"><span className="n">21</span><span>Ey insanlar! Hem sizi, hem de sizden önceki insanları yaratan Rabbinize ibadet ediniz...<br /><em>Açıqlama ▾</em></span></div>
+            <div className="wn-card"><span className="n">22</span><span>O Rabbinize ki yeryüzünü size bir döşek, göğü de bir kubbe yaptı...<br /><em>Açıqlama ▾</em></span></div>
+          </div>
+          <div className="wn-chip"><span className="k1">Mushaf</span><span className="k2">Meal</span></div>
         </div>
       );
     case "listen":
-      return (
-        <>
-          <Lines />
-          <div className="absolute inset-x-[10%] top-[30%] h-[11%] rounded-md bg-[rgba(226,184,92,0.55)]" aria-hidden="true" />
-          <div className="absolute inset-x-[6%] bottom-[6%] h-[12%] rounded-xl bg-tile flex items-center gap-2 px-2.5" aria-hidden="true">
-            <span className="w-6 h-6 rounded-full bg-gold" />
-            <span className="flex-1 h-[5px] rounded bg-white/25 overflow-hidden"><i className="block h-full w-[45%] bg-gold" /></span>
-          </div>
-        </>
-      );
+      return <div aria-hidden="true"><ListenArt /></div>;
     case "hold":
       return (
-        <>
-          <Lines />
-          <div className="absolute inset-x-[10%] top-[38%] h-[11%] rounded-md bg-[rgba(47,191,113,0.3)]" aria-hidden="true" />
-          <div className="absolute left-1/2 top-[18%] -translate-x-1/2 bg-tile rounded-[10px] px-2 py-1.5 flex gap-1.5" aria-hidden="true">
-            <i className="block w-11 h-3.5 rounded bg-white/75" />
-            <i className="block w-11 h-3.5 rounded bg-white/75" />
-          </div>
-        </>
+        <div className="wn-mini wn-hold" aria-hidden="true">
+          <div className="wn-pg" />
+          <Zones />
+          <div className="wn-finger" />
+          <div className="wn-menu"><span>📖 Meal</span><span>▶ Dinlə</span></div>
+          <div className="wn-sheet"><b>Əl-Bəqərə · 21</b>Ey insanlar! Hem sizi, hem de sizden önceki insanları yaratan Rabbinize ibadet ediniz. Böyle yapmakla her türlü zarardan korunmayı ümid edebilirsiniz.</div>
+        </div>
       );
     case "toolbar":
       return (
-        <>
-          <Lines n={6} />
-          <div className="absolute inset-x-0 bottom-0 h-[20%] bg-[#FFFDF6] border-t border-[#EFE7D2] grid grid-cols-5 items-center" aria-hidden="true">
-            {[0, 1, 2, 3, 4].map((i) => i === 2
-              ? <span key={i} className="mx-auto -mt-8 w-12 h-12 rounded-full bg-gold shadow-[0_6px_16px_rgba(169,130,58,0.4)]" />
-              : <span key={i} className="mx-auto w-5 h-5 rounded-md bg-muted/40" />)}
-          </div>
-        </>
+        <div className="wn-mini" aria-hidden="true">
+          <div className="wn-pg" />
+          <div className="wn-tap" />
+          <div className="wn-tb-top">✕ <span>Cüz 1 · səhifə 3</span><span className="ring" /></div>
+          <div className="wn-tb-bot"><i /><i /><div className="wn-tb-mid"><CheckSvg /></div><i /><i /></div>
+        </div>
       );
     case "nextJuz":
-      return (
-        <>
-          <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 50%, #2FBF71 0%, rgba(47,191,113,0.55) 30%, rgba(47,191,113,0) 60%)" }} aria-hidden="true" />
-          <div className="absolute inset-0 flex items-center justify-center font-display text-[44px] text-[#073B22]" aria-hidden="true">Cüz 5</div>
-        </>
-      );
+      return <div aria-hidden="true"><NextJuzArt /></div>;
     case "sideways":
       return (
-        <div className="absolute inset-x-[10%] top-[26%] bottom-[26%] border-2 border-ink rounded-md bg-[#FFFDF6]" aria-hidden="true">
-          <div className="absolute inset-x-[8%] inset-y-[18%] flex flex-col justify-between">
-            {[1, 2, 3, 4, 5].map((i) => <i key={i} className="block h-1 rounded-sm bg-[#3a2f1c] opacity-50" />)}
-          </div>
+        <div className="wn-mini wn-side" aria-hidden="true">
+          <div className="wn-pg" />
         </div>
       );
   }
@@ -132,7 +187,7 @@ export default function WhatsNew() {
             if (dx > 40 && i > 0) setI(i - 1);
           }}
         >
-          <Art art={slide.art} />
+          <Art key={i} art={slide.art} />
         </div>
         <div className="px-6 pt-5 pb-2 min-h-[150px] flex flex-col gap-1.5" aria-live="polite">
           <h2 id="whats-new-title" className="m-0 font-display font-normal text-[26px] leading-tight">{slide.title}</h2>

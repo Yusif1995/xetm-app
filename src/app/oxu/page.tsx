@@ -28,12 +28,9 @@ const IMAGE_VERSION = 5;
 const imagesOf = (page: number, dua: boolean) =>
   (dua ? [`dua-${page}`] : page === 1 ? ["1", "1b"] : [String(page)]).map((n) => `/mushaf/${n}.webp?v=${IMAGE_VERSION}`);
 
-// Mushaf or meal: the reader's choice is kept for the next page and the next visit
+// Mushaf or meal: the reader always opens on the Arabic page; a switch to meal lasts while
+// turning pages in this visit
 type View = "mushaf" | "meal";
-const VIEW_KEY = "xetm-oxu-view";
-const readView = (): View => {
-  try { return localStorage.getItem(VIEW_KEY) === "meal" ? "meal" : "mushaf"; } catch { return "mushaf"; }
-};
 
 const clampInt = (v: string | null, max: number) => {
   const n = Number(v);
@@ -61,11 +58,7 @@ function Reader() {
   const touch = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
   const [view, setView] = useState<View>("mushaf");
-  useEffect(() => { setView(readView()); }, []);
-  const chooseView = (v: View) => {
-    setView(v);
-    try { localStorage.setItem(VIEW_KEY, v); } catch { /* private mode: the choice lasts this visit */ }
-  };
+  const chooseView = (v: View) => setView(v);
   // Holding an ayah on the mushaf opens its meal; the click that ends the hold must not toggle the bars
   const holding = useRef(false);
   const [sheet, setSheet] = useState<{ s: number; a: number } | null>(null);
@@ -451,9 +444,14 @@ function Reader() {
             Növbəti
           </button>
           {isDua ? <span /> : (
-            <button type="button" onClick={() => chooseView(view === "meal" ? "mushaf" : "meal")} aria-pressed={view === "meal"} className={`${tool} ${view === "meal" ? "!text-forest" : ""}`}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20" /></svg>
-              Meal
+            // Names the other view: "Meal" on the Arabic page, "Mushaf" on the meal
+            <button type="button" onClick={() => chooseView(view === "meal" ? "mushaf" : "meal")} className={tool}>
+              {view === "meal" ? (
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M12 6.5C10 5 7 4.5 3.5 5v13.5c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5zM12 6.5V20" /></svg>
+              ) : (
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20" /></svg>
+              )}
+              {view === "meal" ? "Mushaf" : "Meal"}
             </button>
           )}
           <div className="flex justify-center">{action}</div>

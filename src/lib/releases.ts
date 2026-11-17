@@ -18,7 +18,7 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
-    id: "2026-11-17",
+    id: "2026-11-17-anim",
     date: "17 noyabr",
     slides: [
       {
