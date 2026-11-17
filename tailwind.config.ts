@@ -53,6 +53,10 @@ const config: Config = {
         // Muted text on the night tile header band (desktop top navigation)
         nightmuted: "#9DBDAE",
       },
+      screens: {
+        // Phone or tablet turned sideways (a desktop window is landscape too, so touch only)
+        "touch-land": { raw: "(orientation: landscape) and (pointer: coarse)" },
+      },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         // Inscriptional capitals for page titles and big headings

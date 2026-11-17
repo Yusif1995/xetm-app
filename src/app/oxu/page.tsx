@@ -55,6 +55,11 @@ function Reader() {
   const isDua = duaPage !== null;
   const page = isDua ? duaPage : clampInt(params.get("s"), TOTAL_PAGES) ?? 1;
   const sajdah = isDua ? null : sajdahOnPage(page);
+  // The page is scrolled when it is wider than the screen is tall (sideways); a new page starts at its top
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [page, isDua]);
   // Arriving on a page with an ayah of prostration shows a notice for a while
   const [sajdahNotice, setSajdahNotice] = useState(false);
 
@@ -284,14 +289,16 @@ function Reader() {
 
       {/* The page, edge to edge; tap toggles the bars, swipe turns the page */}
       <main
+        ref={mainRef}
         className="absolute inset-0 overflow-y-auto overscroll-contain flex flex-col pt-[max(8px,env(safe-area-inset-top))] pb-[max(6px,env(safe-area-inset-bottom))]"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
         onClick={onPageClick}
       >
         {/* Page 1 is two ornamented panels (al-Fatiha and the opening of al-Baqara): shown one under
-            the other at full width and scrolled; every other page fits the screen */}
-        <div className={`flex flex-col items-center gap-4 px-1.5 ${!isDua && page === 1 ? "shrink-0" : "flex-1 min-h-0 justify-center"}`}>
+            the other at full width and scrolled; every other page fits the screen upright, and with the
+            phone or tablet turned sideways it fills the width and scrolls */}
+        <div className={`flex flex-col items-center gap-4 px-1.5 ${!isDua && page === 1 ? "shrink-0" : "flex-1 min-h-0 justify-center touch-land:flex-none touch-land:justify-start"}`}>
           {imagesOf(page, isDua).map((src) => {
             const img = (
               // eslint-disable-next-line @next/next/no-img-element
@@ -299,12 +306,12 @@ function Reader() {
                 key={src}
                 src={src}
                 alt={isDua ? `Xətm duası, səhifə ${page}` : `Quran, səhifə ${page}`}
-                className={`block w-full object-contain ${!isDua && page === 1 ? "h-auto max-w-[560px]" : "h-full min-h-0"}`}
+                className={`block w-full object-contain ${!isDua && page === 1 ? "h-auto max-w-[560px]" : "h-full min-h-0 touch-land:h-auto touch-land:max-w-[900px]"}`}
                 draggable={false}
               />
             );
             return sajdah ? (
-              <div key={src} className="relative w-full h-full min-h-0">
+              <div key={src} className="relative w-full h-full min-h-0 touch-land:h-auto touch-land:max-w-[900px]">
                 {img}
                 <SajdahMark sajdah={sajdah} />
               </div>

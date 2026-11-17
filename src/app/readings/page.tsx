@@ -158,26 +158,56 @@ export default function ReadingsPage() {
 
           {/* Right column */}
           <div className="flex-[1_1_320px] min-w-0 flex flex-col gap-5 md:gap-7">
-            {/* Queued juz (locked until the current one is finished) */}
-            {queued.length > 0 && (
-              <Card>
-                <h2 className="m-0 text-base md:text-lg font-bold text-ink">Növbədə olan cüzlər</h2>
-                <p className="m-0 text-sm text-muted">Cari cüzü bitirəndə növbəti cüz açılacaq.</p>
-                <div className="flex flex-wrap gap-2">
-                  {queued.map((a) => (
-                    <JuzBadge
-                      key={a.id}
-                      size="sm"
-                      juz={a.juz}
-                      state="locked"
-                      sub="Kilidli"
-                      label={`Cüz ${a.juz}, ${khatmLabel(a.khatm)}, kilidli`}
-                      title={a.startDate && a.endDate ? `${khatmLabel(a.khatm)} · ${formatIsoDateAz(a.startDate)} — ${formatIsoDateAz(a.endDate)}` : khatmLabel(a.khatm)}
+            {/* Queued juz: the next one is hidden and comes into view as the current juz is read */}
+            {queued.length > 0 && (() => {
+              const next = queued[0];
+              const later = queued.slice(1);
+              const ratio = pages.length ? counts.done / pages.length : 0;
+              const pct = Math.round(ratio * 100);
+              return (
+                <Card>
+                  <h2 className="m-0 text-base md:text-lg font-bold text-ink">Növbədə olan cüzlər</h2>
+                  <div className="relative h-[120px] rounded-2xl bg-sand overflow-hidden flex items-center justify-center">
+                    <span className="sr-only">{`Cüz ${next.juz}, ${khatmLabel(next.khatm)}: ${pct}% açılıb`}</span>
+                    <div
+                      aria-hidden="true"
+                      className="absolute left-1/2 top-1/2 aspect-square rounded-full -translate-x-1/2 -translate-y-1/2 transition-[width] duration-700 motion-reduce:transition-none"
+                      style={{ width: `${ratio * 170}%`, background: "radial-gradient(circle, #2FBF71 0%, rgba(47,191,113,0.6) 45%, rgba(47,191,113,0) 72%)" }}
                     />
-                  ))}
-                </div>
-              </Card>
-            )}
+                    <div
+                      aria-hidden="true"
+                      className="relative text-center text-[#073B22] transition-[opacity,filter] duration-700 motion-reduce:transition-none"
+                      style={{ opacity: ratio * ratio, filter: `blur(${((1 - ratio) * 5).toFixed(1)}px)` }}
+                    >
+                      <div className="font-display text-[28px] leading-tight">Cüz {next.juz}</div>
+                      <div className="text-[12.5px] font-bold">{khatmLabel(next.khatm)} · {next.pages.length} səhifə</div>
+                    </div>
+                    <div aria-hidden="true" className="absolute right-2.5 top-2.5 text-xs font-extrabold bg-white text-ink px-2.5 py-0.5 rounded-full tabular-nums">{pct}%</div>
+                  </div>
+                  <p className="m-0 text-sm text-muted">
+                    Cüz {current.juz}-də daha <span className="tabular-nums">{counts.pending}</span> səhifə qalıb. Bitirəndə Cüz {next.juz} açılacaq.
+                  </p>
+                  {later.length > 0 && (
+                    <div className="flex flex-col gap-2 pt-1">
+                      <div className="text-xs font-bold text-muted">Sonra</div>
+                      <div className="flex flex-wrap gap-2">
+                        {later.map((a) => (
+                          <JuzBadge
+                            key={a.id}
+                            size="sm"
+                            juz={a.juz}
+                            state="locked"
+                            sub="Kilidli"
+                            label={`Cüz ${a.juz}, ${khatmLabel(a.khatm)}, kilidli`}
+                            title={a.startDate && a.endDate ? `${khatmLabel(a.khatm)} · ${formatIsoDateAz(a.startDate)} — ${formatIsoDateAz(a.endDate)}` : khatmLabel(a.khatm)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })()}
 
             <FinishedList items={mine.juzDone} />
           </div>
