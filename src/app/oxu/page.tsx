@@ -15,8 +15,9 @@ import { LINE_HEIGHT, LINE_TOP, PAGE_IMAGE, sajdahOnPage, type SajdahAyah } from
 import { useGroupAssignments } from "@/lib/useGroupData";
 import { isAppOwner } from "@/lib/ownerApi";
 import { IconCheck, IconClose, LoadingScreen, btn, button } from "@/components/ui";
-import { AyahSheet, AyahZones, MealList } from "@/components/MealView";
+import { AyahMenu, AyahSheet, AyahZones, MealList, PlayerBar } from "@/components/MealView";
 import { loadMealPage, useMealPage } from "@/lib/meal";
+import { tracksFor, useAyahPlayer } from "@/lib/ayahAudio";
 
 const TOTAL_PAGES = 604;
 const DUA_PAGES = 3;
@@ -68,13 +69,16 @@ function Reader() {
   // Holding an ayah on the mushaf opens its meal; the click that ends the hold must not toggle the bars
   const holding = useRef(false);
   const [sheet, setSheet] = useState<{ s: number; a: number } | null>(null);
+  const [menu, setMenu] = useState<{ s: number; a: number; x: number; y: number; onMushaf: boolean } | null>(null);
+  const player = useAyahPlayer();
 
   const duaPage = clampInt(params.get("dua"), DUA_PAGES);
   const isDua = duaPage !== null;
   const page = isDua ? duaPage : clampInt(params.get("s"), TOTAL_PAGES) ?? 1;
   const sajdah = isDua ? null : sajdahOnPage(page);
   const meal = useMealPage(isDua ? null : page);
-  useEffect(() => { setSheet(null); }, [page, isDua]);
+  const stopPlayer = player.stop;
+  useEffect(() => { setSheet(null); setMenu(null); stopPlayer(); }, [page, isDua, stopPlayer]);
   // The page is scrolled when it is wider than the screen is tall (sideways); a new page starts at its top
   const mainRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -310,6 +314,12 @@ function Reader() {
   // Ayah areas on the page image (page 1 is two panels and has none)
   const zones = !isDua && page !== 1 && meal.data ? meal.data.ayahs : null;
   const closeSheet = () => setSheet(null);
+  const playingAyah = player.current && !player.current.basmala ? player.current : null;
+  const playPage = () => {
+    if (!meal.data) return;
+    player.play(tracksFor(meal.data.ayahs));
+    setChrome(false);
+  };
   const bars = `transition-[transform,opacity] duration-200 motion-reduce:transition-none ${chrome ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none"}`;
 
   return (
@@ -326,7 +336,7 @@ function Reader() {
       >
         {showMeal ? (
           <div className={`flex-1 transition-[padding] duration-200 motion-reduce:transition-none ${chrome ? "pt-[132px] pb-[120px]" : "pt-2 pb-6"}`}>
-            <MealList data={meal.data} failed={meal.failed} />
+            <MealList data={meal.data} failed={meal.failed} held={holding} selected={menu} playing={playingAyah} onHold={(s, a, x, y) => setMenu({ s, a, x, y, onMushaf: false })} />
           </div>
         ) : (<>
         {/* Page 1 is two ornamented panels (al-Fatiha and the opening of al-Baqara): shown one under
@@ -349,7 +359,7 @@ function Reader() {
               <div key={src} className="relative w-full h-full min-h-0 touch-land:h-auto touch-land:max-w-[900px]">
                 {img}
                 {sajdah && <SajdahMark sajdah={sajdah} />}
-                {zones && <AyahZones ayahs={zones} selected={sheet} held={holding} onHold={(s, a) => setSheet({ s, a })} />}
+                {zones && <AyahZones ayahs={zones} selected={menu || sheet} playing={playingAyah} held={holding} onHold={(s, a, x, y) => setMenu({ s, a, x, y, onMushaf: true })} />}
               </div>
             ) : img;
           })}
@@ -360,7 +370,18 @@ function Reader() {
         </>)}
       </main>
 
-      {sheet && meal.data && <AyahSheet data={meal.data} s={sheet.s} a={sheet.a} onClose={closeSheet} />}
+      {sheet && meal.data && (
+        <AyahSheet data={meal.data} s={sheet.s} a={sheet.a} onClose={closeSheet} onPlay={() => { player.play([sheet]); setSheet(null); }} />
+      )}
+      {menu && (
+        <AyahMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          onMeal={menu.onMushaf && meal.data ? () => { setSheet({ s: menu.s, a: menu.a }); setMenu(null); } : undefined}
+          onPlay={() => { player.play([{ s: menu.s, a: menu.a }]); setMenu(null); }}
+        />
+      )}
 
       {/* Ayah of prostration on this page: shown on arrival while the bars are hidden */}
       {sajdah && sajdahNotice && !chrome && (
@@ -400,6 +421,16 @@ function Reader() {
           <h1 className="m-0 font-display font-normal text-[18px] md:text-[20px] leading-tight truncate">{title}</h1>
           <div className="text-xs text-muted truncate">{subtitle}</div>
         </div>
+        {!isDua && meal.data && (
+          <button
+            type="button"
+            onClick={playPage}
+            className="press shrink-0 min-h-[40px] px-3.5 rounded-full bg-forest text-white text-[13px] font-extrabold inline-flex items-center gap-1.5"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 4.5v15l12-7.5z" /></svg>
+            Dinlə
+          </button>
+        )}
         <div className="shrink-0 text-right">
           {(held || help) && (
             <div className={`text-xs font-bold px-2.5 py-1 rounded-full ${isRead ? "bg-donebg text-donetext" : "bg-sand text-muted"}`}>
@@ -455,6 +486,8 @@ function Reader() {
           </button>
         </div>
       </footer>
+
+      <PlayerBar player={player} raised={chrome} />
 
     </div>
   );
