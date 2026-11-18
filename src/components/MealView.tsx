@@ -200,16 +200,21 @@ export function AyahMenu({
 }) {
   const first = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    first.current?.focus();
+    first.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    // The finger is still down when the menu opens; iPhone would carry on into selecting the
+    // word under it ("Meal") with its Copy / Translate bar, so any selection is dropped
+    const unselect = () => { const sel = document.getSelection(); if (sel && !sel.isCollapsed) sel.removeAllRanges(); };
+    unselect();
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener("selectionchange", unselect);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("selectionchange", unselect); };
   }, [onClose]);
   const left = typeof window === "undefined" ? x : Math.min(Math.max(x, 100), window.innerWidth - 100);
   const top = Math.max(y - 64, 70);
   const item = "press min-h-[44px] px-4 rounded-[10px] text-[14px] font-extrabold text-white inline-flex items-center gap-2 hover:bg-white/10";
   return (
-    <div className="absolute inset-0 z-20" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+    <div className="absolute inset-0 z-20 select-none [-webkit-touch-callout:none]" onContextMenu={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); onClose(); }}>
       <div
         role="menu"
         onClick={(e) => e.stopPropagation()}

@@ -58,6 +58,10 @@ function Reader() {
   const touch = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
   const [view, setView] = useState<View>("mushaf");
+  // TEMPORARY (owner only): a log of taps on the screen, to find why sideways taps on the bar
+  // buttons hide the bars on iPhone. Remove once found.
+  const [dbg, setDbg] = useState<string[]>([]);
+  const log = useCallback((line: string) => setDbg((d) => [...d.slice(-9), line]), []);
   const chooseView = (v: View) => setView(v);
   // Holding an ayah on the mushaf opens its meal; the click that ends the hold must not toggle the bars
   const holding = useRef(false);
@@ -99,6 +103,9 @@ function Reader() {
     return () => { ro.disconnect(); sideways.removeEventListener("change", measure); };
   }, [chrome]);
   const barsBeside = barSpace.top + barSpace.bottom > 0;
+  useEffect(() => { log(`mount ${window.innerWidth}x${window.innerHeight}`); }, [log]);
+  useEffect(() => { log(`chrome=${chrome}`); }, [chrome, log]);
+  useEffect(() => { log(`view=${view}`); }, [view, log]);
   // Arriving on a page with an ayah of prostration shows a notice for a while
   const [sajdahNotice, setSajdahNotice] = useState(false);
 
@@ -277,10 +284,18 @@ function Reader() {
     }
     return undefined;
   };
+  const describe = (t: EventTarget | null) => {
+    const el = t as HTMLElement | null;
+    if (!el || !el.tagName) return "?";
+    const zone = el.closest?.("header") ? "H" : el.closest?.("footer") ? "F" : el.closest?.("main") ? "M" : "-";
+    return `${zone}:${el.tagName.toLowerCase()}${el.textContent ? `"${el.textContent.trim().slice(0, 8)}"` : ""}`;
+  };
   const onRootTouchStart = (e: React.TouchEvent) => {
+    if (owner) log(`ts ${describe(e.target)} ${Math.round(e.touches[0]?.clientX ?? -1)},${Math.round(e.touches[0]?.clientY ?? -1)} fTop=${Math.round(footerRef.current?.getBoundingClientRect().top ?? -1)} h=${window.innerHeight}`);
     barTouch.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
   };
   const onRootTouchEnd = (e: React.TouchEvent) => {
+    if (owner) log(`te ${describe(e.target)} ${Math.round(e.changedTouches[0]?.clientX ?? -1)},${Math.round(e.changedTouches[0]?.clientY ?? -1)} chrome=${chrome}`);
     const start = barTouch.current;
     barTouch.current = null;
     if (!chrome || !start || e.changedTouches.length !== 1) return;
@@ -375,7 +390,7 @@ function Reader() {
   const bars = `transition-[transform,opacity] duration-200 motion-reduce:transition-none ${chrome ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none"}`;
 
   return (
-    <div className="fixed inset-0 bg-[#FFF7E5] text-ink select-none" onTouchStartCapture={onRootTouchStart} onTouchEndCapture={onRootTouchEnd}>
+    <div className="fixed inset-0 bg-[#FFF7E5] text-ink select-none [-webkit-touch-callout:none]" onTouchStartCapture={onRootTouchStart} onTouchEndCapture={onRootTouchEnd} onTouchCancelCapture={() => { if (owner) log("tcancel"); }} onClickCapture={(e) => { if (owner) log(`click ${describe(e.target)} ${Math.round(e.clientX)},${Math.round(e.clientY)}`); }}>
       <div role="status" aria-live="polite" className="sr-only">{announce}</div>
 
       {/* The page, edge to edge; tap toggles the bars, swipe turns the page */}
@@ -534,6 +549,10 @@ function Reader() {
       </footer>
 
       <PlayerBar player={player} raised={chrome} />
+
+      {owner && dbg.length > 0 && (
+        <pre className="fixed left-1 top-1 z-[200] pointer-events-none m-0 max-w-[70vw] whitespace-pre-wrap rounded bg-black/75 p-1.5 text-[9px] leading-tight text-white">{dbg.join(String.fromCharCode(10))}</pre>
+      )}
 
     </div>
   );
