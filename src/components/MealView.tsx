@@ -230,7 +230,27 @@ export function AyahMenu({
   const top = Math.max(y - 64, 70);
   const item = "press min-h-[44px] px-4 rounded-[10px] text-[14px] font-extrabold text-white inline-flex items-center gap-2 hover:bg-white/10";
   return (
-    <div className={`absolute inset-0 z-20 select-none [-webkit-touch-callout:none] ${armed ? "" : "pointer-events-none"}`} onContextMenu={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); onClose(); }}>
+    <div
+      className={`absolute inset-0 z-20 select-none [-webkit-touch-callout:none] ${armed ? "" : "pointer-events-none"}`}
+      onContextMenu={(e) => e.preventDefault()}
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
+      onTouchEnd={(e) => {
+        // iPhone, sideways, hit-tests the reader lower than it draws it (as for the toolbar), so a
+        // finger on the drawn Meal / Dinlə lands beside the button. A touch that missed every
+        // button is matched to the drawn one, shifted by how far the reader box runs off the screen
+        const t = e.changedTouches[0];
+        if (!t || (e.target as HTMLElement).closest("button")) return;
+        const off = e.currentTarget.getBoundingClientRect().bottom - window.innerHeight;
+        const hit = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button")).find((b) => {
+          const r = b.getBoundingClientRect();
+          const ly = t.clientY + off;
+          return t.clientX >= r.left && t.clientX <= r.right && ly >= r.top && ly <= r.bottom;
+        });
+        if (!hit) return;
+        e.preventDefault();
+        hit.click();
+      }}
+    >
       <div
         role="menu"
         onClick={(e) => e.stopPropagation()}
