@@ -290,3 +290,11 @@ input.date-input::-webkit-calendar-picker-indicator {
   opacity: 0;
   cursor: pointer;
 }
+
+/* Reader (/oxu): no text selection or callout anywhere, so a long hold on an ayah shows no loupe */
+.reader-lock,
+.reader-lock body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}

@@ -199,22 +199,38 @@ export function AyahMenu({
   onClose: () => void;
 }) {
   const first = useRef<HTMLButtonElement>(null);
+  // The finger is still down when the menu opens. Until it lifts the menu takes no touches, so
+  // iPhone cannot carry the hold on into the menu's words (loupe, Copy / Translate bar)
+  const [armed, setArmed] = useState(false);
   useEffect(() => {
-    first.current?.focus({ preventScroll: true });
+    // Keyboard and mouse users get focus on the first item; on a phone focusing it mid-hold
+    // invites the selection loupe
+    if (!window.matchMedia("(pointer: coarse)").matches) first.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    // The finger is still down when the menu opens; iPhone would carry on into selecting the
-    // word under it ("Meal") with its Copy / Translate bar, so any selection is dropped
     const unselect = () => { const sel = document.getSelection(); if (sel && !sel.isCollapsed) sel.removeAllRanges(); };
     unselect();
+    let armTimer: ReturnType<typeof setTimeout> | undefined;
+    const lifted = () => { armTimer = setTimeout(() => setArmed(true), 350); };
     document.addEventListener("keydown", onKey);
     document.addEventListener("selectionchange", unselect);
-    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("selectionchange", unselect); };
+    document.addEventListener("pointerup", lifted, { once: true });
+    document.addEventListener("touchend", lifted, { once: true });
+    // Opened from the keyboard or if the lift was missed
+    const fallback = setTimeout(() => setArmed(true), 1500);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("selectionchange", unselect);
+      document.removeEventListener("pointerup", lifted);
+      document.removeEventListener("touchend", lifted);
+      clearTimeout(armTimer);
+      clearTimeout(fallback);
+    };
   }, [onClose]);
   const left = typeof window === "undefined" ? x : Math.min(Math.max(x, 100), window.innerWidth - 100);
   const top = Math.max(y - 64, 70);
   const item = "press min-h-[44px] px-4 rounded-[10px] text-[14px] font-extrabold text-white inline-flex items-center gap-2 hover:bg-white/10";
   return (
-    <div className="absolute inset-0 z-20 select-none [-webkit-touch-callout:none]" onContextMenu={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); onClose(); }}>
+    <div className={`absolute inset-0 z-20 select-none [-webkit-touch-callout:none] ${armed ? "" : "pointer-events-none"}`} onContextMenu={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); onClose(); }}>
       <div
         role="menu"
         onClick={(e) => e.stopPropagation()}
@@ -309,6 +325,7 @@ export function PlayerBar({ player, raised }: { player: Player; raised: boolean 
     : t.basmala ? "Bəsmələ" : `${surahName(t.s)} · ayə ${t.a}`;
   return (
     <div
+      data-player
       onClick={(e) => e.stopPropagation()}
       className={`absolute inset-x-3 z-10 mx-auto max-w-[520px] flex items-center gap-3 rounded-2xl bg-tile text-white px-3 py-2.5 shadow-bar transition-[bottom] duration-200 motion-reduce:transition-none ${
         raised ? "bottom-[calc(max(10px,env(safe-area-inset-bottom))+88px)]" : "bottom-[max(12px,env(safe-area-inset-bottom))]"

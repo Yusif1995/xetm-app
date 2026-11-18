@@ -78,6 +78,7 @@ function Reader() {
   useEffect(() => { setSheet(null); setMenu(null); stopPlayer(); }, [page, isDua, stopPlayer]);
   // The page is scrolled when it is wider than the screen is tall (sideways); a new page starts at its top
   const mainRef = useRef<HTMLElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const barTouch = useRef<{ x: number; y: number } | null>(null);
@@ -103,6 +104,11 @@ function Reader() {
     return () => { ro.disconnect(); sideways.removeEventListener("change", measure); };
   }, [chrome]);
   const barsBeside = barSpace.top + barSpace.bottom > 0;
+  // iPhone shows its selection loupe on a long hold unless nothing up to <html> is selectable
+  useEffect(() => {
+    document.documentElement.classList.add("reader-lock");
+    return () => document.documentElement.classList.remove("reader-lock");
+  }, []);
   useEffect(() => { log(`mount ${window.innerWidth}x${window.innerHeight}`); }, [log]);
   useEffect(() => { log(`chrome=${chrome}`); }, [chrome, log]);
   useEffect(() => { log(`view=${view}`); }, [view, log]);
@@ -270,24 +276,29 @@ function Reader() {
     // Pages turn as in an Arabic book: pulling the page to the right goes forward
     go(dx > 0 ? next : prev);
   };
-  // iPhone, sideways: the bars are drawn flush with the screen edges, but the phone hit-tests the
-  // footer lower down (its layout box runs past the screen bottom), so a finger on the drawn Meal
-  // button lands on the page. Taps are read by where they sit on the drawn bar instead: a point in
-  // the bottom band (footer height) is moved onto the footer's layout box, the top band likewise.
-  // Where layout and drawing agree this changes nothing.
-  // undefined = not on a bar, null = on a bar but no button
+  // iPhone, sideways: the bars and the player are drawn flush with the screen edges, but the phone
+  // hit-tests the reader box lower down (it runs past the screen bottom), so a finger on the drawn
+  // Meal or pause button lands on the page. Taps are read by where they sit on the drawn controls:
+  // the point is moved by how far the reader box is off the screen. Where layout and drawing agree
+  // the shift is 0 and nothing changes.
+  // undefined = not on a bar or the player, null = on one but no button
   const barButtonAt = (x: number, y: number): HTMLElement | null | undefined => {
-    const vh = window.innerHeight;
-    for (const [bar, bottom] of [[headerRef.current, false], [footerRef.current, true]] as const) {
-      if (!bar) continue;
-      const r = bar.getBoundingClientRect();
-      const inBand = bottom ? y >= vh - r.height : y <= r.height;
-      if (!inBand || x < r.left || x > r.right) continue;
-      const ly = bottom ? r.bottom - (vh - y) : r.top + y;
-      return Array.from(bar.querySelectorAll<HTMLElement>("button, a")).find((el) => {
-        const b = el.getBoundingClientRect();
-        return x >= b.left && x <= b.right && ly >= b.top && ly <= b.bottom;
-      }) ?? null;
+    const root = rootRef.current?.getBoundingClientRect();
+    const fromTop = y + (root?.top ?? 0);
+    const fromBottom = y + (root ? root.bottom - window.innerHeight : 0);
+    const player = rootRef.current?.querySelector<HTMLElement>("[data-player]") ?? null;
+    const zones: [HTMLElement | null, number][] = [
+      [chrome ? headerRef.current : null, fromTop],
+      [chrome ? footerRef.current : null, fromBottom],
+      [player, fromBottom],
+    ];
+    const inside = (el: HTMLElement, ly: number) => {
+      const b = el.getBoundingClientRect();
+      return x >= b.left && x <= b.right && ly >= b.top && ly <= b.bottom;
+    };
+    for (const [zone, ly] of zones) {
+      if (!zone || !inside(zone, ly)) continue;
+      return Array.from(zone.querySelectorAll<HTMLElement>("button, a")).find((el) => inside(el, ly)) ?? null;
     }
     return undefined;
   };
@@ -305,7 +316,9 @@ function Reader() {
     if (owner) log(`te ${describe(e.target)} ${Math.round(e.changedTouches[0]?.clientX ?? -1)},${Math.round(e.changedTouches[0]?.clientY ?? -1)} chrome=${chrome} bar=${(() => { const t = barButtonAt(e.changedTouches[0]?.clientX ?? 0, e.changedTouches[0]?.clientY ?? 0); return t === undefined ? "-" : t === null ? "none" : describe(t); })()}`);
     const start = barTouch.current;
     barTouch.current = null;
-    if (!chrome || !start || e.changedTouches.length !== 1) return;
+    if (!start || e.changedTouches.length !== 1) return;
+    // Only touches the phone gave to the page or the controls; an open sheet or menu keeps its own
+    if (!(e.target as HTMLElement).closest?.("main, header, footer, [data-player]")) return;
     const { clientX: x, clientY: y } = e.changedTouches[0];
     if (Math.abs(x - start.x) > 10 || Math.abs(y - start.y) > 10) return;
     const target = barButtonAt(x, y);
@@ -319,8 +332,8 @@ function Reader() {
     setTimeout(() => document.removeEventListener("click", swallow, true), 450);
   };
   const onPageClick = (e: React.MouseEvent) => {
-    // A mouse or stray click on a visible bar never hides the bars
-    if (chrome) {
+    // A mouse or stray click on a visible bar or the player never hides the bars
+    {
       const target = barButtonAt(e.clientX, e.clientY);
       if (target !== undefined) {
         if (target && !(target as HTMLButtonElement).disabled) target.click();
@@ -397,7 +410,7 @@ function Reader() {
   const bars = `transition-[transform,opacity] duration-200 motion-reduce:transition-none ${chrome ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none"}`;
 
   return (
-    <div className="fixed inset-0 bg-[#FFF7E5] text-ink select-none [-webkit-touch-callout:none]" onTouchStartCapture={onRootTouchStart} onTouchEndCapture={onRootTouchEnd} onTouchCancelCapture={() => { if (owner) log("tcancel"); }} onClickCapture={(e) => { if (owner) log(`click ${describe(e.target)} ${Math.round(e.clientX)},${Math.round(e.clientY)}`); }}>
+    <div ref={rootRef} className="fixed inset-0 bg-[#FFF7E5] text-ink select-none [-webkit-touch-callout:none]" onTouchStartCapture={onRootTouchStart} onTouchEndCapture={onRootTouchEnd} onTouchCancelCapture={() => { if (owner) log("tcancel"); }} onClickCapture={(e) => { if (owner) log(`click ${describe(e.target)} ${Math.round(e.clientX)},${Math.round(e.clientY)}`); }}>
       <div role="status" aria-live="polite" className="sr-only">{announce}</div>
 
       {/* The page, edge to edge; tap toggles the bars, swipe turns the page */}
