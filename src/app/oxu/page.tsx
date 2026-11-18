@@ -270,16 +270,23 @@ function Reader() {
     // Pages turn as in an Arabic book: pulling the page to the right goes forward
     go(dx > 0 ? next : prev);
   };
-  // iPhone Safari, sideways, can give a tap on a bar button to the scrolled page under it, which then
-  // hid the bars. So taps on a visible bar are handled here, by where the finger lifted, whichever
-  // element the phone handed the touch to: undefined = not on a bar, null = on a bar but no button
+  // iPhone, sideways: the bars are drawn flush with the screen edges, but the phone hit-tests the
+  // footer lower down (its layout box runs past the screen bottom), so a finger on the drawn Meal
+  // button lands on the page. Taps are read by where they sit on the drawn bar instead: a point in
+  // the bottom band (footer height) is moved onto the footer's layout box, the top band likewise.
+  // Where layout and drawing agree this changes nothing.
+  // undefined = not on a bar, null = on a bar but no button
   const barButtonAt = (x: number, y: number): HTMLElement | null | undefined => {
-    for (const bar of [headerRef.current, footerRef.current]) {
-      const r = bar?.getBoundingClientRect();
-      if (!bar || !r || x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+    const vh = window.innerHeight;
+    for (const [bar, bottom] of [[headerRef.current, false], [footerRef.current, true]] as const) {
+      if (!bar) continue;
+      const r = bar.getBoundingClientRect();
+      const inBand = bottom ? y >= vh - r.height : y <= r.height;
+      if (!inBand || x < r.left || x > r.right) continue;
+      const ly = bottom ? r.bottom - (vh - y) : r.top + y;
       return Array.from(bar.querySelectorAll<HTMLElement>("button, a")).find((el) => {
         const b = el.getBoundingClientRect();
-        return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom;
+        return x >= b.left && x <= b.right && ly >= b.top && ly <= b.bottom;
       }) ?? null;
     }
     return undefined;
@@ -291,11 +298,11 @@ function Reader() {
     return `${zone}:${el.tagName.toLowerCase()}${el.textContent ? `"${el.textContent.trim().slice(0, 8)}"` : ""}`;
   };
   const onRootTouchStart = (e: React.TouchEvent) => {
-    if (owner) log(`ts ${describe(e.target)} ${Math.round(e.touches[0]?.clientX ?? -1)},${Math.round(e.touches[0]?.clientY ?? -1)} fTop=${Math.round(footerRef.current?.getBoundingClientRect().top ?? -1)} h=${window.innerHeight}`);
+    if (owner) log(`ts ${describe(e.target)} ${Math.round(e.touches[0]?.clientX ?? -1)},${Math.round(e.touches[0]?.clientY ?? -1)} f=${Math.round(footerRef.current?.getBoundingClientRect().top ?? -1)}+${footerRef.current?.offsetHeight ?? -1} h=${window.innerHeight} sy=${Math.round(window.scrollY)} vv=${Math.round(window.visualViewport?.offsetTop ?? -1)}/${Math.round(window.visualViewport?.height ?? -1)} ch=${document.documentElement.clientHeight}`);
     barTouch.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
   };
   const onRootTouchEnd = (e: React.TouchEvent) => {
-    if (owner) log(`te ${describe(e.target)} ${Math.round(e.changedTouches[0]?.clientX ?? -1)},${Math.round(e.changedTouches[0]?.clientY ?? -1)} chrome=${chrome}`);
+    if (owner) log(`te ${describe(e.target)} ${Math.round(e.changedTouches[0]?.clientX ?? -1)},${Math.round(e.changedTouches[0]?.clientY ?? -1)} chrome=${chrome} bar=${(() => { const t = barButtonAt(e.changedTouches[0]?.clientX ?? 0, e.changedTouches[0]?.clientY ?? 0); return t === undefined ? "-" : t === null ? "none" : describe(t); })()}`);
     const start = barTouch.current;
     barTouch.current = null;
     if (!chrome || !start || e.changedTouches.length !== 1) return;
